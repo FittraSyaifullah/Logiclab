@@ -4,7 +4,6 @@ We are building an AI-powered product creation platform that allows non-technica
 The product integrates multiple APIs:
 adamcad for 3D modeling
 
-p
 
 
 Perplexity/SONAR for decision-making and business analysis reports
