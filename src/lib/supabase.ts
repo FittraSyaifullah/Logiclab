@@ -12,7 +12,7 @@ export interface User {
   display_name?: string
   email?: string
   created_at: string
-  metadata?: Record<string, any>
+  metadata?: Record<string, unknown>
 }
 
 export interface Project {
@@ -22,7 +22,7 @@ export interface Project {
   name: string
   description?: string
   type: string
-  settings?: Record<string, any>
+  settings?: Record<string, unknown>
   created_at: string
   updated_at: string
   chatID?: string
@@ -37,7 +37,7 @@ export interface Software {
   project_id: string
   title: string
   repo_url?: string
-  manifest?: Record<string, any>
+  manifest?: Record<string, unknown>
   created_at: string
   web_url?: string
   api_Url?: string
@@ -62,8 +62,8 @@ export interface Job {
   kind: string
   status: string
   priority: number
-  input?: Record<string, any>
-  result?: Record<string, any>
+  input?: Record<string, unknown>
+  result?: Record<string, unknown>
   tokens_consumed: number
   error?: string
   created_at: string

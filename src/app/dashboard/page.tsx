@@ -6,8 +6,6 @@ import Link from 'next/link'
 import { ProtectedRoute } from '@/components/ProtectedRoute'
 import { useAuth } from '@/contexts/AuthContext'
 import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 
 export default function DashboardPage() {
@@ -21,7 +19,7 @@ export default function DashboardPage() {
   return (
     <ProtectedRoute>
       <div className="bg-neutral-50 dark:bg-neutral-900 min-h-screen">
-      <div className="group/sidebar-wrapper flex min-h-svh w-full" style={{'--sidebar-width': '16rem', '--sidebar-width-icon': '3rem'}}>
+      <div className="group/sidebar-wrapper flex min-h-svh w-full" style={{'--sidebar-width': '16rem', '--sidebar-width-icon': '3rem'} as React.CSSProperties}>
         <div className="flex h-screen w-full overflow-hidden bg-gradient-to-br from-slate-50 via-blue-50/30 to-indigo-100/40 dark:from-slate-950 dark:via-slate-900 dark:to-indigo-950/20 pt-16">
           
           {/* Sidebar */}
