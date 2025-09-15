@@ -17,7 +17,7 @@ export default function SignUpPage() {
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState('')
   const [success, setSuccess] = useState(false)
-  const { signUp, signInWithGoogle } = useAuth()
+  const { signInWithGoogle } = useAuth()
   const router = useRouter()
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -31,19 +31,35 @@ export default function SignUpPage() {
       return
     }
 
-    const fullName = `${firstName} ${lastName}`.trim()
-    const { error } = await signUp(email, password, fullName)
-    
-    if (error) {
-      setError(error)
-    } else {
-      setSuccess(true)
-      setTimeout(() => {
-        router.push('/dashboard')
-      }, 2000)
+    try {
+      const response = await fetch('/api/auth/signup', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          email,
+          password,
+          firstName,
+          lastName,
+        }),
+      })
+
+      const data = await response.json()
+
+      if (data.success) {
+        setSuccess(true)
+        setTimeout(() => {
+          router.push('/dashboard')
+        }, 2000)
+      } else {
+        setError(data.error || 'Signup failed')
+      }
+    } catch (error) {
+      setError('An unexpected error occurred')
+    } finally {
+      setIsLoading(false)
     }
-    
-    setIsLoading(false)
   }
 
   const handleGoogleSignIn = async () => {

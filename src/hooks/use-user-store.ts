@@ -1,18 +1,6 @@
 import { create } from 'zustand'
-
-interface User {
-  id: string
-  email: string
-  firstName?: string
-  lastName?: string
-  fullName?: string
-}
-
-interface Project {
-  id: string
-  name: string
-  description?: string
-}
+import { persist } from 'zustand/middleware'
+import type { User, Project } from '@/lib/types'
 
 interface UserStore {
   user: User | null
@@ -23,11 +11,19 @@ interface UserStore {
   clearUser: () => void
 }
 
-export const useUserStore = create<UserStore>((set) => ({
-  user: null,
-  project: null,
-  setUser: (user) => set({ user }),
-  setProject: (project) => set({ project }),
-  setUserAndProject: (user, project) => set({ user, project }),
-  clearUser: () => set({ user: null, project: null }),
-}))
+export const useUserStore = create<UserStore>()(
+  persist(
+    (set) => ({
+      user: null,
+      project: null,
+      setUser: (user) => set({ user }),
+      setProject: (project) => set({ project }),
+      setUserAndProject: (user, project) => set({ user, project }),
+      clearUser: () => set({ user: null, project: null }),
+    }),
+    {
+      name: 'user-store',
+      partialize: (state) => ({ user: state.user, project: state.project })
+    }
+  )
+)
