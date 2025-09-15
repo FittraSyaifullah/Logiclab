@@ -48,6 +48,16 @@ export default function SignUpPage() {
       const data = await response.json()
 
       if (data.success) {
+        // Store session in localStorage on client side
+        const sessionData = {
+          userId: data.user.id,
+          email: data.user.email,
+          displayName: data.user.display_name,
+          expiresAt: Date.now() + 7 * 24 * 60 * 60 * 1000, // 7 days
+        }
+        
+        localStorage.setItem('session', JSON.stringify(sessionData))
+        
         setSuccess(true)
         setTimeout(() => {
           router.push('/dashboard')

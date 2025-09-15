@@ -30,13 +30,11 @@ export async function POST(request: NextRequest) {
     }
 
     if (authData.user && authData.session) {
-      // Update the user record with display_name
+      // Update the user record with display_name (only if columns exist)
       const { error: updateError } = await supabase
         .from('users')
         .update({
           display_name: `${firstName} ${lastName}`,
-          first_name: firstName,
-          last_name: lastName,
         })
         .eq('id', authData.user.id)
 
@@ -64,7 +62,7 @@ export async function POST(request: NextRequest) {
         expiresAt: Date.now() + 7 * 24 * 60 * 60 * 1000, // 7 days
       }
 
-      await createSession(sessionData)
+      // Session will be created on client side
 
       try {
         const v0Result = await createV0Project({
@@ -95,8 +93,6 @@ export async function POST(request: NextRequest) {
           .from('users')
           .update({
             display_name: `${firstName} ${lastName}`,
-            first_name: firstName,
-            last_name: lastName,
           })
           .eq('id', authData.user.id)
 

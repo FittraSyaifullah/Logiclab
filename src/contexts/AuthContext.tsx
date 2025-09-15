@@ -1,8 +1,15 @@
 'use client'
 
 import { createContext, useContext, useEffect, useState } from 'react'
-import { User } from '@supabase/supabase-js'
-import { supabase } from '@/lib/supabase'
+import { getSession, destroySession } from '@/lib/auth-service'
+
+interface User {
+  id: string
+  email: string
+  display_name: string
+  metadata?: Record<string, unknown>
+  created_at?: string
+}
 
 interface AuthContextType {
   user: User | null
@@ -20,45 +27,62 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    // Get initial session
+    // Get initial session from custom session management
     const getInitialSession = async () => {
-      const { data: { session } } = await supabase.auth.getSession()
-      setUser(session?.user ?? null)
+      const session = await getSession()
+      if (session) {
+        setUser({
+          id: session.userId,
+          email: session.email,
+          display_name: session.displayName,
+        })
+      } else {
+        setUser(null)
+      }
       setLoading(false)
     }
 
     getInitialSession()
 
-    // Listen for auth changes
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (event, session) => {
-        setUser(session?.user ?? null)
-        setLoading(false)
+    // Listen for storage changes (when user logs in/out in another tab)
+    const handleStorageChange = (e: StorageEvent) => {
+      if (e.key === 'session') {
+        getInitialSession()
       }
-    )
+    }
 
-    return () => subscription.unsubscribe()
+    window.addEventListener('storage', handleStorageChange)
+    return () => window.removeEventListener('storage', handleStorageChange)
   }, [])
 
   const signUp = async (email: string, password: string, firstName: string, lastName: string) => {
     try {
-      const { error } = await supabase.auth.signUp({
-        email,
-        password,
-        options: {
-          data: {
-            first_name: firstName,
-            last_name: lastName,
-            display_name: `${firstName} ${lastName}`,
-          },
+      const response = await fetch('/api/auth/signup', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
         },
+        body: JSON.stringify({
+          email,
+          password,
+          firstName,
+          lastName,
+        }),
       })
 
-      if (error) {
-        return { error: error.message }
-      }
+      const data = await response.json()
 
-      return { error: null }
+      if (data.success) {
+        // Update user state after successful signup
+        setUser({
+          id: data.user.id,
+          email: data.user.email,
+          display_name: data.user.display_name,
+        })
+        return { error: null }
+      } else {
+        return { error: data.error || 'Signup failed' }
+      }
     } catch (error) {
       return { error: 'An unexpected error occurred' }
     }
@@ -66,16 +90,30 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const signIn = async (email: string, password: string) => {
     try {
-      const { error } = await supabase.auth.signInWithPassword({
-        email,
-        password,
+      const response = await fetch('/api/auth/login', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          email,
+          password,
+        }),
       })
 
-      if (error) {
-        return { error: error.message }
-      }
+      const data = await response.json()
 
-      return { error: null }
+      if (data.success) {
+        // Update user state after successful login
+        setUser({
+          id: data.user.id,
+          email: data.user.email,
+          display_name: data.user.display_name,
+        })
+        return { error: null }
+      } else {
+        return { error: data.error || 'Login failed' }
+      }
     } catch (error) {
       return { error: 'An unexpected error occurred' }
     }
@@ -83,12 +121,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const signOut = async () => {
     try {
-      const { error } = await supabase.auth.signOut()
-      
-      if (error) {
-        return { error: error.message }
-      }
-
+      await destroySession()
+      setUser(null)
       return { error: null }
     } catch (error) {
       return { error: 'An unexpected error occurred' }
@@ -97,17 +131,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const signInWithGoogle = async () => {
     try {
-      const { error } = await supabase.auth.signInWithOAuth({
-        provider: 'google',
-        options: {
-          redirectTo: `${window.location.origin}/dashboard`,
-        },
-      })
-
-      if (error) {
-        return { error: error.message }
-      }
-
+      // For now, redirect to a Google OAuth flow
+      // In a real implementation, you'd set up Google OAuth with your API routes
+      window.location.href = '/api/auth/google'
       return { error: null }
     } catch (error) {
       return { error: 'An unexpected error occurred' }

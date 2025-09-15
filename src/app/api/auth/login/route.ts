@@ -24,7 +24,7 @@ export async function POST(request: NextRequest) {
     // Get user's display_name from the database
     const { data: userData } = await supabase
       .from('users')
-      .select('display_name, first_name, last_name')
+      .select('display_name')
       .eq('id', authData.user.id)
       .single()
 
@@ -35,7 +35,7 @@ export async function POST(request: NextRequest) {
       expiresAt: Date.now() + 7 * 24 * 60 * 60 * 1000, // 7 days
     }
 
-    await createSession(sessionData)
+    // Session will be created on client side
 
     return NextResponse.json({
       success: true,

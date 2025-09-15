@@ -19,11 +19,16 @@ export async function createSession(sessionData: SessionData) {
 }
 
 export async function getSession(): Promise<SessionData | null> {
-  if (typeof window === 'undefined') return null
+  if (typeof window === 'undefined') {
+    return null
+  }
   
   try {
     const session = localStorage.getItem('session')
-    if (!session) return null
+    
+    if (!session) {
+      return null
+    }
     
     const sessionData = JSON.parse(session)
     
