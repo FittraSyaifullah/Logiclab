@@ -1,8 +1,18 @@
 "use client"
 import { Button } from "@/components/ui/button"
-import { Plus, TrendingUp, Settings, HelpCircle } from "lucide-react"
+import { Plus, TrendingUp, Settings, HelpCircle, MessageSquare } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { useCreationStore } from "@/hooks/use-creation-store"
+import { useUserStore } from "@/hooks/use-user-store"
+import { useState, useEffect } from "react"
+
+interface Software {
+  id: string
+  title: string
+  demo_url: string
+  software_id: string
+  created_at: string
+}
 
 interface LogoHoverSidebarProps {
   isVisible: boolean
@@ -10,6 +20,7 @@ interface LogoHoverSidebarProps {
   onGrowthMarketing?: () => void
   onMouseEnter?: () => void
   onMouseLeave?: () => void
+  onChatSelect?: (software: Software) => void
 }
 
 export function LogoHoverSidebar({
@@ -18,8 +29,42 @@ export function LogoHoverSidebar({
   onGrowthMarketing,
   onMouseEnter,
   onMouseLeave,
+  onChatSelect,
 }: LogoHoverSidebarProps) {
   const { creations, activeCreationId, setActiveCreationId } = useCreationStore()
+  const { user, project } = useUserStore()
+  const [software, setSoftware] = useState<Software[]>([])
+  const [loading, setLoading] = useState(false)
+  const [selectedChatId, setSelectedChatId] = useState<string | null>(null)
+
+  // Load user's software (chats) when component mounts or user changes
+  useEffect(() => {
+    if (user && project) {
+      loadUserSoftware()
+    }
+  }, [user, project])
+
+  const loadUserSoftware = async () => {
+    if (!user) return
+    
+    setLoading(true)
+    try {
+      const response = await fetch(`/api/user/data?userId=${user.id}`)
+      if (response.ok) {
+        const data = await response.json()
+        setSoftware(data.software || [])
+      }
+    } catch (error) {
+      console.error('Failed to load user software:', error)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleChatSelect = (software: Software) => {
+    setSelectedChatId(software.id)
+    onChatSelect?.(software)
+  }
 
   return (
     <div
@@ -52,36 +97,79 @@ export function LogoHoverSidebar({
         </div>
 
         <div className="flex-1 overflow-hidden">
+          {/* Software Chats */}
           <div className="text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-3">
-            Creations
+            Software Chats
           </div>
 
-          <div className="space-y-1 overflow-y-auto max-h-[calc(100vh-16rem)]">
-            {creations && creations.length > 0 ? (
-              creations.map((creation) => (
+          <div className="space-y-1 overflow-y-auto max-h-[calc(50vh-8rem)]">
+            {loading ? (
+              <div className="text-sm text-slate-500 dark:text-slate-400 text-center py-4">
+                Loading chats...
+              </div>
+            ) : software && software.length > 0 ? (
+              software.map((chat) => (
                 <Button
-                  key={creation.id}
+                  key={chat.id}
                   variant="ghost"
-                  onClick={() => setActiveCreationId(creation.id)}
+                  onClick={() => handleChatSelect(chat)}
                   className={cn(
                     "w-full justify-start text-left p-3 h-auto",
-                    activeCreationId === creation.id
-                      ? "bg-orange-100 dark:bg-orange-950/50 text-orange-900 dark:text-orange-100"
+                    selectedChatId === chat.id
+                      ? "bg-blue-100 dark:bg-blue-950/50 text-blue-900 dark:text-blue-100"
                       : "text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800",
                   )}
                 >
                   <div className="flex flex-col items-start w-full">
-                    <div className="font-medium text-sm truncate w-full">{creation.title}</div>
-                    <div className="text-xs text-slate-500 dark:text-slate-400 truncate w-full">
-                      {creation.mode === "software" ? "Software" : "Hardware"} •{" "}
-                      {new Date(Number.parseInt(creation.id)).toLocaleDateString()}
+                    <div className="flex items-center gap-2 w-full">
+                      <MessageSquare className="h-4 w-4 flex-shrink-0" />
+                      <div className="font-medium text-sm truncate">{chat.title}</div>
+                    </div>
+                    <div className="text-xs text-slate-500 dark:text-slate-400 truncate w-full ml-6">
+                      {new Date(chat.created_at).toLocaleDateString()}
                     </div>
                   </div>
                 </Button>
               ))
             ) : (
-              <div className="text-sm text-slate-500 dark:text-slate-400 text-center py-8">
-                No creations yet. Start by creating your first project!
+              <div className="text-sm text-slate-500 dark:text-slate-400 text-center py-4">
+                No software chats yet. Create your first software project!
+              </div>
+            )}
+          </div>
+
+          {/* Hardware Creations */}
+          <div className="text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-3 mt-6">
+            Hardware Creations
+          </div>
+
+          <div className="space-y-1 overflow-y-auto max-h-[calc(50vh-8rem)]">
+            {creations && creations.length > 0 ? (
+              creations
+                .filter((creation) => creation.mode === "hardware")
+                .map((creation) => (
+                  <Button
+                    key={creation.id}
+                    variant="ghost"
+                    onClick={() => setActiveCreationId(creation.id)}
+                    className={cn(
+                      "w-full justify-start text-left p-3 h-auto",
+                      activeCreationId === creation.id
+                        ? "bg-orange-100 dark:bg-orange-950/50 text-orange-900 dark:text-orange-100"
+                        : "text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800",
+                    )}
+                  >
+                    <div className="flex flex-col items-start w-full">
+                      <div className="font-medium text-sm truncate w-full">{creation.title}</div>
+                      <div className="text-xs text-slate-500 dark:text-slate-400 truncate w-full">
+                        Hardware • {new Date(Number.parseInt(creation.id)).toLocaleDateString()}
+                      </div>
+                    </div>
+                  </Button>
+                ))
+            ) : (
+              <div className="text-sm text-slate-500 dark:text-slate-400 text-center py-4">
+                No hardware creations yet.
               </div>
             )}
           </div>

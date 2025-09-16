@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { useAuth } from '@/contexts/AuthContext'
+import { useUserStore } from '@/hooks/use-user-store'
 
 export default function SignUpPage() {
   const [firstName, setFirstName] = useState('')
@@ -57,6 +58,12 @@ export default function SignUpPage() {
         }
         
         localStorage.setItem('session', JSON.stringify(sessionData))
+        
+        // Update user store with project data if available
+        if (data.project) {
+          const { setUserAndProject } = useUserStore.getState()
+          setUserAndProject(data.user, data.project)
+        }
         
         setSuccess(true)
         setTimeout(() => {

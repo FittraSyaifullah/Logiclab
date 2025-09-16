@@ -3,6 +3,7 @@
 import { useRouter } from 'next/navigation'
 import { useEffect, useState } from 'react'
 import { getSession } from '@/lib/auth-service'
+import { useUserStore } from '@/hooks/use-user-store'
 
 interface ProtectedRouteProps {
   children: React.ReactNode
@@ -12,20 +13,25 @@ interface ProtectedRouteProps {
 export function ProtectedRoute({ children, redirectTo = '/login' }: ProtectedRouteProps) {
   const [isAuthenticated, setIsAuthenticated] = useState<boolean | null>(null)
   const router = useRouter()
+  const { user, clearUser } = useUserStore()
 
   useEffect(() => {
     const checkAuth = async () => {
       const session = await getSession()
-      const isAuth = !!session
+      const isAuth = !!session && !!user
       setIsAuthenticated(isAuth)
       
-      if (!session) {
+      if (!session || !user) {
+        // Clear user state if no session
+        if (session && !user) {
+          clearUser()
+        }
         router.push(redirectTo)
       }
     }
 
     checkAuth()
-  }, [router, redirectTo])
+  }, [router, redirectTo, user, clearUser])
 
   if (isAuthenticated === null) {
     return (

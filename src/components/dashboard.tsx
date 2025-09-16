@@ -341,6 +341,7 @@ function PersistentHeader({
 
 function DashboardContent({ onLogout, initialSearchInput }: DashboardProps) {
   const { creations, activeCreationId, setActiveCreationId, addCreation, updateCreation } = useCreationStore()
+  const { user, project } = useUserStore()
   const activeCreation = (creations ?? []).find((c) => c.id === activeCreationId)
   const { toast } = useToast()
 
@@ -349,6 +350,8 @@ function DashboardContent({ onLogout, initialSearchInput }: DashboardProps) {
   const [showIntegrations, setShowIntegrations] = useState(false)
   const [showGrowthMarketing, setShowGrowthMarketing] = useState(false)
   const [showLogoSidebar, setShowLogoSidebar] = useState(false)
+  const [selectedChat, setSelectedChat] = useState<any>(null)
+  const [chatMessages, setChatMessages] = useState<any[]>([])
 
   const hoverTimeoutRef = useRef<NodeJS.Timeout | null>(null)
 
@@ -488,10 +491,11 @@ function DashboardContent({ onLogout, initialSearchInput }: DashboardProps) {
         prompt: currentCreation.prompt,
         title: currentCreation.title,
         projectId: project.id,
+        userId: user?.id,
       }
       console.log("[v0] generateSoftware - API request payload:", requestPayload)
 
-      const response = await fetch("/api/generate-software", {
+      const response = await fetch("/api/software/generate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(requestPayload),
@@ -512,18 +516,18 @@ function DashboardContent({ onLogout, initialSearchInput }: DashboardProps) {
 
       if (!response.ok) throw new Error(responseData.error || `HTTP ${response.status}: Server error`)
 
-      const { chatId, demoUrl } = responseData
-      if (!demoUrl) throw new Error("No demo URL received from v0")
+      const { software } = responseData
+      if (!software?.demoUrl) throw new Error("No demo URL received from v0")
 
-      console.log(`v0 success for project ${currentCreation.title}: ${demoUrl}`)
+      console.log(`v0 success for project ${currentCreation.title}: ${software.demoUrl}`)
 
       const latest = useCreationStore.getState().creations.find((c) => c.id === creationId)
       if (latest) {
         updateCreation(creationId, {
           ...latest,
           softwareData: {
-            chatId,
-            demoUrl,
+            chatId: software.chatId,
+            demoUrl: software.demoUrl,
             isGenerating: false,
             error: undefined,
           },
@@ -656,6 +660,122 @@ function DashboardContent({ onLogout, initialSearchInput }: DashboardProps) {
     }
   }
 
+  const handleChatSelect = async (software: any) => {
+    if (!user?.id) {
+      console.error('User ID not available for chat selection')
+      return
+    }
+    
+    setSelectedChat(software)
+    setShowLogoSidebar(false)
+    
+    // Load messages for this chat
+    try {
+      const response = await fetch(`/api/software/messages?softwareId=${software.id}&userId=${user.id}`)
+      if (response.ok) {
+        const data = await response.json()
+        setChatMessages(data.messages || [])
+        
+        // Create a software creation for display
+        const softwareCreation: Creation = {
+          id: software.id,
+          title: software.title,
+          prompt: data.messages?.[0]?.content || "Software project",
+          mode: "software",
+          chatHistory: data.messages?.map((msg: any) => ({
+            id: msg.id,
+            role: msg.role,
+            content: msg.content,
+            createdAt: new Date(msg.created_at)
+          })) || [],
+          components: [],
+          customParams: [],
+          softwareData: {
+            chatId: software.software_id,
+            demoUrl: software.demo_url,
+            isGenerating: false
+          }
+        }
+        
+        // Add or update in creation store
+        const existingCreation = creations.find(c => c.id === software.id)
+        if (existingCreation) {
+          updateCreation(software.id, softwareCreation)
+        } else {
+          addCreation(softwareCreation)
+        }
+        setActiveCreationId(software.id)
+      }
+    } catch (error) {
+      console.error('Failed to load chat messages:', error)
+      toast({
+        title: "Error",
+        description: "Failed to load chat messages",
+        variant: "destructive"
+      })
+    }
+  }
+
+  const handleSendMessage = async (message: string) => {
+    if (!selectedChat || !user?.id) return
+    
+    try {
+      const response = await fetch('/api/software/chat', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          softwareId: selectedChat.id,
+          message: message,
+          userId: user.id
+        })
+      })
+      
+      if (response.ok) {
+        const data = await response.json()
+        
+        // Update the software creation with new demo URL
+        if (data.demoUrl) {
+          updateCreation(selectedChat.id, {
+            softwareData: {
+              chatId: selectedChat.software_id,
+              demoUrl: data.demoUrl,
+              isGenerating: false
+            }
+          })
+        }
+        
+        // Reload messages to get the updated conversation
+        const messagesResponse = await fetch(`/api/software/messages?softwareId=${selectedChat.id}&userId=${user.id}`)
+        if (messagesResponse.ok) {
+          const messagesData = await messagesResponse.json()
+          setChatMessages(messagesData.messages || [])
+          
+          // Update creation store with new messages
+          const updatedCreation = {
+            chatHistory: messagesData.messages?.map((msg: any) => ({
+              id: msg.id,
+              role: msg.role,
+              content: msg.content,
+              createdAt: new Date(msg.created_at)
+            })) || []
+          }
+          updateCreation(selectedChat.id, updatedCreation)
+        }
+      } else {
+        throw new Error('Failed to send message')
+      }
+    } catch (error) {
+      console.error('Failed to send message:', error)
+      toast({
+        title: "Error",
+        description: "Failed to send message",
+        variant: "destructive"
+      })
+    }
+  }
+
   const handleSidebarMouseEnter = () => {
     if (hoverTimeoutRef.current) {
       clearTimeout(hoverTimeoutRef.current)
@@ -684,6 +804,8 @@ function DashboardContent({ onLogout, initialSearchInput }: DashboardProps) {
         isVisible={showLogoSidebar}
         onNewCreation={() => {
           setShowLogoSidebar(false)
+          setActiveCreationId(null)
+          setSelectedChat(null)
         }}
         onGrowthMarketing={() => {
           setShowLogoSidebar(false)
@@ -691,9 +813,10 @@ function DashboardContent({ onLogout, initialSearchInput }: DashboardProps) {
         }}
         onMouseEnter={handleSidebarMouseEnter}
         onMouseLeave={handleSidebarMouseLeave}
+        onChatSelect={handleChatSelect}
       />
 
-      <ChatSidebar onLogout={onLogout} />
+      <ChatSidebar onLogout={onLogout} onSendMessage={handleSendMessage} />
 
       <div className="flex-1 flex flex-col min-h-0">
         <PersistentHeader

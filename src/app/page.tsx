@@ -8,11 +8,13 @@ import { Card, CardContent } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
 import { useAuth } from '@/contexts/AuthContext'
+import { useUserStore } from '@/hooks/use-user-store'
 import { useToast } from '@/hooks/use-toast'
 import { ModelGenerationSection } from '@/components/ModelGenerationSection'
 
 export default function LandingPage() {
   const { user, loading } = useAuth()
+  const { user: userStore, clearUser } = useUserStore()
   const router = useRouter()
   const [email, setEmail] = useState("")
   const [firstName, setFirstName] = useState("")
@@ -22,10 +24,15 @@ export default function LandingPage() {
   const { toast } = useToast()
 
   useEffect(() => {
+    // Clear user state on landing page to ensure clean logout
+    if (!loading && !user) {
+      clearUser()
+    }
+    
     if (!loading && user) {
       router.push('/dashboard')
     }
-  }, [user, loading, router])
+  }, [user, loading, router, clearUser])
 
   if (loading) {
     return (

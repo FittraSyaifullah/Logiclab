@@ -15,9 +15,10 @@ import type { Creation } from "@/lib/types"
 
 interface ChatSidebarProps {
   onLogout: () => void
+  onSendMessage?: (message: string) => void
 }
 
-export function ChatSidebar({ onLogout }: ChatSidebarProps) {
+export function ChatSidebar({ onLogout, onSendMessage }: ChatSidebarProps) {
   const [isCollapsed, setIsCollapsed] = useState(false)
   const { creations, activeCreationId, updateCreation } = useCreationStore()
   const activeCreation = (creations ?? []).find((c) => c.id === activeCreationId)
@@ -85,6 +86,19 @@ export function ChatSidebar({ onLogout }: ChatSidebarProps) {
     setFallbackMessages(newMessages)
     setFallbackInput("")
     setIsLoadingFallback(true)
+
+    // For software mode, use the onSendMessage prop if available
+    if (mode === "software" && onSendMessage) {
+      try {
+        await onSendMessage(fallbackInput.trim())
+        setIsLoadingFallback(false)
+        return
+      } catch (error) {
+        console.error('Failed to send message:', error)
+        setIsLoadingFallback(false)
+        return
+      }
+    }
 
     try {
       const requestBody = {
