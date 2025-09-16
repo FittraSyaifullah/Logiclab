@@ -4,8 +4,8 @@ import { useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
+import { Label } from "@/components/ui/label"
+import { Switch } from "@/components/ui/switch"
 import { HardDrive, Monitor, Sparkles } from "lucide-react"
 import type { Creation } from "@/lib/types"
 
@@ -41,89 +41,83 @@ export function InitialPromptForm({ onSubmit }: InitialPromptFormProps) {
     }
   }
 
+  const handleModeToggle = (checked: boolean) => {
+    setMode(checked ? "software" : "hardware")
+  }
+
   return (
-    <div className="h-full w-full flex items-center justify-center p-6">
-      <Card className="w-full max-w-2xl">
-        <CardHeader className="text-center">
-          <CardTitle className="text-2xl font-bold bg-gradient-to-r from-orange-500 to-red-500 bg-clip-text text-transparent">
-            Create Something Amazing
-          </CardTitle>
-          <p className="text-slate-600 dark:text-slate-400">
-            Describe your idea and let AI help you build it
+    <div className="h-full w-full flex items-center justify-center p-8">
+      <div className="w-full max-w-4xl mx-auto text-center space-y-8">
+        <div className="space-y-4">
+          <h1 className="text-6xl font-bold text-gray-900 dark:text-white">Create. Build. Deploy.</h1>
+          <p className="text-xl text-gray-600 dark:text-gray-300 max-w-2xl mx-auto">
+            {mode === "hardware"
+              ? "Transform your ideas into physical products with AI-powered 3D modeling and assembly instructions"
+              : "Build real, working software just by describing it"}
           </p>
-        </CardHeader>
-        <CardContent>
-          <form onSubmit={handleSubmit} className="space-y-6">
-            {/* Mode Selection */}
-            <div className="space-y-3">
-              <label className="text-sm font-medium text-slate-700 dark:text-slate-300">
-                What do you want to build?
-              </label>
-              <ToggleGroup
-                type="single"
-                value={mode}
-                onValueChange={(value) => value && setMode(value as "hardware" | "software")}
-                className="justify-center"
-              >
-                <ToggleGroupItem value="hardware" className="data-[state=on]:bg-orange-500 data-[state=on]:text-white">
-                  <HardDrive className="h-4 w-4 mr-2" />
-                  Hardware
-                </ToggleGroupItem>
-                <ToggleGroupItem value="software" className="data-[state=on]:bg-orange-500 data-[state=on]:text-white">
-                  <Monitor className="h-4 w-4 mr-2" />
-                  Software
-                </ToggleGroupItem>
-              </ToggleGroup>
-            </div>
+        </div>
 
-            {/* Project Title */}
-            <div className="space-y-2">
-              <label className="text-sm font-medium text-slate-700 dark:text-slate-300">
-                Project Title
-              </label>
-              <Input
-                value={title}
-                onChange={(e) => setTitle(e.target.value)}
-                placeholder="Enter a descriptive title for your project"
-                required
-              />
-            </div>
+        <div className="flex items-center justify-center space-x-4 p-4 bg-white/50 dark:bg-gray-800/50 rounded-full backdrop-blur-sm border border-gray-200/50 dark:border-gray-700/50 w-fit mx-auto">
+          <Label
+            className={`font-medium cursor-pointer ${mode === "hardware" ? "text-indigo-600 dark:text-indigo-400" : "text-gray-500 dark:text-gray-400"}`}
+          >
+            🔧 Hardware
+          </Label>
+          <Switch checked={mode === "software"} onCheckedChange={handleModeToggle} />
+          <Label
+            className={`font-medium cursor-pointer ${mode === "software" ? "text-indigo-600 dark:text-indigo-400" : "text-gray-500 dark:text-gray-400"}`}
+          >
+            💻 Software
+          </Label>
+        </div>
 
-            {/* Project Description */}
-            <div className="space-y-2">
-              <label className="text-sm font-medium text-slate-700 dark:text-slate-300">
-                Project Description
-              </label>
-              <Textarea
-                value={prompt}
-                onChange={(e) => setPrompt(e.target.value)}
-                placeholder="Describe what you want to build in detail. Include features, functionality, and any specific requirements..."
-                className="min-h-[120px] resize-none"
-                required
-              />
-            </div>
+        <form onSubmit={handleSubmit} className="space-y-6">
+          <div className="relative">
+            <Textarea
+              value={prompt}
+              onChange={(e) => setPrompt(e.target.value)}
+              placeholder={
+                mode === "hardware"
+                  ? "Ask AI to build... (e.g., a contactless water dispenser that activates when your hand is close to the sensor)"
+                  : "Ask AI to build... (e.g., a task management app that helps teams collaborate and track project progress)"
+              }
+              rows={4}
+              className="w-full text-lg p-6 rounded-2xl border-2 border-gray-200 dark:border-gray-700 bg-white/80 dark:bg-gray-800/80 backdrop-blur-sm focus:border-indigo-500 dark:focus:border-indigo-400 focus:ring-2 focus:ring-indigo-500/20 resize-none shadow-lg"
+              required
+            />
+          </div>
 
-            {/* Submit Button */}
-            <Button
-              type="submit"
-              disabled={isSubmitting || !title.trim() || !prompt.trim()}
-              className="w-full bg-gradient-to-r from-orange-500 to-red-500 hover:from-orange-600 hover:to-red-600 text-white transition-all duration-300 hover:scale-105 hover:shadow-lg"
-            >
-              {isSubmitting ? (
-                <>
-                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2" />
-                  Creating...
-                </>
-              ) : (
-                <>
-                  <Sparkles className="h-4 w-4 mr-2" />
-                  Create Project
-                </>
-              )}
-            </Button>
-          </form>
-        </CardContent>
-      </Card>
+          <Input
+            value={title}
+            onChange={(e) => setTitle(e.target.value)}
+            placeholder={
+              mode === "hardware"
+                ? "Project name (e.g., Smart Water Dispenser)"
+                : "Project name (e.g., Team Task Manager)"
+            }
+            className="text-center text-lg p-4 rounded-xl border border-gray-200 dark:border-gray-700 bg-white/60 dark:bg-gray-800/60 backdrop-blur-sm focus:border-indigo-500 dark:focus:border-indigo-400"
+            required
+          />
+
+          <Button
+            type="submit"
+            disabled={isSubmitting || !title.trim() || !prompt.trim()}
+            className="w-full max-w-md mx-auto bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xl py-6 font-semibold shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-[1.02]"
+          >
+            {isSubmitting ? (
+              <>
+                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2" />
+                Creating...
+              </>
+            ) : (
+              <>
+                <Sparkles className="h-4 w-4 mr-2" />
+                Start Building
+              </>
+            )}
+          </Button>
+        </form>
+      </div>
     </div>
   )
 }
