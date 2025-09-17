@@ -5,11 +5,13 @@ import { useSearchParams } from "next/navigation"
 import { Dashboard } from "@/components/dashboard"
 import { SidebarProvider } from "@/components/ui/sidebar"
 import { ProtectedRoute } from "@/components/ProtectedRoute"
+import { useUserStore } from "@/hooks/use-user-store"
 
 function DashboardContent() {
   const [isClient, setIsClient] = useState(false)
   const [initialSearchInput, setInitialSearchInput] = useState("")
   const searchParams = useSearchParams()
+  const { clearUser } = useUserStore()
 
   useEffect(() => {
     setIsClient(true)
@@ -21,15 +23,23 @@ function DashboardContent() {
 
   const handleLogout = async () => {
     try {
+      console.log(`[DASHBOARD] Starting logout process`)
+      
+      // Clear Zustand store first
+      clearUser()
+      console.log(`[DASHBOARD] Cleared user store`)
+      
       const response = await fetch("/api/auth/signout", {
         method: "POST",
         credentials: "include",
       })
 
       if (response.ok) {
+        console.log(`[DASHBOARD] Logout API call successful`)
         // Clear any local storage and redirect
         localStorage.clear()
         sessionStorage.clear()
+        console.log(`[DASHBOARD] Cleared localStorage and sessionStorage`)
         // Force a hard redirect to ensure clean state
         window.location.replace("/")
       } else {

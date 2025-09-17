@@ -24,12 +24,24 @@ export function ChatSidebar({ onLogout, onSendMessage }: ChatSidebarProps) {
   const activeCreation = (creations ?? []).find((c) => c.id === activeCreationId)
 
   const [fallbackInput, setFallbackInput] = useState("")
-  const [fallbackMessages, setFallbackMessages] = useState(activeCreation?.chatHistory || [])
   const [isLoadingFallback, setIsLoadingFallback] = useState(false)
+  
+  // Use chat history from creation store directly
+  const fallbackMessages = activeCreation?.chatHistory || []
   const { toast } = useToast()
+
+  // Function to detect v0 responses based on content pattern
+  const isV0Response = (content: string | undefined) => {
+    if (!content) return false
+    // Check for v0 response patterns: <Thinking> tags or <CodeProject> tags
+    return content.includes('<Thinking>') || content.includes('<CodeProject>')
+  }
 
   const mode = activeCreation?.mode || (activeCreation?.softwareData ? "software" : "hardware")
   const apiEndpoint = mode === "hardware" ? "/api/chat/hardware" : "/api/chat/software"
+  
+  console.log(`[CHAT_SIDEBAR] Rendered - activeCreationId: ${activeCreationId}, mode: ${mode}, onSendMessage: ${!!onSendMessage}`)
+  console.log(`[CHAT_SIDEBAR] activeCreation:`, activeCreation)
 
   const prepareChatBody = () => {
     const safeCreation = activeCreation || {} as Partial<Creation>
@@ -74,23 +86,19 @@ export function ChatSidebar({ onLogout, onSendMessage }: ChatSidebarProps) {
 
   const handleFallbackSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
+    console.log(`[CHAT_SIDEBAR] handleFallbackSubmit called with input: "${fallbackInput}"`)
     if (!fallbackInput.trim()) return
 
-    const userMessage = {
-      id: Date.now().toString(),
-      role: "user" as const,
-      content: fallbackInput.trim(),
-    }
-
-    const newMessages = [...fallbackMessages, userMessage]
-    setFallbackMessages(newMessages)
+    const messageToSend = fallbackInput.trim()
     setFallbackInput("")
     setIsLoadingFallback(true)
 
     // For software mode, use the onSendMessage prop if available
+    console.log(`[CHAT_SIDEBAR] Mode: ${mode}, onSendMessage available: ${!!onSendMessage}`)
     if (mode === "software" && onSendMessage) {
       try {
-        await onSendMessage(fallbackInput.trim())
+        console.log(`[CHAT_SIDEBAR] Calling onSendMessage with: "${messageToSend}"`)
+        await onSendMessage(messageToSend)
         setIsLoadingFallback(false)
         return
       } catch (error) {
@@ -100,9 +108,12 @@ export function ChatSidebar({ onLogout, onSendMessage }: ChatSidebarProps) {
       }
     }
 
+    // For hardware mode or when onSendMessage is not available, use the API endpoint
+    console.log(`[CHAT_SIDEBAR] Using API endpoint: ${apiEndpoint}`)
+
     try {
       const requestBody = {
-        messages: newMessages.map((msg) => ({
+        messages: fallbackMessages.map((msg) => ({
           id: msg?.id || Date.now().toString(),
           role: msg?.role || "user",
           content: msg?.content || "",
@@ -142,8 +153,6 @@ export function ChatSidebar({ onLogout, onSendMessage }: ChatSidebarProps) {
             createdAt: msg.createdAt,
           }))
 
-          setFallbackMessages(formattedMessages)
-
           if (activeCreation?.id) {
             const updatedCreation = { ...activeCreation, chatHistory: formattedMessages }
             if (responseData.demo && activeCreation.softwareData) {
@@ -163,8 +172,7 @@ export function ChatSidebar({ onLogout, onSendMessage }: ChatSidebarProps) {
             content: assistantContent,
           }
 
-          const finalMessages = [...newMessages, assistantMessage]
-          setFallbackMessages(finalMessages)
+          const finalMessages = [...fallbackMessages, assistantMessage]
 
           if (activeCreation?.id) {
             const updatedCreation = { ...activeCreation, chatHistory: finalMessages }
@@ -190,7 +198,7 @@ export function ChatSidebar({ onLogout, onSendMessage }: ChatSidebarProps) {
           content: "",
         }
 
-        setFallbackMessages([...newMessages, assistantMessage])
+        // Messages will be updated via creation store
 
         try {
           while (true) {
@@ -206,7 +214,7 @@ export function ChatSidebar({ onLogout, onSendMessage }: ChatSidebarProps) {
                   const data = JSON.parse(line.slice(2))
                   if (data.type === "text-delta" && data.textDelta) {
                     assistantContent += data.textDelta
-                    setFallbackMessages([...newMessages, { ...assistantMessage, content: assistantContent }])
+                    // Messages will be updated via creation store
                   }
                 } catch (parseError) {
                   console.warn("Failed to parse streaming chunk:", parseError)
@@ -218,11 +226,11 @@ export function ChatSidebar({ onLogout, onSendMessage }: ChatSidebarProps) {
           reader.releaseLock()
         }
 
-        const finalMessages = [...newMessages, { ...assistantMessage, content: assistantContent }]
+        const finalMessages = [...fallbackMessages, { ...assistantMessage, content: assistantContent }]
         if (activeCreation?.id) {
           updateCreation(activeCreation.id, { ...activeCreation, chatHistory: finalMessages })
         }
-        setFallbackMessages(finalMessages)
+        // Messages already updated via creation store
       }
     } catch (error) {
       console.error("Chat error:", error)
@@ -246,7 +254,7 @@ export function ChatSidebar({ onLogout, onSendMessage }: ChatSidebarProps) {
         variant: "destructive",
       })
 
-      setFallbackMessages(fallbackMessages)
+      // Messages already updated via creation store
     } finally {
       setIsLoadingFallback(false)
     }
@@ -304,21 +312,22 @@ export function ChatSidebar({ onLogout, onSendMessage }: ChatSidebarProps) {
                         className={cn("flex gap-2 text-sm", message?.role === "user" ? "justify-end" : "justify-start")}
                       >
                         <div
-                          className={cn(
-                            "flex gap-2 max-w-[85%]",
-                            message?.role === "user" ? "flex-row-reverse" : "flex-row",
-                          )}
+                          className={cn("flex gap-2 max-w-[85%]", message?.role === "user" ? "flex-row-reverse" : "flex-row")}
                         >
                           <div
                             className={cn(
                               "flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center",
                               message?.role === "user"
                                 ? "bg-indigo-500 text-white"
+                                : isV0Response(message?.content)
+                                ? "bg-green-500 text-white"
                                 : "bg-neutral-200 dark:bg-neutral-700",
                             )}
                           >
                             {message?.role === "user" ? (
                               <User className="h-4 w-4" />
+                            ) : isV0Response(message?.content) ? (
+                              <Monitor className="h-4 w-4" />
                             ) : mode === "hardware" ? (
                               <Wrench className="h-4 w-4" />
                             ) : (
@@ -330,6 +339,8 @@ export function ChatSidebar({ onLogout, onSendMessage }: ChatSidebarProps) {
                               "rounded-lg px-3 py-2",
                               message?.role === "user"
                                 ? "bg-indigo-500 text-white"
+                                : isV0Response(message?.content)
+                                ? "bg-white text-gray-900 border border-gray-200"
                                 : "bg-neutral-100 dark:bg-neutral-800",
                             )}
                           >

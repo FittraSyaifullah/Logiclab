@@ -40,7 +40,7 @@ export async function GET(request: NextRequest) {
       .from('software_messages')
       .select('id, role, content, created_at')
       .eq('software_id', softwareId)
-      .order('created_at', { ascending: true })
+      .order('created_at', { ascending: false })
 
     if (messagesError) {
       console.log(`[MESSAGES] Failed to load messages:`, messagesError)

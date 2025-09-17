@@ -46,17 +46,30 @@ export async function POST(request: NextRequest) {
 
     // Send message to v0
     console.log(`[CHAT] Sending message to v0 chat: ${software.software_id}`)
+    console.log(`[CHAT] Message content: ${message}`)
+    console.log(`[CHAT] Calling sendV0Message with:`, {
+      chatId: software.software_id,
+      message: message
+    })
+    
     const v0Result = await sendV0Message({
       chatId: software.software_id,
       message
     })
+
+    console.log(`[CHAT] V0 result received:`, v0Result)
 
     if (v0Result.error) {
       console.log(`[CHAT] V0 message failed:`, v0Result.error)
       return NextResponse.json({ error: v0Result.error }, { status: 500 })
     }
 
-    console.log(`[CHAT] V0 message sent successfully - Demo URL: ${v0Result.demoUrl}`)
+    console.log(`[CHAT] V0 message sent successfully`)
+    console.log(`[CHAT] Demo URL (iframe): ${v0Result.demoUrl}`)
+    console.log(`[CHAT] Chat URL: ${v0Result.chatUrl}`)
+    if (v0Result.message) {
+      console.log(`[CHAT] V0 assistant message: ${v0Result.message}`)
+    }
 
     // Save user message
     console.log(`[CHAT] Saving user message to database`)
@@ -74,18 +87,40 @@ export async function POST(request: NextRequest) {
       console.log(`[CHAT] User message saved successfully`)
     }
 
-    // Update software with new demo URL if provided
-    if (v0Result.demoUrl) {
-      console.log(`[CHAT] Updating software demo URL`)
+    // Save v0 response message if provided
+    if (v0Result.message) {
+      console.log(`[CHAT] Saving v0 response message to database`)
+      const { error: v0MessageError } = await supabase
+        .from('software_messages')
+        .insert({
+          software_id: softwareId,
+          role: 'assistant',
+          content: v0Result.message
+        })
+
+      if (v0MessageError) {
+        console.error(`[CHAT] Failed to save v0 response message:`, v0MessageError)
+      } else {
+        console.log(`[CHAT] V0 response message saved successfully`)
+      }
+    }
+
+    // Update software with new URLs if provided
+    if (v0Result.demoUrl || v0Result.chatUrl) {
+      console.log(`[CHAT] Updating software URLs`)
+      const updateData: any = {}
+      if (v0Result.demoUrl) updateData.demo_url = v0Result.demoUrl
+      if (v0Result.chatUrl) updateData.url = v0Result.chatUrl
+      
       const { error: updateError } = await supabase
         .from('software')
-        .update({ demo_url: v0Result.demoUrl })
+        .update(updateData)
         .eq('id', softwareId)
 
       if (updateError) {
-        console.error(`[CHAT] Failed to update demo URL:`, updateError)
+        console.error(`[CHAT] Failed to update URLs:`, updateError)
       } else {
-        console.log(`[CHAT] Software demo URL updated successfully`)
+        console.log(`[CHAT] Software URLs updated successfully`)
       }
     }
 

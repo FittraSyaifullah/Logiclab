@@ -504,6 +504,8 @@ function DashboardContent({ onLogout, initialSearchInput }: DashboardProps) {
       let responseData
       try {
         const responseText = await response.text()
+        console.log(`[DASHBOARD] generateSoftware response status: ${response.status}`)
+        console.log(`[DASHBOARD] generateSoftware response text: ${responseText.substring(0, 500)}...`)
 
         if (response.headers.get("content-type")?.includes("application/json")) {
           responseData = JSON.parse(responseText)
@@ -511,15 +513,26 @@ function DashboardContent({ onLogout, initialSearchInput }: DashboardProps) {
           throw new Error(`Server returned non-JSON response: ${responseText.substring(0, 200)}...`)
         }
       } catch (parseError) {
+        console.error(`[DASHBOARD] Failed to parse response:`, parseError)
         throw new Error(`Failed to parse server response: ${parseError instanceof Error ? parseError.message : 'Unknown error'}`)
       }
 
-      if (!response.ok) throw new Error(responseData.error || `HTTP ${response.status}: Server error`)
+      if (!response.ok) {
+        const errorMessage = responseData?.error || `HTTP ${response.status}: Server error`
+        console.error(`[DASHBOARD] generateSoftware failed:`, errorMessage)
+        throw new Error(errorMessage)
+      }
 
       const { software } = responseData
-      if (!software?.demoUrl) throw new Error("No demo URL received from v0")
+      console.log(`[DASHBOARD] generateSoftware response data:`, responseData)
+      console.log(`[DASHBOARD] generateSoftware software data:`, software)
+      
+      if (!software?.demoUrl) {
+        console.error(`[DASHBOARD] No demo URL in software data:`, software)
+        throw new Error("No demo URL received from v0")
+      }
 
-      console.log(`v0 success for project ${currentCreation.title}: ${software.demoUrl}`)
+      console.log(`[DASHBOARD] v0 success for project ${currentCreation.title}: ${software.demoUrl}`)
 
       const latest = useCreationStore.getState().creations.find((c) => c.id === creationId)
       if (latest) {
@@ -532,6 +545,29 @@ function DashboardContent({ onLogout, initialSearchInput }: DashboardProps) {
             error: undefined,
           },
         })
+      }
+
+      // Load the chat messages to update the UI
+      console.log(`[DASHBOARD] Loading chat messages for software: ${software.id}`)
+      try {
+        const messagesResponse = await fetch(`/api/software/messages?softwareId=${software.id}&userId=${user?.id}`)
+        if (messagesResponse.ok) {
+          const messagesData = await messagesResponse.json()
+          console.log(`[DASHBOARD] Loaded ${messagesData.messages?.length || 0} messages`)
+          
+          // Update creation store with chat messages
+          const updatedCreation = {
+            chatHistory: messagesData.messages?.map((msg: any) => ({
+              id: msg.id,
+              role: msg.role,
+              content: msg.content,
+              createdAt: new Date(msg.created_at)
+            })) || []
+          }
+          updateCreation(creationId, updatedCreation)
+        }
+      } catch (error) {
+        console.error(`[DASHBOARD] Failed to load chat messages:`, error)
       }
 
       toast({
@@ -717,7 +753,12 @@ function DashboardContent({ onLogout, initialSearchInput }: DashboardProps) {
   }
 
   const handleSendMessage = async (message: string) => {
-    if (!selectedChat || !user?.id) return
+    if (!selectedChat || !user?.id) {
+      console.log(`[DASHBOARD] handleSendMessage - Missing required data: selectedChat=${!!selectedChat}, user.id=${!!user?.id}`)
+      return
+    }
+    
+    console.log(`[DASHBOARD] handleSendMessage - Sending message to software: ${selectedChat.id}`)
     
     try {
       const response = await fetch('/api/software/chat', {
@@ -732,24 +773,44 @@ function DashboardContent({ onLogout, initialSearchInput }: DashboardProps) {
         })
       })
       
+      console.log(`[DASHBOARD] handleSendMessage response status: ${response.status}`)
+      
+      let responseData
+      try {
+        const responseText = await response.text()
+        console.log(`[DASHBOARD] handleSendMessage response text: ${responseText.substring(0, 500)}...`)
+        
+        if (response.headers.get("content-type")?.includes("application/json")) {
+          responseData = JSON.parse(responseText)
+        } else {
+          throw new Error(`Server returned non-JSON response: ${responseText.substring(0, 200)}...`)
+        }
+      } catch (parseError) {
+        console.error(`[DASHBOARD] Failed to parse handleSendMessage response:`, parseError)
+        throw new Error(`Failed to parse server response: ${parseError instanceof Error ? parseError.message : 'Unknown error'}`)
+      }
+      
       if (response.ok) {
-        const data = await response.json()
+        console.log(`[DASHBOARD] handleSendMessage successful:`, responseData)
         
         // Update the software creation with new demo URL
-        if (data.demoUrl) {
+        if (responseData.demoUrl) {
+          console.log(`[DASHBOARD] Updating demo URL: ${responseData.demoUrl}`)
           updateCreation(selectedChat.id, {
             softwareData: {
               chatId: selectedChat.software_id,
-              demoUrl: data.demoUrl,
+              demoUrl: responseData.demoUrl,
               isGenerating: false
             }
           })
         }
         
         // Reload messages to get the updated conversation
+        console.log(`[DASHBOARD] Reloading messages for software: ${selectedChat.id}`)
         const messagesResponse = await fetch(`/api/software/messages?softwareId=${selectedChat.id}&userId=${user.id}`)
         if (messagesResponse.ok) {
           const messagesData = await messagesResponse.json()
+          console.log(`[DASHBOARD] Messages reloaded: ${messagesData.messages?.length || 0} messages`)
           setChatMessages(messagesData.messages || [])
           
           // Update creation store with new messages
@@ -762,15 +823,19 @@ function DashboardContent({ onLogout, initialSearchInput }: DashboardProps) {
             })) || []
           }
           updateCreation(selectedChat.id, updatedCreation)
+        } else {
+          console.error(`[DASHBOARD] Failed to reload messages: ${messagesResponse.status}`)
         }
       } else {
-        throw new Error('Failed to send message')
+        const errorMessage = responseData?.error || `HTTP ${response.status}: Server error`
+        console.error(`[DASHBOARD] handleSendMessage failed:`, errorMessage)
+        throw new Error(errorMessage)
       }
     } catch (error) {
-      console.error('Failed to send message:', error)
+      console.error(`[DASHBOARD] handleSendMessage error:`, error)
       toast({
         title: "Error",
-        description: "Failed to send message",
+        description: error instanceof Error ? error.message : "Failed to send message",
         variant: "destructive"
       })
     }

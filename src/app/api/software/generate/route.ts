@@ -53,7 +53,10 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: v0Result.error }, { status: 500 })
     }
 
-    console.log(`[SOFTWARE] V0 chat created successfully - Chat ID: ${v0Result.chatId}, Demo URL: ${v0Result.demoUrl}`)
+    console.log(`[SOFTWARE] V0 chat created successfully - Chat ID: ${v0Result.chatId}`)
+    console.log(`[SOFTWARE] Demo URL (iframe): ${v0Result.demoUrl}`)
+    console.log(`[SOFTWARE] Chat URL: ${v0Result.chatUrl}`)
+    console.log(`[SOFTWARE] Full v0Result:`, JSON.stringify(v0Result, null, 2))
 
     // Create software record in database
     console.log(`[SOFTWARE] Creating software record in database`)
@@ -62,7 +65,8 @@ export async function POST(request: NextRequest) {
       .insert({
         project_id: projectId,
         title,
-        demo_url: v0Result.demoUrl,
+        demo_url: v0Result.demoUrl,  // iframe-embeddable demo URL
+        url: v0Result.chatUrl,       // chat URL for navigation
         software_id: v0Result.chatId
       })
       .select()
