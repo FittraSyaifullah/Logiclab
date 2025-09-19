@@ -296,9 +296,9 @@ export function ChatSidebar({ onLogout, onSendMessage }: ChatSidebarProps) {
                     </>
                   )}
                 </CardTitle>
-                <Badge variant="outline" className="text-xs">
+                {/*<Badge variant="outline" className="text-xs">
                   {mode === "hardware" ? "GPT-4" : "v0"}
-                </Badge>
+                </Badge>*/}
               </div>
             </CardHeader>
 

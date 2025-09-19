@@ -494,6 +494,8 @@ function DashboardContent({ onLogout, initialSearchInput }: DashboardProps) {
         userId: user?.id,
       }
       console.log("[v0] generateSoftware - API request payload:", requestPayload)
+      console.log("[v0] generateSoftware - User data:", user)
+      console.log("[v0] generateSoftware - Project data:", project)
 
       const response = await fetch("/api/software/generate", {
         method: "POST",
@@ -505,12 +507,14 @@ function DashboardContent({ onLogout, initialSearchInput }: DashboardProps) {
       try {
         const responseText = await response.text()
         console.log(`[DASHBOARD] generateSoftware response status: ${response.status}`)
-        console.log(`[DASHBOARD] generateSoftware response text: ${responseText.substring(0, 500)}...`)
+        console.log(`[DASHBOARD] generateSoftware response headers:`, Object.fromEntries(response.headers.entries()))
+        console.log(`[DASHBOARD] generateSoftware response text: ${responseText}`)
 
         if (response.headers.get("content-type")?.includes("application/json")) {
           responseData = JSON.parse(responseText)
         } else {
-          throw new Error(`Server returned non-JSON response: ${responseText.substring(0, 200)}...`)
+          console.error(`[DASHBOARD] Non-JSON response received. Status: ${response.status}, Content-Type: ${response.headers.get("content-type")}`)
+          throw new Error(`Server returned non-JSON response (${response.status}): ${responseText.substring(0, 500)}...`)
         }
       } catch (parseError) {
         console.error(`[DASHBOARD] Failed to parse response:`, parseError)
@@ -620,7 +624,7 @@ function DashboardContent({ onLogout, initialSearchInput }: DashboardProps) {
 
       toast({
         title: "Generating software...",
-        description: "v0 is creating your application with AI.",
+        description: "Overhaul is creating your application with AI.",
       })
 
       generateSoftware(newCreation.id)

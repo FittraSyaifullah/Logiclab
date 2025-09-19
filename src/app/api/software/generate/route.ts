@@ -43,10 +43,22 @@ export async function POST(request: NextRequest) {
 
     // Create v0 chat
     console.log(`[SOFTWARE] Creating v0 chat for project: ${project.v0_id}`)
-    const v0Result = await createV0Chat({
+    console.log(`[SOFTWARE] V0 chat request:`, {
       projectId: project.v0_id,
       message: prompt
     })
+    
+    let v0Result
+    try {
+      v0Result = await createV0Chat({
+        projectId: project.v0_id,
+        message: prompt
+      })
+      console.log(`[SOFTWARE] V0 chat result:`, v0Result)
+    } catch (v0Error) {
+      console.error(`[SOFTWARE] V0 chat creation failed:`, v0Error)
+      return NextResponse.json({ error: 'Failed to create v0 chat' }, { status: 500 })
+    }
 
     if (v0Result.error) {
       console.log(`[SOFTWARE] V0 chat creation failed:`, v0Result.error)

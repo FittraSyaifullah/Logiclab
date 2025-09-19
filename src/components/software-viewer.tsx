@@ -77,7 +77,7 @@ export function SoftwareViewer({ creation, onRegenerate }: SoftwareViewerProps) 
               <div className="w-full h-full flex items-center justify-center">
                 <div className="text-center space-y-4 p-8">
                   <Loader2 className="h-12 w-12 mx-auto mb-4 text-indigo-500 animate-spin" />
-                  <h3 className="font-semibold mb-2">v0 is Generating...</h3>
+                  <h3 className="font-semibold mb-2">Overhaul is Generating...</h3>
                   <p className="text-sm text-muted-foreground">AI is creating your software application with modern design and functionality.</p>
                   <div className="text-xs text-indigo-600 bg-indigo-50 dark:bg-indigo-900 p-2 rounded">✨ Using v0&apos;s advanced AI to build production-ready code</div>
                 </div>
