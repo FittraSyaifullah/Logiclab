@@ -370,20 +370,26 @@ export function ChatSidebar({ onLogout, onSendMessage }: ChatSidebarProps) {
                 </div>
               </ScrollArea>
 
-              <div className="p-3 border-t border-neutral-200 dark:border-neutral-700">
+              {/* Sticky input form at the bottom - positioned outside ScrollArea */}
+              <div
+                className="sticky bottom-0 p-2 sm:p-3 bg-white dark:bg-slate-900 border-t border-neutral-200 dark:border-neutral-700 z-10"
+                style={{
+                  boxShadow: '0 -8px 16px -4px rgba(0, 0, 0, 0.1), 0 -4px 6px -2px rgba(0, 0, 0, 0.05)'
+                }}
+              >
                 <form onSubmit={handleFallbackSubmit} className="flex gap-2">
                   <Input
                     value={fallbackInput}
                     onChange={(e) => setFallbackInput(e.target.value)}
                     placeholder="Ask about your project..."
                     disabled={isLoadingFallback}
-                    className="flex-1"
+                    className="flex-1 shadow-sm border-neutral-300 dark:border-neutral-600 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all duration-200 text-sm"
                   />
                   <Button
                     type="submit"
                     size="sm"
                     disabled={isLoadingFallback || !fallbackInput.trim()}
-                    className="bg-indigo-500 hover:bg-indigo-600"
+                    className="bg-indigo-500 hover:bg-indigo-600 shadow-md transition-all duration-200 hover:shadow-lg hover:scale-105 px-2 sm:px-3"
                   >
                     {isLoadingFallback ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
                   </Button>
