@@ -13,6 +13,14 @@ CREATE TABLE public.api_keys (
   CONSTRAINT api_keys_pkey PRIMARY KEY (id),
   CONSTRAINT api_keys_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.users(id)
 );
+CREATE TABLE public.business_reports (
+  report_id uuid NOT NULL DEFAULT gen_random_uuid(),
+  user_id uuid,
+  report jsonb NOT NULL,
+  created_at timestamp without time zone DEFAULT now(),
+  CONSTRAINT business_reports_pkey PRIMARY KEY (report_id),
+  CONSTRAINT business_reports_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.users(id)
+);
 CREATE TABLE public.credit_transactions (
   id uuid NOT NULL DEFAULT gen_random_uuid(),
   user_id uuid NOT NULL,
