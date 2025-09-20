@@ -79,7 +79,8 @@ export function SoftwareViewer({ creation, onRegenerate }: SoftwareViewerProps) 
                   <Loader2 className="h-12 w-12 mx-auto mb-4 text-indigo-500 animate-spin" />
                   <h3 className="font-semibold mb-2">Overhaul is Generating...</h3>
                   <p className="text-sm text-muted-foreground">AI is creating your software application with modern design and functionality.</p>
-                  <div className="text-xs text-indigo-600 bg-indigo-50 dark:bg-indigo-900 p-2 rounded">✨ Using v0&apos;s advanced AI to build production-ready code</div>
+                  <p className="text-xs text-muted-foreground">This may take up to 2 minutes for complex applications.</p>
+                  {/*<div className="text-xs text-indigo-600 bg-indigo-50 dark:bg-indigo-900 p-2 rounded">✨ Using v0&apos;s advanced AI to build production-ready code</div>*/}
                 </div>
               </div>
             ) : viewMode === "preview" && softwareData?.demoUrl ? (

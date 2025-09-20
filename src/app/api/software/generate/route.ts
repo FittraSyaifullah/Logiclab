@@ -70,6 +70,11 @@ export async function POST(request: NextRequest) {
     console.log(`[SOFTWARE] Chat URL: ${v0Result.chatUrl}`)
     console.log(`[SOFTWARE] Full v0Result:`, JSON.stringify(v0Result, null, 2))
 
+    if (!v0Result.demoUrl) {
+      console.error(`[SOFTWARE] No demoUrl from v0 after sync + polling. Aborting.`)
+      return NextResponse.json({ error: 'Demo URL not ready' }, { status: 502 })
+    }
+
     // Create software record in database
     console.log(`[SOFTWARE] Creating software record in database`)
     const { data: software, error: softwareError } = await supabase
@@ -106,6 +111,25 @@ export async function POST(request: NextRequest) {
       // Don't fail the request, just log the error
     } else {
       console.log(`[SOFTWARE] Initial message saved successfully`)
+    }
+
+    // Save v0 response message if available
+    if (v0Result.message) {
+      console.log(`[SOFTWARE] Saving v0 response message to database`)
+      const { error: v0MessageError } = await supabase
+        .from('software_messages')
+        .insert({
+          software_id: software.id,
+          role: 'assistant',
+          content: v0Result.message
+        })
+
+      if (v0MessageError) {
+        console.error(`[SOFTWARE] Failed to save v0 response message:`, v0MessageError)
+        // Don't fail the request, just log the error
+      } else {
+        console.log(`[SOFTWARE] V0 response message saved successfully`)
+      }
     }
 
     console.log(`[SOFTWARE] Software generation completed successfully`)

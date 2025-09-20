@@ -514,7 +514,15 @@ function DashboardContent({ onLogout, initialSearchInput }: DashboardProps) {
           responseData = JSON.parse(responseText)
         } else {
           console.error(`[DASHBOARD] Non-JSON response received. Status: ${response.status}, Content-Type: ${response.headers.get("content-type")}`)
-          throw new Error(`Server returned non-JSON response (${response.status}): ${responseText.substring(0, 500)}...`)
+          
+          // Handle specific error cases
+          if (response.status === 504) {
+            throw new Error("Request timed out. The v0 API is taking longer than expected. Please try again with a shorter prompt.")
+          } else if (response.status >= 500) {
+            throw new Error("Server error occurred. Please try again in a few moments.")
+          } else {
+            throw new Error(`Server returned non-JSON response (${response.status}): ${responseText.substring(0, 500)}...`)
+          }
         }
       } catch (parseError) {
         console.error(`[DASHBOARD] Failed to parse response:`, parseError)
@@ -624,7 +632,7 @@ function DashboardContent({ onLogout, initialSearchInput }: DashboardProps) {
 
       toast({
         title: "Generating software...",
-        description: "Overhaul is creating your application with AI.",
+        description: "LogicLab is creating your application with AI.",
       })
 
       generateSoftware(newCreation.id)

@@ -98,7 +98,7 @@ export class AdamCADAPI {
   }
 }
 
-// SONAR API integration
+// Perplexity SONAR API integration
 export class SONARAPI {
   private apiKey: string
 
@@ -107,42 +107,48 @@ export class SONARAPI {
   }
 
   async generateBusinessReport(projectDescription: string, problemStatement: string) {
-    const response = await fetch('https://api.sonar.com/v1/reports', {
+    const prompt = `Analyze this project for market research:
+
+Project: ${projectDescription}
+Purpose: ${problemStatement}
+
+Provide a comprehensive market analysis including:
+1. Ideal customer profile and market viability (score out of 50)
+2. Solution-market fit and payment likelihood (score out of 50)  
+3. Target market niches (5-10 specific niches)
+4. Key competitors with strengths, weaknesses, and opportunities
+5. Priority features with customer benefits
+6. Honest customer and advisor feedback
+7. Customer journey stages with touchpoints and pain points
+8. Competitive moats and advantages
+9. Testable hypotheses with measurable goals
+
+Format as valid JSON with the structure: {"icp": {"description": "", "score": 0, "viability": ""}, "solution": {"analysis": "", "score": 0, "paymentLikelihood": ""}, "niches": [], "competitors": [{"name": "", "strengths": [], "weaknesses": [], "traction": "", "opportunities": ""}], "features": [{"feature": "", "benefit": "", "priority": ""}], "feedback": {"customer": "", "advisor": ""}, "customerJourney": [{"stage": "", "touchpoints": [], "painPoints": [], "opportunities": []}], "moats": [], "hypotheses": [{"hypothesis": "", "goal": "", "metric": ""}]}`
+
+    const response = await fetch('https://api.perplexity.ai/chat/completions', {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${this.apiKey}`,
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        project_description: projectDescription,
-        problem_statement: problemStatement,
-        report_type: 'business_analysis',
-        include_market_research: true,
-        include_competitor_analysis: true,
+        model: 'sonar-pro',
+        messages: [
+          {
+            role: 'user',
+            content: prompt,
+          },
+        ],
+        temperature: 0.3,
+        max_tokens: 3000,
       }),
     })
 
     if (!response.ok) {
-      throw new Error(`SONAR API error: ${response.statusText}`)
+      throw new Error(`Perplexity API error: ${response.statusText}`)
     }
 
     return response.json()
-  }
-
-  async downloadReport(reportId: string, format: 'pdf' | 'html' = 'pdf') {
-    const response = await fetch(`https://api.sonar.com/v1/reports/${reportId}/download`, {
-      method: 'GET',
-      headers: {
-        'Authorization': `Bearer ${this.apiKey}`,
-        'Accept': format === 'pdf' ? 'application/pdf' : 'text/html',
-      },
-    })
-
-    if (!response.ok) {
-      throw new Error(`SONAR API error: ${response.statusText}`)
-    }
-
-    return response.blob()
   }
 }
 
@@ -150,15 +156,15 @@ export class SONARAPI {
 export function createAPIClients() {
   const v0ApiKey = process.env.V0_API_KEY
   const adamcadApiKey = process.env.ADAMCAD_API_KEY
-  const sonarApiKey = process.env.SONAR_API_KEY
+  const perplexityApiKey = process.env.PERPLEXITY_API_KEY
 
-  if (!v0ApiKey || !adamcadApiKey || !sonarApiKey) {
+  if (!v0ApiKey || !adamcadApiKey || !perplexityApiKey) {
     throw new Error('Missing required API keys in environment variables')
   }
 
   return {
     v0: new V0API(v0ApiKey),
     adamcad: new AdamCADAPI(adamcadApiKey),
-    sonar: new SONARAPI(sonarApiKey),
+    sonar: new SONARAPI(perplexityApiKey),
   }
 }

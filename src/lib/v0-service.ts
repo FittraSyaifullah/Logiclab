@@ -1,5 +1,17 @@
 import { createClient } from 'v0-sdk'
 
+// Timeout utility function
+const withTimeout = <T>(promise: Promise<T>, timeoutMs: number): Promise<T> => {
+  return Promise.race([
+    promise,
+    new Promise<T>((_, reject) =>
+      setTimeout(() => reject(new Error(`Request timed out after ${timeoutMs}ms`)), timeoutMs)
+    )
+  ])
+}
+
+const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms))
+
 interface V0ProjectData {
   name: string
   description: string
@@ -25,6 +37,7 @@ interface V0ChatResult {
   chatId?: string
   demoUrl?: string
   chatUrl?: string
+  message?: string
   error?: string
 }
 
@@ -111,10 +124,15 @@ export async function createV0Chat(data: V0ChatData): Promise<V0ChatResult> {
       message: data.message
     })
     
-    const result = await client.chats.create({
-      projectId: data.projectId,
-      message: data.message,
-    })
+    const result = await withTimeout(
+      client.chats.create({
+        projectId: data.projectId,
+        message: data.message,
+        // Ensure synchronous behavior so latestVersion is materialized when possible
+        responseMode: 'sync' as any,
+      } as any),
+      110000 // 110 seconds timeout (just under 2 minutes)
+    )
 
     console.log(`[V0] Chat created successfully:`, result)
     console.log(`[V0] Full result structure:`, JSON.stringify(result, null, 2))
@@ -141,28 +159,53 @@ export async function createV0Chat(data: V0ChatData): Promise<V0ChatResult> {
           console.log(`[V0] No latestVersion available yet`)
         }
         
+        // Extract latest assistant message if present
+        let assistantMessage: string | undefined = undefined
+        if (Array.isArray((result as any).messages)) {
+          const assistantMessages = (result as any).messages.filter((m: any) => m.role === 'assistant')
+          if (assistantMessages.length > 0) {
+            assistantMessage = assistantMessages[assistantMessages.length - 1].content
+          }
+        }
+
         // Map URLs correctly:
         // - demoUrl: iframe-embeddable demo URL (for iframe)
         // - chatUrl: chat URL (for navigation)
-        const demoUrl = result.latestVersion?.demoUrl
+        let demoUrl = result.latestVersion?.demoUrl
         const chatUrl = result.webUrl
-        
+
         console.log(`[V0] Mapped URLs - Demo: ${demoUrl}, Chat: ${chatUrl}`)
-        
-        // If no demoUrl yet, we might need to wait or construct it
+
+        // If no demoUrl yet, perform short server-side polling to wait until ready
         if (!demoUrl) {
-          console.log(`[V0] No demoUrl available yet - version might still be pending`)
-          console.log(`[V0] Version status: ${result.latestVersion?.status || 'unknown'}`)
-          
-          // For now, we'll return the chat URL as a fallback
-          // The demo URL will be available after the version is completed
-          console.log(`[V0] Using webUrl as fallback for demoUrl`)
+          console.log(`[V0] No demoUrl yet. Starting short polling for chat: ${result.id}`)
+          const maxAttempts = 8
+          for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+            await delay(1500)
+            try {
+              const refreshed: any = await client.chats.getById({ chatId: (result as any).id } as any)
+              demoUrl = refreshed?.latestVersion?.demoUrl
+              console.log(`[V0] Poll attempt ${attempt}/${maxAttempts} - Demo URL: ${demoUrl}`)
+              if (demoUrl) {
+                break
+              }
+            } catch (pollErr) {
+              console.warn(`[V0] Poll attempt ${attempt} failed:`, pollErr)
+            }
+          }
         }
-        
+
+        if (!demoUrl) {
+          console.error(`[V0] Demo URL still not available after polling`)
+          return { error: 'Demo URL not ready' }
+        }
+
         return {
           chatId: result.id,
-          demoUrl: demoUrl,
-          chatUrl: chatUrl
+          demoUrl,
+          chatUrl,
+          message: assistantMessage,
+          error: undefined,
         }
     } else {
       // Handle stream response
@@ -202,10 +245,13 @@ export async function sendV0Message(data: V0MessageData): Promise<V0MessageResul
     console.log(`[V0] - Chat ID: ${data.chatId}`)
     console.log(`[V0] - Message: ${data.message}`)
     
-    const result = await client.chats.sendMessage({
-      chatId: data.chatId,
-      message: data.message,
-    })
+    const result = await withTimeout(
+      client.chats.sendMessage({
+        chatId: data.chatId,
+        message: data.message,
+      }),
+      110000 // 110 seconds timeout (just under 2 minutes)
+    )
 
     console.log(`[V0] Message sent successfully:`, result)
     console.log(`[V0] Full result structure:`, JSON.stringify(result, null, 2))
