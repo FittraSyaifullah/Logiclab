@@ -474,7 +474,7 @@ function DashboardContent({ onLogout, initialSearchInput }: DashboardProps) {
       return
     }
 
-    console.log(`Starting v0 software generation for project: ${currentCreation.title}`)
+    console.log(`Starting async v0 software generation for project: ${currentCreation.title}`)
 
     updateCreation(creationId, {
       ...currentCreation,
@@ -503,109 +503,139 @@ function DashboardContent({ onLogout, initialSearchInput }: DashboardProps) {
         body: JSON.stringify(requestPayload),
       })
 
-      let responseData
-      try {
-        const responseText = await response.text()
-        console.log(`[DASHBOARD] generateSoftware response status: ${response.status}`)
-        console.log(`[DASHBOARD] generateSoftware response headers:`, Object.fromEntries(response.headers.entries()))
-        console.log(`[DASHBOARD] generateSoftware response text: ${responseText}`)
-
-        if (response.headers.get("content-type")?.includes("application/json")) {
-          responseData = JSON.parse(responseText)
-        } else {
-          console.error(`[DASHBOARD] Non-JSON response received. Status: ${response.status}, Content-Type: ${response.headers.get("content-type")}`)
-          
-          // Handle specific error cases
-          if (response.status === 504) {
-            throw new Error("Request timed out. The v0 API is taking longer than expected. Please try again with a shorter prompt.")
-          } else if (response.status >= 500) {
-            throw new Error("Server error occurred. Please try again in a few moments.")
-          } else {
-            throw new Error(`Server returned non-JSON response (${response.status}): ${responseText.substring(0, 500)}...`)
-          }
-        }
-      } catch (parseError) {
-        console.error(`[DASHBOARD] Failed to parse response:`, parseError)
-        throw new Error(`Failed to parse server response: ${parseError instanceof Error ? parseError.message : 'Unknown error'}`)
-      }
+      const responseData = await response.json()
 
       if (!response.ok) {
-        const errorMessage = responseData?.error || `HTTP ${response.status}: Server error`
-        console.error(`[DASHBOARD] generateSoftware failed:`, errorMessage)
-        throw new Error(errorMessage)
+        throw new Error(responseData.error || `HTTP ${response.status}: Server error`)
       }
 
-      const { software } = responseData
-      console.log(`[DASHBOARD] generateSoftware response data:`, responseData)
-      console.log(`[DASHBOARD] generateSoftware software data:`, software)
-      
-      if (!software?.demoUrl) {
-        console.error(`[DASHBOARD] No demo URL in software data:`, software)
-        throw new Error("No demo URL received from v0")
+      if (!responseData.success || !responseData.jobId) {
+        throw new Error(responseData.error || "No job ID returned")
       }
 
-      console.log(`[DASHBOARD] v0 success for project ${currentCreation.title}: ${software.demoUrl}`)
+      const jobId = responseData.jobId
+      console.log(`[DASHBOARD] Job enqueued successfully: ${jobId}`)
+
+      // Start polling for job completion
+      toast({
+        title: "Software Generation Started",
+        description: "Your software is being generated. This may take up to 5 minutes.",
+      })
+
+      // Start polling for job status
+      const pollInterval = setInterval(async () => {
+        try {
+          const statusResponse = await fetch(`/api/jobs/${jobId}`)
+          const statusData = await statusResponse.json()
+
+          console.log(`[DASHBOARD] Job status check:`, statusData)
+
+          if (statusData.completed) {
+            clearInterval(pollInterval)
+
+            if (statusData.software) {
+              console.log(`[DASHBOARD] Job completed successfully`)
+
+              const latest = useCreationStore.getState().creations.find((c) => c.id === creationId)
+              if (latest) {
+                updateCreation(creationId, {
+                  ...latest,
+                  softwareData: {
+                    chatId: statusData.software.chatId,
+                    demoUrl: statusData.software.demoUrl,
+                    isGenerating: false,
+                    error: undefined,
+                  },
+                })
+              }
+
+              // Load the chat messages to update the UI
+              if (statusData.software.id) {
+                console.log(`[DASHBOARD] Loading chat messages for software: ${statusData.software.id}`)
+                try {
+                  const messagesResponse = await fetch(`/api/software/messages?softwareId=${statusData.software.id}&userId=${user?.id}`)
+                  if (messagesResponse.ok) {
+                    const messagesData = await messagesResponse.json()
+                    console.log(`[DASHBOARD] Loaded ${messagesData.messages?.length || 0} messages`)
+
+                    // Update creation store with chat messages
+                    const updatedCreation = {
+                      chatHistory: messagesData.messages?.map((msg: any) => ({
+                        id: msg.id,
+                        role: msg.role,
+                        content: msg.content,
+                        createdAt: new Date(msg.created_at)
+                      })) || []
+                    }
+                    updateCreation(creationId, updatedCreation)
+                  }
+                } catch (error) {
+                  console.error(`[DASHBOARD] Failed to load chat messages:`, error)
+                }
+              }
+
+              toast({
+                title: "Software Generated!",
+                description: `Successfully created "${currentCreation.title}"`,
+              })
+            } else {
+              throw new Error(statusData.error || "Job completed but no software data")
+            }
+          } else if (statusData.status === 'failed') {
+            clearInterval(pollInterval)
+
+            const latest = useCreationStore.getState().creations.find((c) => c.id === creationId)
+            const failed = latest || currentCreation
+
+            updateCreation(creationId, {
+              ...failed,
+              softwareData: {
+                chatId: "",
+                demoUrl: "",
+                isGenerating: false,
+                error: statusData.error || "Job failed",
+              },
+            })
+
+            toast({
+              title: "Software Generation Failed",
+              description: statusData.error || "An error occurred during generation",
+              variant: "destructive",
+            })
+          }
+          // Continue polling if still processing
+        } catch (pollError) {
+          console.error(`[DASHBOARD] Job status polling error:`, pollError)
+          // Don't clear interval on polling error, keep trying
+        }
+      }, 5000) // Poll every 5 seconds
+
+      // Store the polling interval so we can clean it up if needed
+      return { jobId, pollInterval }
+
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : "Unknown error occurred"
 
       const latest = useCreationStore.getState().creations.find((c) => c.id === creationId)
-      if (latest) {
-        updateCreation(creationId, {
-          ...latest,
-          softwareData: {
-            chatId: software.chatId,
-            demoUrl: software.demoUrl,
-            isGenerating: false,
-            error: undefined,
-          },
-        })
-      }
+      const failed = latest || currentCreation
 
-      // Load the chat messages to update the UI
-      console.log(`[DASHBOARD] Loading chat messages for software: ${software.id}`)
-      try {
-        const messagesResponse = await fetch(`/api/software/messages?softwareId=${software.id}&userId=${user?.id}`)
-        if (messagesResponse.ok) {
-          const messagesData = await messagesResponse.json()
-          console.log(`[DASHBOARD] Loaded ${messagesData.messages?.length || 0} messages`)
-          
-          // Update creation store with chat messages
-          const updatedCreation = {
-            chatHistory: messagesData.messages?.map((msg: any) => ({
-              id: msg.id,
-              role: msg.role,
-              content: msg.content,
-              createdAt: new Date(msg.created_at)
-            })) || []
-          }
-          updateCreation(creationId, updatedCreation)
-        }
-      } catch (error) {
-        console.error(`[DASHBOARD] Failed to load chat messages:`, error)
-      }
-
-      toast({
-        title: `Software generated!`,
-        description: "v0 has created your application",
+      updateCreation(creationId, {
+        ...failed,
+        softwareData: {
+          chatId: "",
+          demoUrl: "",
+          isGenerating: false,
+          error: errorMessage,
+        },
       })
-    } catch (error) {
-      console.error(`v0 generation error:`, error)
-      const failed = useCreationStore.getState().creations.find((c) => c.id === creationId)
-      if (failed) {
-        updateCreation(creationId, {
-          ...failed,
-          softwareData: {
-            chatId: "",
-            demoUrl: "",
-            isGenerating: false,
-            error: (error as Error).message,
-          },
-        })
-      }
 
       toast({
-        title: `Failed to generate software`,
-        description: (error as Error).message,
+        title: `Failed to start software generation`,
+        description: errorMessage,
         variant: "destructive",
       })
+
+      console.error(`[DASHBOARD] generateSoftware failed:`, error)
     }
   }
 

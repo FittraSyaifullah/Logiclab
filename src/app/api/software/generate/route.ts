@@ -1,14 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createSupabaseClient } from '@/lib/supabase/server'
-import { createV0Chat } from '@/lib/v0-service'
 
 export async function POST(request: NextRequest) {
   try {
     const supabase = createSupabaseClient()
-    
+
     const body = await request.json()
     const { title, prompt, projectId, userId } = body
-    console.log(`[SOFTWARE] Generate request - User: ${userId}, Project: ${projectId}, Title: ${title}`)
+    console.log(`[SOFTWARE] Async generate request - User: ${userId}, Project: ${projectId}, Title: ${title}`)
 
     if (!userId) {
       console.log(`[SOFTWARE] Generate failed - User ID missing`)
@@ -41,105 +40,87 @@ export async function POST(request: NextRequest) {
 
     console.log(`[SOFTWARE] Project verified - v0_id: ${project.v0_id}`)
 
-    // Create v0 chat
-    console.log(`[SOFTWARE] Creating v0 chat for project: ${project.v0_id}`)
-    console.log(`[SOFTWARE] V0 chat request:`, {
-      projectId: project.v0_id,
-      message: prompt
-    })
-    
-    let v0Result
-    try {
-      v0Result = await createV0Chat({
-        projectId: project.v0_id,
-        message: prompt
-      })
-      console.log(`[SOFTWARE] V0 chat result:`, v0Result)
-    } catch (v0Error) {
-      console.error(`[SOFTWARE] V0 chat creation failed:`, v0Error)
-      return NextResponse.json({ error: 'Failed to create v0 chat' }, { status: 500 })
-    }
-
-    if (v0Result.error) {
-      console.log(`[SOFTWARE] V0 chat creation failed:`, v0Result.error)
-      return NextResponse.json({ error: v0Result.error }, { status: 500 })
-    }
-
-    console.log(`[SOFTWARE] V0 chat created successfully - Chat ID: ${v0Result.chatId}`)
-    console.log(`[SOFTWARE] Demo URL (iframe): ${v0Result.demoUrl}`)
-    console.log(`[SOFTWARE] Chat URL: ${v0Result.chatUrl}`)
-    console.log(`[SOFTWARE] Full v0Result:`, JSON.stringify(v0Result, null, 2))
-
-    if (!v0Result.demoUrl) {
-      console.error(`[SOFTWARE] No demoUrl from v0 after sync + polling. Aborting.`)
-      return NextResponse.json({ error: 'Demo URL not ready' }, { status: 502 })
-    }
-
-    // Create software record in database
-    console.log(`[SOFTWARE] Creating software record in database`)
-    const { data: software, error: softwareError } = await supabase
-      .from('software')
+    // Create job record
+    console.log(`[SOFTWARE] Creating job record for v0 processing`)
+    const { data: job, error: jobError } = await supabase
+      .from('jobs')
       .insert({
+        user_id: userId,
         project_id: projectId,
-        title,
-        demo_url: v0Result.demoUrl,  // iframe-embeddable demo URL
-        url: v0Result.chatUrl,       // chat URL for navigation
-        software_id: v0Result.chatId
+        kind: 'v0_software_generation',
+        status: 'pending',
+        input: {
+          title,
+          prompt,
+          projectId: project.v0_id
+        }
       })
       .select()
       .single()
 
-    if (softwareError) {
-      console.error(`[SOFTWARE] Failed to create software record:`, softwareError)
-      return NextResponse.json({ error: 'Failed to save software' }, { status: 500 })
+    if (jobError) {
+      console.error(`[SOFTWARE] Failed to create job record:`, jobError)
+      return NextResponse.json({ error: 'Failed to create job' }, { status: 500 })
     }
 
-    console.log(`[SOFTWARE] Software record created - ID: ${software.id}`)
+    console.log(`[SOFTWARE] Job record created - ID: ${job.id}`)
 
-    // Add the first message to software_messages
-    console.log(`[SOFTWARE] Saving initial message to database`)
-    const { error: messageError } = await supabase
-      .from('software_messages')
-      .insert({
-        software_id: software.id,
-        role: 'user',
-        content: prompt
+    // Call the edge function to enqueue the job
+    console.log(`[SOFTWARE] Enqueuing job with edge function`)
+    const edgeFunctionUrl = `${process.env.SUPABASE_URL}/functions/v1/v0-processor`
+
+    const response = await fetch(edgeFunctionUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': request.headers.get('authorization') || '',
+        'apikey': process.env.SUPABASE_ANON_KEY || '',
+      },
+      body: JSON.stringify({
+        jobId: job.id,
+        projectId: projectId,
+        prompt: prompt,
+        title: title
       })
+    })
 
-    if (messageError) {
-      console.error(`[SOFTWARE] Failed to save initial message:`, messageError)
-      // Don't fail the request, just log the error
-    } else {
-      console.log(`[SOFTWARE] Initial message saved successfully`)
-    }
+    if (!response.ok) {
+      const errorText = await response.text()
+      console.error(`[SOFTWARE] Edge function failed:`, response.status, errorText)
 
-    // Save v0 response message if available
-    if (v0Result.message) {
-      console.log(`[SOFTWARE] Saving v0 response message to database`)
-      const { error: v0MessageError } = await supabase
-        .from('software_messages')
-        .insert({
-          software_id: software.id,
-          role: 'assistant',
-          content: v0Result.message
+      // Update job status to failed
+      await supabase
+        .from('jobs')
+        .update({
+          status: 'failed',
+          error: `Edge function failed: ${response.status} - ${errorText}`,
+          finished_at: new Date().toISOString()
         })
+        .eq('id', job.id)
 
-      if (v0MessageError) {
-        console.error(`[SOFTWARE] Failed to save v0 response message:`, v0MessageError)
-        // Don't fail the request, just log the error
-      } else {
-        console.log(`[SOFTWARE] V0 response message saved successfully`)
-      }
+      return NextResponse.json({
+        error: 'Failed to enqueue job',
+        jobId: job.id
+      }, { status: 500 })
     }
 
-    console.log(`[SOFTWARE] Software generation completed successfully`)
+    const result = await response.json()
+    console.log(`[SOFTWARE] Edge function response:`, result)
+
+    // Update job status to processing
+    await supabase
+      .from('jobs')
+      .update({
+        status: 'processing',
+        started_at: new Date().toISOString()
+      })
+      .eq('id', job.id)
+
+    console.log(`[SOFTWARE] Software generation job enqueued successfully: ${job.id}`)
     return NextResponse.json({
-      software: {
-        id: software.id,
-        title: software.title,
-        demoUrl: software.demo_url,
-        chatId: software.software_id
-      }
+      success: true,
+      jobId: job.id,
+      message: 'Job enqueued for processing'
     })
 
   } catch (error) {
