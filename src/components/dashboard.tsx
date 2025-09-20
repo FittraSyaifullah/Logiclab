@@ -575,8 +575,10 @@ function DashboardContent({ onLogout, initialSearchInput }: DashboardProps) {
               }
 
               toast({
-                title: "Software Generated!",
-                description: `Successfully created "${currentCreation.title}"`,
+                title: statusData.software.demoUrl ? "Software Generated!" : "AI Needs More Information",
+                description: statusData.software.demoUrl
+                  ? `Successfully created "${currentCreation.title}"`
+                  : `v0 has asked a question. Check the chat to respond and continue building.`,
               })
             } else {
               throw new Error(statusData.error || "Job completed but no software data")

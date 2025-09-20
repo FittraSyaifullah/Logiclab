@@ -38,6 +38,7 @@ interface V0ChatResult {
   demoUrl?: string
   chatUrl?: string
   message?: string
+  needsClarification?: boolean
   error?: string
 }
 
@@ -195,9 +196,23 @@ export async function createV0Chat(data: V0ChatData): Promise<V0ChatResult> {
           }
         }
 
+        // Check if we have a demo URL or if v0 provided a clarification message
         if (!demoUrl) {
-          console.error(`[V0] Demo URL still not available after polling`)
-          return { error: 'Demo URL not ready' }
+          // Check if v0 provided a clarification message instead of a demo URL
+          if (assistantMessage) {
+            console.log(`[V0] No demo URL but v0 provided clarification message`)
+            return {
+              chatId: result.id,
+              demoUrl: undefined, // No demo URL available yet
+              chatUrl,
+              message: assistantMessage,
+              needsClarification: true, // Flag to indicate v0 needs more context
+              error: undefined,
+            }
+          } else {
+            console.error(`[V0] Demo URL still not available after polling and no clarification message`)
+            return { error: 'Demo URL not ready and no clarification message provided' }
+          }
         }
 
         return {

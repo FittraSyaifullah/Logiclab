@@ -18,10 +18,7 @@ export async function GET(
     // Get job details
     const { data: job, error: jobError } = await supabase
       .from('jobs')
-      .select(`
-        *,
-        software!inner(*)
-      `)
+      .select('*')
       .eq('id', jobId)
       .single()
 
@@ -31,21 +28,22 @@ export async function GET(
     }
 
     console.log(`[JOBS] Job status: ${job.status}`)
+    console.log(`[JOBS] Job result:`, job.result)
 
-    // If job is completed, return the software data
+    // If job is completed, return the software data from result
     if (job.status === 'completed') {
-      const software = Array.isArray(job.software) ? job.software[0] : job.software
+      const softwareData = job.result?.software
 
       return NextResponse.json({
         jobId: job.id,
         status: job.status,
         completed: true,
-        software: {
-          id: software?.id,
-          title: software?.title,
-          demoUrl: software?.demo_url,
-          chatId: software?.software_id
-        },
+        software: softwareData ? {
+          id: softwareData.id,
+          title: softwareData.title,
+          demoUrl: softwareData.demoUrl,
+          chatId: softwareData.chatId
+        } : null,
         finishedAt: job.finished_at
       })
     }

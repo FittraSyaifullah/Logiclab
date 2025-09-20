@@ -103,8 +103,24 @@ export function SoftwareViewer({ creation, onRegenerate }: SoftwareViewerProps) 
               <div className="w-full h-full flex items-center justify-center">
                 <div className="text-center text-muted-foreground">
                   <Monitor className="h-16 w-16 mx-auto mb-4 opacity-50" />
-                  <p className="text-lg font-medium mb-2">No Software Generated Yet</p>
-                  <p className="text-sm">Start building to see your application preview</p>
+                  <p className="text-lg font-medium mb-2">
+                    {softwareData?.demoUrl ? "No Software Generated Yet" : "AI Needs More Information"}
+                  </p>
+                  <p className="text-sm">
+                    {softwareData?.demoUrl
+                      ? "Start building to see your application preview"
+                      : "v0 has asked a question. Check the chat to respond and continue building."
+                    }
+                  </p>
+                  {softwareData?.demoUrl && (
+                    <Button
+                      onClick={onRegenerate}
+                      className="mt-4"
+                      variant="outline"
+                    >
+                      Generate Software
+                    </Button>
+                  )}
                 </div>
               </div>
             )}
