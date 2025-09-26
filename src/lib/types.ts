@@ -17,6 +17,8 @@ export interface Creation {
   isGenerating3D?: boolean
   error?: string
   softwareData?: SoftwareData
+  hardwareData?: HardwareData
+  hardwareReports?: HardwareReports
   hardwareSpecs?: HardwareSpecs
   codeVersions?: CodeVersion[]
   activeCodeVersion?: string
@@ -89,5 +91,40 @@ export interface Project {
   name: string
   description?: string
   v0_id?: string
+}
+
+export interface HardwareData {
+  isGenerating: boolean
+  reportsGenerated: boolean
+  error?: string
+}
+
+export interface HardwareReports {
+  "3d-components"?: {
+    content: string
+    components: Array<{
+      name: string
+      description: string
+      printTime: string
+      material: string
+      supports: string
+    }>
+    reportId?: string
+  }
+  "assembly-parts"?: {
+    content: string
+    partsCount: number
+    estimatedTime: string
+    difficultyLevel: string
+    reportId?: string
+  }
+  "firmware-code"?: {
+    content: string
+    language: string
+    platform: string
+    libraries: string[]
+    codeLines: number
+    reportId?: string
+  }
 }
 

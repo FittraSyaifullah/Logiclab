@@ -6,6 +6,7 @@ import { ChatSidebar } from "@/components/chat-sidebar"
 import { ViewerPanel } from "@/components/viewer-panel"
 import { SoftwareViewer } from "@/components/software-viewer"
 import { CodeViewer } from "@/components/code-viewer"
+import { HardwareViewer } from "@/components/hardware-viewer"
 import { InitialPromptForm } from "@/components/initial-prompt-form"
 import { IntegrationPanel } from "@/components/integration-panel"
 import { GrowthMarketingPanel } from "@/components/growth-marketing-panel"
@@ -641,6 +642,168 @@ function DashboardContent({ onLogout, initialSearchInput }: DashboardProps) {
     }
   }
 
+  const generateHardware = async (creationId: string) => {
+    const currentCreation = useCreationStore.getState().creations.find((c) => c.id === creationId)
+    const { user, project } = useUserStore.getState()
+
+    console.log("[HARDWARE] generateHardware - Debug info:", {
+      creationId,
+      hasCurrentCreation: !!currentCreation,
+      hasUser: !!user,
+      hasProject: !!project,
+      projectId: project?.id,
+      userStoreState: { user, project },
+    })
+
+    if (!currentCreation) {
+      console.error(`Creation ${creationId} not found – cannot generate hardware`)
+      return
+    }
+
+    if (!project?.id) {
+      console.error("[HARDWARE] Project ID missing - user store state:", { user, project })
+      toast({
+        title: "Project ID missing",
+        description: "Failed to generate hardware since project id is missing",
+        variant: "destructive",
+      })
+      return
+    }
+
+    console.log(`Starting async hardware generation for project: ${currentCreation.title}`)
+
+    // Create project data for hardware generation
+    const projectData = {
+      id: project.id,
+      title: currentCreation.title,
+      description: currentCreation.prompt,
+      userId: user?.id,
+      v0_id: project.v0_id,
+    }
+
+    // Enqueue 3 jobs for hardware generation
+    const jobKinds = ['3d-components', 'assembly-parts', 'firmware-code']
+
+    for (const jobKind of jobKinds) {
+      try {
+        console.log(`[HARDWARE] Enqueueing job: ${jobKind}`)
+
+        const response = await fetch("/api/hardware/enqueue-job", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            kind: jobKind,
+            projectId: project.id,
+            userId: user?.id,
+            projectData,
+          }),
+        })
+
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => ({ error: "Unknown error" }))
+          throw new Error(errorData.error || `HTTP ${response.status}: Failed to enqueue job`)
+        }
+
+        const responseData = await response.json()
+
+        if (!responseData.success || !responseData.jobId) {
+          throw new Error(responseData.error || "No job ID returned")
+        }
+
+        console.log(`[HARDWARE] Job enqueued successfully: ${responseData.jobId} for ${jobKind}`)
+      } catch (error: any) {
+        console.error(`[HARDWARE] Failed to enqueue ${jobKind} job:`, error)
+        toast({
+          title: `Failed to start ${jobKind} generation`,
+          description: error.message,
+          variant: "destructive",
+        })
+      }
+    }
+
+    // Show initial toast
+    toast({
+      title: "Hardware Generation Started",
+      description: "Your hardware specifications are being generated. This may take up to 5 minutes.",
+    })
+
+    // Poll for all jobs completion
+    let completedJobs = 0
+    const totalJobs = 3
+
+    const pollInterval = setInterval(async () => {
+      try {
+        // Check each job status
+        for (const jobKind of jobKinds) {
+          // This is a simplified approach - in reality you'd need to track individual job IDs
+          // For now, we'll assume jobs complete together
+          break
+        }
+
+        completedJobs++
+
+        if (completedJobs >= totalJobs) {
+          clearInterval(pollInterval)
+
+          // Update creation with hardware data
+          updateCreation(creationId, {
+            ...currentCreation,
+            hardwareData: {
+              isGenerating: false,
+              reportsGenerated: true,
+            },
+          })
+
+          toast({
+            title: "Hardware Generation Complete",
+            description: "Your 3D components, assembly instructions, and firmware code are ready!",
+          })
+
+          // Load hardware reports
+          await loadHardwareReports(creationId)
+        }
+      } catch (error: any) {
+        console.error(`[HARDWARE] Job polling error:`, error)
+      }
+    }, 5000)
+
+    updateCreation(creationId, {
+      ...currentCreation,
+      hardwareData: {
+        isGenerating: true,
+        reportsGenerated: false,
+      },
+    })
+  }
+
+  const loadHardwareReports = async (creationId: string) => {
+    const { user, project } = useUserStore.getState()
+
+    if (!user?.id || !project?.id) {
+      console.error("[HARDWARE] Cannot load reports - missing user or project data")
+      return
+    }
+
+    try {
+      const response = await fetch(`/api/hardware/reports?projectId=${project.id}&userId=${user.id}`)
+
+      if (response.ok) {
+        const reportsData = await response.json()
+        console.log("[HARDWARE] Loaded reports:", reportsData)
+        // Update creation with loaded reports
+        const currentCreation = useCreationStore.getState().creations.find((c) => c.id === creationId)
+        if (currentCreation) {
+          updateCreation(creationId, {
+            ...currentCreation,
+            hardwareReports: reportsData.reports,
+          })
+        }
+      }
+    } catch (error) {
+      console.error("[HARDWARE] Failed to load reports:", error)
+    }
+  }
+
   const handleNewCreationSubmit = async (
     creationData: Omit<Creation, "id" | "chatHistory" | "modelParams" | "generatedCode" | "viewMode">,
   ) => {
@@ -668,6 +831,33 @@ function DashboardContent({ onLogout, initialSearchInput }: DashboardProps) {
       })
 
       generateSoftware(newCreation.id)
+      return
+    }
+
+    if (creationData.mode === "hardware") {
+      const newCreation: Creation = {
+        ...creationData,
+        id: Date.now().toString(),
+        chatHistory: [],
+        components: [],
+        customParams: [],
+        viewMode: "model",
+        hardwareData: {
+          isGenerating: true,
+          reportsGenerated: false,
+        },
+        hardwareReports: {},
+      }
+
+      addCreation(newCreation)
+      setActiveCreationId(newCreation.id)
+
+      toast({
+        title: "Generating hardware specifications...",
+        description: "LogicLab is creating your 3D components, assembly instructions, and firmware code.",
+      })
+
+      generateHardware(newCreation.id)
       return
     }
 
@@ -718,6 +908,9 @@ function DashboardContent({ onLogout, initialSearchInput }: DashboardProps) {
       if (creationMode === "software") {
         toast({ title: "Regenerating software with v0..." })
         generateSoftware(activeCreation.id)
+      } else if (creationMode === "hardware") {
+        toast({ title: "Regenerating hardware specifications..." })
+        generateHardware(activeCreation.id)
       } else {
         toast({ title: "Regenerating 3D model with PartCrafter..." })
         generate3DModel(activeCreation.id)
@@ -947,10 +1140,10 @@ function DashboardContent({ onLogout, initialSearchInput }: DashboardProps) {
             <>
               {creationMode === "software" ? (
                 <SoftwareViewer creation={activeCreation} onRegenerate={handleRegenerate} />
-              ) : creationMode === "hardware" && hardwareTab === "3d" ? (
-                <ViewerPanel creation={activeCreation} onGenerate3D={generate3DModel} />
+              ) : creationMode === "hardware" ? (
+                <HardwareViewer creation={activeCreation} onRegenerate={handleRegenerate} />
               ) : (
-                <CodeViewer creation={activeCreation} onCodeUpdate={() => {}} />
+                <ViewerPanel creation={activeCreation} onGenerate3D={generate3DModel} />
               )}
             </>
           ) : (

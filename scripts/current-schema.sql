@@ -33,6 +33,16 @@ CREATE TABLE public.credit_transactions (
   CONSTRAINT credit_transactions_pkey PRIMARY KEY (id),
   CONSTRAINT credit_transactions_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.users(id)
 );
+CREATE TABLE public.hardware_reports (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  project_id uuid DEFAULT gen_random_uuid(),
+  3d_components jsonb,
+  assembly_parts jsonb,
+  firmware_code jsonb,
+  CONSTRAINT hardware_reports_pkey PRIMARY KEY (id),
+  CONSTRAINT hardware_reports_project_id_fkey FOREIGN KEY (project_id) REFERENCES public.projects(id)
+);
 CREATE TABLE public.jobs (
   id uuid NOT NULL DEFAULT gen_random_uuid(),
   user_id uuid NOT NULL,
