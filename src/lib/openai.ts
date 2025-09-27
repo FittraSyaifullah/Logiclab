@@ -1,5 +1,5 @@
 // OpenAI integration utilities for LogicLab
-// This provides fallback functionality when direct API calls are needed
+// This calls the actual OpenAI API
 
 export const aiModel = "gpt-4"
 
@@ -17,14 +17,8 @@ export async function generateText({
   maxTokens?: number
 }) {
   try {
-    // For now, return fallback content since we don't have direct OpenAI access
-    // In a production environment, this would call the OpenAI API
-    console.log("Using fallback content due to API limitation")
+    console.log(`[OPENAI] Calling OpenAI API with model: ${model}`)
 
-    throw new Error("OpenAI API not configured")
-
-    // Uncomment and configure this when you have OpenAI API access:
-    /*
     const response = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
       headers: {
@@ -43,15 +37,17 @@ export async function generateText({
     })
 
     if (!response.ok) {
-      throw new Error(`OpenAI API error: ${response.statusText}`)
+      const errorText = await response.text()
+      console.error(`[OPENAI] API error: ${response.status} - ${errorText}`)
+      throw new Error(`OpenAI API error: ${response.status} - ${errorText}`)
     }
 
     const data = await response.json()
+    console.log(`[OPENAI] Successfully generated response with ${data.usage?.total_tokens || 0} tokens`)
+
     return { text: data.choices[0].message.content }
-    */
   } catch (error: any) {
-    // Return fallback content that matches the expected format
-    console.log("Using fallback content due to API limitation")
-    throw error
+    console.error("[OPENAI] Error calling OpenAI API:", error)
+    throw new Error(`OpenAI API error: ${error.message}`)
   }
 }

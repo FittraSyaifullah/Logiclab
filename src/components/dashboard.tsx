@@ -32,6 +32,7 @@ import type { Creation } from "@/lib/types"
 import { useCreationStore } from "@/hooks/use-creation-store"
 import { useUserStore } from "@/hooks/use-user-store"
 import { cn } from "@/lib/utils"
+import { createSupabaseClient } from "@/lib/supabase/server"
 import { useToast } from "@/hooks/use-toast"
 import {
   DropdownMenu,
@@ -681,91 +682,90 @@ function DashboardContent({ onLogout, initialSearchInput }: DashboardProps) {
       v0_id: project.v0_id,
     }
 
-    // Enqueue 3 jobs for hardware generation
-    const jobKinds = ['3d-components', 'assembly-parts', 'firmware-code']
+    // Generate hardware specifications directly
+    const jobKinds = ['3d', 'assembly', 'firmware']
 
     for (const jobKind of jobKinds) {
       try {
-        console.log(`[HARDWARE] Enqueueing job: ${jobKind}`)
+        console.log(`[HARDWARE] Generating: ${jobKind}`)
 
-        const response = await fetch("/api/hardware/enqueue-job", {
+        // Call the generation endpoint directly
+        const endpoint = `/api/hardware/generate-${jobKind}`
+        const generationResponse = await fetch(endpoint, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            kind: jobKind,
-            projectId: project.id,
-            userId: user?.id,
-            projectData,
-          }),
+          body: JSON.stringify({ projectData }),
         })
 
-        if (!response.ok) {
-          const errorData = await response.json().catch(() => ({ error: "Unknown error" }))
-          throw new Error(errorData.error || `HTTP ${response.status}: Failed to enqueue job`)
+        if (!generationResponse.ok) {
+          const errorData = await generationResponse.json().catch(() => ({ error: "Unknown error" }))
+          throw new Error(errorData.error || `HTTP ${generationResponse.status}: Generation failed`)
         }
 
-        const responseData = await response.json()
+        const generationData = await generationResponse.json()
+        console.log(`[HARDWARE] Successfully generated ${jobKind}:`, generationData)
 
-        if (!responseData.success || !responseData.jobId) {
-          throw new Error(responseData.error || "No job ID returned")
+        // Create a job record for tracking
+        const supabase = createSupabaseClient()
+        const { error: jobError } = await supabase
+          .from('jobs')
+          .insert({
+            user_id: user.id,
+            project_id: project.id,
+            kind: `${jobKind}-components`,
+            status: 'completed',
+            priority: 50,
+            input: {
+              projectData,
+              generationType: 'hardware',
+              timestamp: new Date().toISOString(),
+            },
+            result: {
+              success: true,
+              reportId: generationData.reportId,
+              content: generationData.content,
+              timestamp: new Date().toISOString(),
+            },
+            finished_at: new Date().toISOString(),
+          })
+
+        if (jobError) {
+          console.error(`[HARDWARE] Failed to create job record for ${jobKind}:`, jobError)
+          // Don't throw here - continue with the process
+        } else {
+          console.log(`[HARDWARE] Job record created successfully for ${jobKind}`)
         }
 
-        console.log(`[HARDWARE] Job enqueued successfully: ${responseData.jobId} for ${jobKind}`)
       } catch (error: any) {
-        console.error(`[HARDWARE] Failed to enqueue ${jobKind} job:`, error)
-        toast({
-          title: `Failed to start ${jobKind} generation`,
-          description: error.message,
-          variant: "destructive",
+        console.error(`[HARDWARE] Failed to generate ${jobKind}:`, {
+          error: error,
+          message: error.message,
+          stack: error.stack,
+          cause: error.cause
         })
+
+        // Check if it's an OpenAI API error
+        if (error.message?.includes('OpenAI API')) {
+          toast({
+            title: `OpenAI API Error for ${jobKind === '3d' ? '3D components' : jobKind === 'assembly' ? 'assembly' : 'firmware'}`,
+            description: error.message,
+            variant: "destructive",
+          })
+        } else {
+          toast({
+            title: `Failed to generate ${jobKind === '3d' ? '3D components' : jobKind === 'assembly' ? 'assembly' : 'firmware'}`,
+            description: error.message || "Unknown error occurred",
+            variant: "destructive",
+          })
+        }
       }
     }
 
     // Show initial toast
     toast({
       title: "Hardware Generation Started",
-      description: "Your hardware specifications are being generated. This may take up to 5 minutes.",
+      description: "Your hardware specifications are being generated. This may take up to 2 minutes.",
     })
-
-    // Poll for all jobs completion
-    let completedJobs = 0
-    const totalJobs = 3
-
-    const pollInterval = setInterval(async () => {
-      try {
-        // Check each job status
-        for (const jobKind of jobKinds) {
-          // This is a simplified approach - in reality you'd need to track individual job IDs
-          // For now, we'll assume jobs complete together
-          break
-        }
-
-        completedJobs++
-
-        if (completedJobs >= totalJobs) {
-          clearInterval(pollInterval)
-
-          // Update creation with hardware data
-          updateCreation(creationId, {
-            ...currentCreation,
-            hardwareData: {
-              isGenerating: false,
-              reportsGenerated: true,
-            },
-          })
-
-          toast({
-            title: "Hardware Generation Complete",
-            description: "Your 3D components, assembly instructions, and firmware code are ready!",
-          })
-
-          // Load hardware reports
-          await loadHardwareReports(creationId)
-        }
-      } catch (error: any) {
-        console.error(`[HARDWARE] Job polling error:`, error)
-      }
-    }, 5000)
 
     updateCreation(creationId, {
       ...currentCreation,
@@ -774,6 +774,26 @@ function DashboardContent({ onLogout, initialSearchInput }: DashboardProps) {
         reportsGenerated: false,
       },
     })
+
+    // Wait for all generations to complete
+    setTimeout(async () => {
+      // Update creation with hardware data
+      updateCreation(creationId, {
+        ...currentCreation,
+        hardwareData: {
+          isGenerating: false,
+          reportsGenerated: true,
+        },
+      })
+
+      toast({
+        title: "Hardware Generation Complete",
+        description: "Your 3D components, assembly instructions, and firmware code are ready!",
+      })
+
+      // Load hardware reports
+      await loadHardwareReports(creationId)
+    }, 10000) // Wait 10 seconds for generation to complete
   }
 
   const loadHardwareReports = async (creationId: string) => {

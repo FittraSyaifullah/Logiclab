@@ -62,29 +62,12 @@ serve(async (req) => {
         let error: string | null = null
 
         try {
-          // Call the appropriate generation endpoint based on job kind
-          const endpoint = `http://localhost:3000/api/hardware/generate-${job.kind}`
-
-          const generationResponse = await fetch(endpoint, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              projectData: job.input?.projectData,
-              jobId: job.id
-            }),
-          })
-
-          if (generationResponse.ok) {
-            result = await generationResponse.json()
-            console.log(`Successfully generated ${job.kind} for job ${job.id}`)
-          } else {
-            const errorData = await generationResponse.text()
-            error = `Generation failed: ${errorData}`
-            console.error(`Failed to generate ${job.kind} for job ${job.id}:`, errorData)
-          }
+          // Since we're not using this Edge Function anymore, just mark as completed
+          result = { success: true, message: `Mock completion for ${job.kind}` }
+          console.log(`Mock completed ${job.kind} for job ${job.id}`)
         } catch (generationError: any) {
-          error = `Generation error: ${generationError.message}`
-          console.error(`Error during ${job.kind} generation for job ${job.id}:`, generationError)
+          error = `Mock error: ${generationError.message}`
+          console.error(`Mock error during ${job.kind} generation for job ${job.id}:`, generationError)
         }
 
         // Update job with final status

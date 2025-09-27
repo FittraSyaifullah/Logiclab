@@ -252,31 +252,31 @@ export default function LandingPage() {
 
       {/* Content */}
       <div className="relative z-10">
-        {/* Header */}
-        <header className="p-6 flex justify-between items-center">
+      {/* Header */}
+      <header className="p-6 flex justify-between items-center">
           <div className="flex items-center gap-2">
             <img src="/images/overhaul-logo.png" alt="Overhaul" className="w-8 h-8" />
             <span className="text-xl font-bold text-black">Overhaul</span>
-          </div>
+        </div>
 
-          <div className="flex items-center gap-3">
+        <div className="flex items-center gap-3">
             <Button
               variant="ghost"
               onClick={handleLogin}
               className="text-gray-700 hover:text-orange-600 hover:bg-orange-50 transition-all duration-300 hover:scale-105 font-medium"
             >
               Log In
-            </Button>
+          </Button>
             <Button
               onClick={handleSignUp}
               className="!bg-gradient-to-r !from-orange-500 !to-red-500 hover:!from-orange-600 hover:!to-red-600 !text-white hover:!text-white focus:!text-white !px-6 !py-2 !rounded-full !transition-all !duration-300 hover:!scale-105 hover:!shadow-lg hover:!shadow-orange-300 !font-medium !border-0"
             >
               Sign Up
-            </Button>
-          </div>
-        </header>
+          </Button>
+        </div>
+      </header>
 
-        {/* Hero Section */}
+      {/* Hero Section */}
         <section className="px-6 pt-20 pb-5 text-center max-w-4xl mx-auto">
           {/* Centered Logo and Black Overhaul Text */}
           <div className="flex flex-col items-center justify-center mb-8">
@@ -294,8 +294,8 @@ export default function LandingPage() {
           <div className="max-w-2xl mx-auto mb-8 cursor-pointer">
             <div className="relative group">
               <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400 transition-colors duration-300 group-hover:text-orange-500" />
-              <Input
-                type="text"
+            <Input 
+              type="text" 
                 value={searchInput}
                 onChange={handleSearchInputChange}
                 onKeyPress={handleSearchKeyPress}
@@ -323,8 +323,8 @@ export default function LandingPage() {
               <Check className="h-5 w-5" />
               <span className="text-lg">Built for innovators</span>
             </div>
-          </div>
-        </section>
+        </div>
+      </section>
 
         {/* New Model Generation Section */}
         <div className="mt-5">
@@ -409,7 +409,7 @@ export default function LandingPage() {
             Get Started Today
           </Button>
         </section>
-      </div>
+        </div>
     </div>
   )
 }

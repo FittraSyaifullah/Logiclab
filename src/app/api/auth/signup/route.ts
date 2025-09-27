@@ -1,5 +1,5 @@
 import { type NextRequest, NextResponse } from "next/server"
-import { createSupabaseClient } from "@/lib/supabase/server"
+import { createSupabaseServerClient } from "@/lib/supabase/server"
 import { createSession } from "@/lib/auth-service"
 import { createV0Project } from "@/lib/v0-service"
 
@@ -13,7 +13,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "All fields are required" }, { status: 400 })
     }
 
-    const supabase = createSupabaseClient()
+    const supabase = createSupabaseServerClient()
 
     const { data: authData, error: authError } = await supabase.auth.signUp({
       email,
