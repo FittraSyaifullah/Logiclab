@@ -20,6 +20,7 @@ export interface Creation {
   hardwareData?: HardwareData
   hardwareReports?: HardwareReports
   hardwareSpecs?: HardwareSpecs
+  hardwareModels?: Record<string, HardwareComponentModel>
   codeVersions?: CodeVersion[]
   activeCodeVersion?: string
 }
@@ -103,11 +104,15 @@ export interface HardwareReports {
   "3d-components"?: {
     content: string
     components: Array<{
+      id: string
       name: string
       description: string
       printTime: string
       material: string
       supports: string
+      prompt?: string
+      notes?: string
+      model?: HardwareComponentModel
     }>
     reportId?: string
   }
@@ -126,5 +131,24 @@ export interface HardwareReports {
     codeLines: number
     reportId?: string
   }
+}
+
+export interface HardwareComponentModel {
+  componentId: string
+  name: string
+  status: "idle" | "queued" | "processing" | "completed" | "failed"
+  jobId?: string
+  scadCode?: string
+  stlContent?: string
+  stlMimeType?: "model/stl" | string
+  scadMimeType?: "application/x-openscad" | string
+  parameters?: Array<{
+    name: string
+    value: number
+    unit?: string
+  }>
+  metadata?: Record<string, unknown>
+  error?: string
+  updatedAt?: string
 }
 

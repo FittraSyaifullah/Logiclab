@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useMemo, useState, type ComponentType } from "react"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -19,25 +19,190 @@ import {
   DollarSign,
   Loader2,
   Copy,
+  Hammer,
+  FileDown,
+  FileCode,
+  AlertTriangle,
 } from "lucide-react"
-import type { Creation, HardwareReports } from "@/lib/types"
+import type { Creation, HardwareComponentModel, HardwareReports } from "@/lib/types"
+import { cn } from "@/lib/utils"
 
 interface HardwareViewerProps {
   creation: Creation
   onRegenerate?: () => void
+  onGenerateComponentModel?: (args: {
+    componentId: string
+    componentName: string
+    prompt?: string
+  }) => void
 }
 
-export function HardwareViewer({ creation, onRegenerate }: HardwareViewerProps) {
+interface ComponentCardData {
+  id: string
+  name: string
+  description?: string
+  printTime: string
+  material: string
+  supports: string
+  prompt?: string
+  notes?: string
+  model?: HardwareComponentModel
+}
+
+const STATUS_META: Record<HardwareComponentModel["status"] | "idle", {
+  label: string
+  tone: string
+  icon: ComponentType<{ className?: string }>
+  spin?: boolean
+}> = {
+  idle: {
+    label: "Not generated yet",
+    tone: "text-neutral-500 dark:text-neutral-400",
+    icon: Hammer,
+  },
+  queued: {
+    label: "Queued in LogicLab",
+    tone: "text-blue-600 dark:text-blue-300",
+    icon: Loader2,
+    spin: true,
+  },
+  processing: {
+    label: "Generating STL & SCAD",
+    tone: "text-blue-600 dark:text-blue-300",
+    icon: Loader2,
+    spin: true,
+  },
+  completed: {
+    label: "Ready to preview",
+    tone: "text-emerald-600 dark:text-emerald-300",
+    icon: CheckCircle,
+  },
+  failed: {
+    label: "Generation failed",
+    tone: "text-red-600 dark:text-red-300",
+    icon: AlertTriangle,
+  },
+}
+
+const toKebabCase = (value: string) =>
+  value
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+
+const decodeBase64ToUint8Array = (base64: string) => {
+  const normalized = base64.replace(/\s/g, "")
+  const binaryString = typeof window === "undefined" ? atob(normalized) : window.atob(normalized)
+  const len = binaryString.length
+  const bytes = new Uint8Array(len)
+  for (let i = 0; i < len; i++) {
+    bytes[i] = binaryString.charCodeAt(i)
+  }
+  return bytes
+}
+
+const downloadMeshFile = (component: ComponentCardData, projectTitle: string, type: "stl" | "scad") => {
+  const model = component.model
+  if (!model) return
+
+  const safeProject = toKebabCase(projectTitle || "logiclab-project")
+  const safeComponent = toKebabCase(component.name || "component")
+
+  if (type === "stl") {
+    if (!model.stlContent) return
+    const bytes = decodeBase64ToUint8Array(model.stlContent)
+    const blob = new Blob([bytes.buffer], { type: model.stlMimeType ?? "model/stl" })
+    const url = URL.createObjectURL(blob)
+    const link = document.createElement("a")
+    link.href = url
+    link.download = `${safeProject}-${safeComponent}.stl`
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+    URL.revokeObjectURL(url)
+    return
+  }
+
+  if (!model.scadCode) return
+  const blob = new Blob([model.scadCode], { type: model.scadMimeType ?? "application/x-openscad" })
+  const url = URL.createObjectURL(blob)
+  const link = document.createElement("a")
+  link.href = url
+  link.download = `${safeProject}-${safeComponent}.scad`
+  document.body.appendChild(link)
+  link.click()
+  document.body.removeChild(link)
+  URL.revokeObjectURL(url)
+}
+
+const ComponentStatus = ({
+  status,
+  updatedAt,
+}: {
+  status: HardwareComponentModel["status"] | "idle"
+  updatedAt?: string
+}) => {
+  const meta = STATUS_META[status] ?? STATUS_META.idle
+  const Icon = meta.icon
+
+  return (
+    <div className={cn("flex items-center gap-2 text-xs font-medium", meta.tone)}>
+      <Icon className={cn("h-4 w-4", meta.spin && "animate-spin")} />
+      <span>{meta.label}</span>
+      {updatedAt && (
+        <span className="text-[11px] text-neutral-400 dark:text-neutral-500">
+          Updated {new Date(updatedAt).toLocaleTimeString()}
+        </span>
+      )}
+    </div>
+  )
+}
+
+const renderDetailedBreakdown = (content?: string) => {
+  if (!content) return null
+  return (
+    <details className="rounded-lg border border-neutral-200 bg-neutral-50/50 dark:border-neutral-800 dark:bg-neutral-900/40">
+      <summary className="cursor-pointer select-none px-4 py-2 text-sm font-semibold text-neutral-700 dark:text-neutral-200">
+        Detailed component breakdown
+      </summary>
+      <div className="px-4 py-3 text-sm text-neutral-600 dark:text-neutral-300 whitespace-pre-wrap">
+        {content}
+      </div>
+    </details>
+  )
+}
+
+export function HardwareViewer({ creation, onRegenerate, onGenerateComponentModel }: HardwareViewerProps) {
   const [activeTab, setActiveTab] = useState("3d-components")
   const [regeneratingTabs, setRegeneratingTabs] = useState<string[]>([])
 
   const hardwareReports = creation.hardwareReports as HardwareReports | undefined
+  const componentModels = creation.hardwareModels ?? {}
+
+  const components = useMemo<ComponentCardData[]>(() => {
+    const reportComponents = hardwareReports?.["3d-components"]?.components ?? []
+    return reportComponents.map((component, index) => {
+      const id = component.id || `${index}-${toKebabCase(component.name || "component")}`
+      const model = componentModels[id]
+      return {
+        id,
+        name: component.name,
+        description: component.description,
+        printTime: component.printTime,
+        material: component.material,
+        supports: component.supports,
+        prompt: component.prompt,
+        notes: component.notes,
+        model,
+      }
+    })
+  }, [hardwareReports, componentModels])
 
   const handleRegenerate = async (tabId: string) => {
     setRegeneratingTabs((prev) => [...prev, tabId])
 
     try {
-      // Call the specific regeneration API
       const response = await fetch(`/api/hardware/generate-${tabId}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -46,14 +211,13 @@ export function HardwareViewer({ creation, onRegenerate }: HardwareViewerProps) 
             id: creation.id,
             title: creation.title,
             description: creation.prompt,
-          }
+          },
         }),
       })
 
       if (response.ok) {
         const result = await response.json()
         console.log(`Regenerated ${tabId}:`, result)
-        // Refresh the page or update state to show new content
         window.location.reload()
       } else {
         console.error(`Failed to regenerate ${tabId}`)
@@ -77,18 +241,16 @@ export function HardwareViewer({ creation, onRegenerate }: HardwareViewerProps) 
     }
   }
 
-  const renderContent = (content: string, type: "code" | "components" | "assembly") => {
+  const renderReportContent = (content: string, type: "code" | "assembly") => {
     if (!content) return null
 
     if (type === "code") {
-      // Extract code blocks from markdown
       const codeBlockRegex = /```(\w+)?\n([\s\S]*?)```/g
-      const parts = []
+      const parts: Array<{ type: "text" | "code"; content: string; language?: string }> = []
       let lastIndex = 0
-      let match
+      let match: RegExpExecArray | null
 
       while ((match = codeBlockRegex.exec(content)) !== null) {
-        // Add text before code block
         if (match.index > lastIndex) {
           parts.push({
             type: "text",
@@ -96,7 +258,6 @@ export function HardwareViewer({ creation, onRegenerate }: HardwareViewerProps) 
           })
         }
 
-        // Add code block
         parts.push({
           type: "code",
           language: match[1] || "text",
@@ -106,7 +267,6 @@ export function HardwareViewer({ creation, onRegenerate }: HardwareViewerProps) 
         lastIndex = match.index + match[0].length
       }
 
-      // Add remaining text
       if (lastIndex < content.length) {
         parts.push({
           type: "text",
@@ -144,113 +304,56 @@ export function HardwareViewer({ creation, onRegenerate }: HardwareViewerProps) 
       )
     }
 
-    if (type === "components") {
-      // Parse component sections and make them copyable
-      const sections = content.split(/(?=###|\*\*Prompt for 3D Generation\*\*)/g)
+    // assembly content handled similar to previous implementation
+    const stepRegex = /(?:^|\n)((?:Step \d+|### Step \d+|##? \d+\.?)[^\n]*)/g
+    const parts: Array<{ type: "text" | "step"; content: string; number?: number }> = []
+    let lastIndex = 0
+    let match: RegExpExecArray | null
+    let stepCounter = 1
 
-      return (
-        <div className="space-y-4">
-          {sections.map((section, index) => {
-            if (section.includes("**Prompt for 3D Generation**")) {
-              const promptMatch = section.match(/\*\*Prompt for 3D Generation\*\*:\s*"([^"]+)"/)
-              const prompt = promptMatch ? promptMatch[1] : ""
-
-              return (
-                <div key={index} className="border rounded-lg p-4 bg-muted/20">
-                  <div className="whitespace-pre-wrap text-sm mb-3">
-                    {section.replace(/\*\*Prompt for 3D Generation\*\*:\s*"[^"]+"/g, "")}
-                  </div>
-                  {prompt && (
-                    <div className="relative">
-                      <div className="flex items-center justify-between bg-blue-50 px-3 py-2 rounded-t-lg border-b">
-                        <span className="text-sm font-medium text-blue-700">3D Generation Prompt</span>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => copyToClipboard(prompt)}
-                          className="h-6 px-2 text-blue-600 hover:text-blue-800"
-                        >
-                          <Copy className="w-3 h-3" />
-                        </Button>
-                      </div>
-                      <div className="bg-blue-50/50 p-3 rounded-b-lg border border-blue-200">
-                        <p className="text-sm text-blue-800">{prompt}</p>
-                      </div>
-                    </div>
-                  )}
-                </div>
-              )
-            }
-
-            return (
-              <div key={index} className="whitespace-pre-wrap text-sm">
-                {section}
-              </div>
-            )
-          })}
-        </div>
-      )
-    }
-
-    if (type === "assembly") {
-      // Format assembly instructions with proper step numbering
-      const stepRegex = /(?:^|\n)((?:Step \d+|### Step \d+|##? \d+\.?)[^\n]*)/g
-      const parts = []
-      let lastIndex = 0
-      let match
-      let stepCounter = 1
-
-      while ((match = stepRegex.exec(content)) !== null) {
-        // Add text before step
-        if (match.index > lastIndex) {
-          parts.push({
-            type: "text",
-            content: content.slice(lastIndex, match.index),
-          })
-        }
-
-        // Add step
-        parts.push({
-          type: "step",
-          number: stepCounter++,
-          content: match[1],
-        })
-
-        lastIndex = match.index + match[0].length
-      }
-
-      // Add remaining text
-      if (lastIndex < content.length) {
+    while ((match = stepRegex.exec(content)) !== null) {
+      if (match.index > lastIndex) {
         parts.push({
           type: "text",
-          content: content.slice(lastIndex),
+          content: content.slice(lastIndex, match.index),
         })
       }
 
-      return (
-        <div className="space-y-4">
-          {parts.map((part, index) => (
-            <div key={index}>
-              {part.type === "step" ? (
-                <div className="flex items-start gap-3 p-3 bg-blue-50 rounded-lg border border-blue-200">
-                  <div className="flex-shrink-0 w-6 h-6 bg-blue-500 text-white rounded-full flex items-center justify-center text-sm font-bold">
-                    {part.number}
-                  </div>
-                  <div className="flex-1 text-sm text-blue-800 font-medium">
-                    {part.content.replace(/^(?:Step \d+|### Step \d+|##? \d+\.?):?\s*/, "")}
-                  </div>
-                </div>
-              ) : (
-                <div className="whitespace-pre-wrap text-sm">{part.content}</div>
-              )}
-            </div>
-          ))}
-        </div>
-      )
+      parts.push({
+        type: "step",
+        number: stepCounter++,
+        content: match[1],
+      })
+
+      lastIndex = match.index + match[0].length
+    }
+
+    if (lastIndex < content.length) {
+      parts.push({
+        type: "text",
+        content: content.slice(lastIndex),
+      })
     }
 
     return (
-      <div className="whitespace-pre-wrap text-sm bg-muted/30 p-4 rounded-lg overflow-auto max-h-96">{content}</div>
+      <div className="space-y-4">
+        {parts.map((part, index) => (
+          <div key={index}>
+            {part.type === "step" ? (
+              <div className="flex items-start gap-3 p-3 bg-blue-50 rounded-lg border border-blue-200">
+                <div className="flex-shrink-0 w-6 h-6 bg-blue-500 text-white rounded-full flex items-center justify-center text-sm font-bold">
+                  {part.number}
+                </div>
+                <div className="flex-1 text-sm text-blue-800 font-medium">
+                  {part.content.replace(/^(?:Step \d+|### Step \d+|##? \d+\.?):?\s*/, "")}
+                </div>
+              </div>
+            ) : (
+              <div className="whitespace-pre-wrap text-sm">{part.content}</div>
+            )}
+          </div>
+        ))}
+      </div>
     )
   }
 
@@ -352,41 +455,139 @@ export function HardwareViewer({ creation, onRegenerate }: HardwareViewerProps) 
                   </div>
                   <div className="flex items-center gap-2">
                     <Badge variant="secondary">
-                      {hardwareReports["3d-components"]?.components?.length || 3} Parts
+                      {components.length} Parts
                     </Badge>
                     <Badge variant="outline" className="gap-1">
                       <DollarSign className="w-3 h-3" />
-                      ~$2.50 material
+                      Estimated material varies
                     </Badge>
                   </div>
                 </div>
               </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="flex items-center gap-4 p-3 bg-muted/50 rounded-lg">
-                  <div className="flex-1">
-                    <div className="flex items-center justify-between mb-1">
-                      <span className="text-sm font-medium">AI Generation Complete</span>
-                      <span className="text-sm text-muted-foreground">100%</span>
+              <CardContent className="space-y-6">
+                <div className="grid gap-4">
+                  {components.length === 0 && (
+                    <div className="rounded-lg border border-dashed border-neutral-300 dark:border-neutral-700 p-6 text-center text-sm text-muted-foreground">
+                      No components detected yet.
                     </div>
-                  </div>
-                  <CheckCircle className="w-5 h-5 text-blue-500" />
+                  )}
+
+                  {components.map((component) => {
+                    const status = component.model?.status ?? "idle"
+                    const isLoading = status === "queued" || status === "processing"
+
+                    return (
+                      <div
+                        key={component.id}
+                        className="rounded-xl border border-neutral-200/70 dark:border-neutral-800 bg-white dark:bg-neutral-900 shadow-sm p-5 space-y-4"
+                      >
+                        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                          <div>
+                            <div className="flex items-center gap-2 text-base font-semibold text-neutral-900 dark:text-neutral-100">
+                              <Hammer className="h-4 w-4 text-blue-500" />
+                              {component.name}
+                            </div>
+                            <p className="mt-1 text-sm text-neutral-600 dark:text-neutral-300">
+                              {component.description || "AI generated component"}
+                            </p>
+                          </div>
+                          <div className="flex flex-col items-start gap-1 text-xs text-neutral-500 dark:text-neutral-400">
+                            <span>Print Time · {component.printTime || "TBD"}</span>
+                            <span>Material · {component.material || "TBD"}</span>
+                            <span>Supports · {component.supports || "TBD"}</span>
+                          </div>
+                        </div>
+
+                        <ComponentStatus status={status} updatedAt={component.model?.updatedAt} />
+
+                        {component.prompt && (
+                          <div className="rounded-lg border border-blue-100 dark:border-blue-900 bg-blue-50/70 dark:bg-blue-900/20">
+                            <div className="flex items-center justify-between px-3 py-2 border-b border-blue-100 dark:border-blue-900/60">
+                              <span className="text-xs font-semibold uppercase tracking-wide text-blue-700 dark:text-blue-200">
+                                3D Generation Prompt
+                              </span>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => copyToClipboard(component.prompt ?? "")}
+                                className="h-7 px-2 text-blue-600 hover:text-blue-800 dark:text-blue-200"
+                              >
+                                <Copy className="w-3 h-3" />
+                              </Button>
+                            </div>
+                            <div className="px-4 py-3 text-sm text-blue-900 dark:text-blue-100 whitespace-pre-wrap">
+                              {component.prompt}
+                            </div>
+                          </div>
+                        )}
+
+                        {component.notes && (
+                          <div className="rounded-lg border border-neutral-200 dark:border-neutral-700 bg-neutral-50/70 dark:bg-neutral-900/40 px-4 py-3 text-xs text-neutral-600 dark:text-neutral-300">
+                            {component.notes}
+                          </div>
+                        )}
+
+                        <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                          <Button
+                            variant="default"
+                            disabled={isLoading || !onGenerateComponentModel}
+                            className={cn("gap-2", isLoading && "cursor-progress")}
+                            onClick={() =>
+                              onGenerateComponentModel?.({
+                                componentId: component.id,
+                                componentName: component.name,
+                                prompt: component.prompt,
+                              })
+                            }
+                          >
+                            {isLoading ? (
+                              <>
+                                <Loader2 className="h-4 w-4 animate-spin" />
+                                Generating STL & SCAD…
+                              </>
+                            ) : (
+                              <>
+                                <Hammer className="h-4 w-4" />
+                                Generate 3D Model
+                              </>
+                            )}
+                          </Button>
+
+                          <div className="flex flex-wrap items-center gap-2">
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              disabled={!component.model?.stlContent}
+                              onClick={() => downloadMeshFile(component, creation.title, "stl")}
+                              className="gap-2"
+                            >
+                              <FileDown className="h-4 w-4" />
+                              Download STL
+                            </Button>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              disabled={!component.model?.scadCode}
+                              onClick={() => downloadMeshFile(component, creation.title, "scad")}
+                              className="gap-2"
+                            >
+                              <FileCode className="h-4 w-4" />
+                              Download SCAD
+                            </Button>
+                          </div>
+                        </div>
+
+                        {component.model?.error && (
+                          <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700 dark:border-red-900/50 dark:bg-red-950/40 dark:text-red-200">
+                            <strong>Error:</strong> {component.model.error}
+                          </div>
+                        )}
+                      </div>
+                    )
+                  })}
                 </div>
 
-                {renderContent(
-                  hardwareReports["3d-components"]?.content || "No 3D components content available",
-                  "components",
-                )}
-
-                <div className="flex gap-2 pt-4 border-t">
-                  <Button className="flex-1">
-                    <Download className="w-4 h-4 mr-2" />
-                    Download All STL Files
-                  </Button>
-                  <Button variant="outline">
-                    <Eye className="w-4 h-4 mr-2" />
-                    Preview in 3D Viewer
-                  </Button>
-                </div>
+                {renderDetailedBreakdown(hardwareReports["3d-components"]?.content)}
               </CardContent>
             </Card>
           </TabsContent>
@@ -425,7 +626,7 @@ export function HardwareViewer({ creation, onRegenerate }: HardwareViewerProps) 
                   </AlertDescription>
                 </Alert>
 
-                {renderContent(
+                {renderReportContent(
                   hardwareReports["assembly-parts"]?.content || "No assembly instructions available",
                   "assembly",
                 )}
@@ -471,7 +672,7 @@ export function HardwareViewer({ creation, onRegenerate }: HardwareViewerProps) 
                     </AlertDescription>
                   </Alert>
 
-                  {renderContent(hardwareReports["firmware-code"]?.content || "No firmware code available", "code")}
+                  {renderReportContent(hardwareReports["firmware-code"]?.content || "No firmware code available", "code")}
 
                   <div className="flex gap-2 pt-4 border-t">
                     <Button className="flex-1">
