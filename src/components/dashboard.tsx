@@ -12,7 +12,7 @@ import { IntegrationPanel } from "@/components/integration-panel"
 import { GrowthMarketingPanel } from "@/components/growth-marketing-panel"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { LogoHoverSidebar } from "@/components/logo-hover-sidebar"
+import { LogoHoverSidebar, type SoftwareItem } from "@/components/logo-hover-sidebar"
 import {
   Monitor,
   Share,
@@ -354,10 +354,41 @@ function DashboardContent({ onLogout, initialSearchInput }: DashboardProps) {
   const [showLogoSidebar, setShowLogoSidebar] = useState(false)
   const [selectedChat, setSelectedChat] = useState<any>(null)
   const [chatMessages, setChatMessages] = useState<any[]>([])
+  const [softwareList, setSoftwareList] = useState<SoftwareItem[]>([])
 
   const hoverTimeoutRef = useRef<NodeJS.Timeout | null>(null)
 
   const creationMode = activeCreation?.mode || (activeCreation?.softwareData ? "software" : "hardware")
+  // Load projects (software and hardware) after login
+  useEffect(() => {
+    const loadAllProjects = async () => {
+      if (!user?.id) return
+      try {
+        const resp = await fetch(`/api/user/data?userId=${user.id}`, { cache: 'no-store' })
+        if (resp.ok) {
+          const data = await resp.json()
+          setSoftwareList(data.software || [])
+
+          // Optionally, preload latest hardware reports into current creation if needed
+          if (project?.id) {
+            try {
+              const hwResp = await fetch(`/api/hardware/reports?projectId=${project.id}&userId=${user.id}`, { cache: 'no-store' })
+              if (hwResp.ok) {
+                const hw = await hwResp.json()
+                if (hw?.reports && activeCreation && activeCreation.mode === 'hardware') {
+                  updateCreation(activeCreation.id, { hardwareReports: hw.reports })
+                }
+              }
+            } catch {}
+          }
+        }
+      } catch (e) {
+        console.error('[DASHBOARD] Failed to load projects after login', e)
+      }
+    }
+    loadAllProjects()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.id, project?.id])
 
   useEffect(() => {
     if (activeCreation) {
@@ -1136,6 +1167,7 @@ function DashboardContent({ onLogout, initialSearchInput }: DashboardProps) {
         onMouseEnter={handleSidebarMouseEnter}
         onMouseLeave={handleSidebarMouseLeave}
         onChatSelect={handleChatSelect}
+        softwareList={softwareList}
       />
 
       <ChatSidebar onLogout={onLogout} onSendMessage={handleSendMessage} />

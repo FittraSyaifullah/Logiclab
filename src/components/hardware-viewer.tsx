@@ -6,6 +6,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Alert, AlertDescription } from "@/components/ui/alert"
+import { ScrollArea } from "@/components/ui/scroll-area"
 import {
   Box,
   FileText,
@@ -288,10 +289,10 @@ export function HardwareViewer({ creation, onRegenerate }: HardwareViewerProps) 
   }
 
   return (
-    <div className="flex-1 p-6">
+    <div className="flex-1 p-6 h-full flex flex-col">
       <Tabs value={activeTab} onValueChange={setActiveTab} className="h-full flex flex-col">
         <div className="flex items-center justify-between mb-4">
-          <TabsList className="grid w-full max-w-lg grid-cols-4">
+          <TabsList className="grid w-full max-w-lg grid-cols-3">
             <TabsTrigger value="3d-components" className="gap-2 relative">
               <Box className="w-4 h-4" />
               3D Components
@@ -313,22 +314,14 @@ export function HardwareViewer({ creation, onRegenerate }: HardwareViewerProps) 
                 <RefreshCw className="w-3 h-3 animate-spin absolute -top-1 -right-1" />
               )}
             </TabsTrigger>
-            <TabsTrigger value="safety" className="gap-2">
-              <CheckCircle className="w-4 h-4" />
-              Safety
-            </TabsTrigger>
           </TabsList>
 
           <div className="flex items-center gap-2">
-            <Badge variant="outline" className="gap-1">
-              <CheckCircle className="w-3 h-3" />
-              AI Generated
-            </Badge>
             <Button
               variant="outline"
               size="sm"
               onClick={() => handleRegenerate(activeTab)}
-              disabled={isRegenerating(activeTab) || activeTab === "safety"}
+              disabled={isRegenerating(activeTab)}
             >
               {isRegenerating(activeTab) ? (
                 <>
@@ -345,7 +338,7 @@ export function HardwareViewer({ creation, onRegenerate }: HardwareViewerProps) 
           </div>
         </div>
 
-        <div className="flex-1">
+        <ScrollArea className="flex-1" style={{ height: "calc(100vh - 300px)" }}>
           <TabsContent value="3d-components" className="h-full">
             <Card className="h-full">
               <CardHeader>
@@ -465,7 +458,6 @@ export function HardwareViewer({ creation, onRegenerate }: HardwareViewerProps) 
                   <div className="flex items-center gap-2">
                     <Badge variant="outline">{hardwareReports["firmware-code"]?.platform || "Arduino IDE"}</Badge>
                     <Badge variant="outline">{hardwareReports["firmware-code"]?.language || "C++"}</Badge>
-                    <Badge variant="secondary">AI Generated</Badge>
                   </div>
                 </div>
               </CardHeader>
@@ -495,67 +487,7 @@ export function HardwareViewer({ creation, onRegenerate }: HardwareViewerProps) 
               </CardContent>
             </Card>
           </TabsContent>
-
-          <TabsContent value="safety" className="h-full">
-            <Card className="h-full">
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <CheckCircle className="w-5 h-5" />
-                  AI Safety Analysis
-                </CardTitle>
-                <CardDescription>Automated safety verification for your hardware project</CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="p-4 border rounded-lg">
-                    <div className="flex items-center gap-2 mb-2">
-                      <CheckCircle className="w-4 h-4 text-green-500" />
-                      <span className="font-medium">Electrical Safety</span>
-                    </div>
-                    <p className="text-sm text-muted-foreground">
-                      Project uses safe 5V USB power. No high voltage components detected.
-                    </p>
-                  </div>
-                  <div className="p-4 border rounded-lg">
-                    <div className="flex items-center gap-2 mb-2">
-                      <CheckCircle className="w-4 h-4 text-green-500" />
-                      <span className="font-medium">Mechanical Safety</span>
-                    </div>
-                    <p className="text-sm text-muted-foreground">
-                      No moving parts that could cause injury. All components properly enclosed.
-                    </p>
-                  </div>
-                  <div className="p-4 border rounded-lg">
-                    <div className="flex items-center gap-2 mb-2">
-                      <CheckCircle className="w-4 h-4 text-green-500" />
-                      <span className="font-medium">Thermal Safety</span>
-                    </div>
-                    <p className="text-sm text-muted-foreground">
-                      Components operate at room temperature. No heat-generating elements.
-                    </p>
-                  </div>
-                  <div className="p-4 border rounded-lg">
-                    <div className="flex items-center gap-2 mb-2">
-                      <CheckCircle className="w-4 h-4 text-green-500" />
-                      <span className="font-medium">Beginner Friendly</span>
-                    </div>
-                    <p className="text-sm text-muted-foreground">
-                      Suitable for beginners. No advanced tools or expertise required.
-                    </p>
-                  </div>
-                </div>
-
-                <Alert>
-                  <CheckCircle className="h-4 w-4" />
-                  <AlertDescription>
-                    <strong>Overall Assessment:</strong> This project has been analyzed and approved as safe for construction.
-                    All components are beginner-friendly and use standard low-voltage electronics.
-                  </AlertDescription>
-                </Alert>
-              </CardContent>
-            </Card>
-          </TabsContent>
-        </div>
+        </ScrollArea>
       </Tabs>
     </div>
   )
