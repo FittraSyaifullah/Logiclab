@@ -189,7 +189,10 @@ export function HardwareViewer({ creation, onRegenerate, onGenerateComponentMode
   const [previewComponentId, setPreviewComponentId] = useState<string | null>(null)
 
   const hardwareReports = creation.hardwareReports as HardwareReports | undefined
-  const componentModels = creation.hardwareModels ?? {}
+  const componentModels = useMemo(
+    () => creation.hardwareModels ?? {},
+    [creation.hardwareModels],
+  )
 
   const components = useMemo<ComponentCardData[]>(() => {
     const reportComponents = hardwareReports?.["3d-components"]?.components ?? []
@@ -208,7 +211,7 @@ export function HardwareViewer({ creation, onRegenerate, onGenerateComponentMode
         model,
       }
     })
-  }, [hardwareReports, componentModels])
+  }, [componentModels, hardwareReports])
 
   const openViewer = (componentId: string) => setPreviewComponentId(componentId)
   const closeViewer = () => setPreviewComponentId(null)
@@ -220,15 +223,19 @@ export function HardwareViewer({ creation, onRegenerate, onGenerateComponentMode
 
     return (
       <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/70 backdrop-blur">
-        <div className="relative w-full max-w-5xl h-[70vh] rounded-xl border border-neutral-800 bg-neutral-950">
-          <div className="absolute left-6 top-4 text-sm font-semibold text-neutral-200">{model.name || "Component"}</div>
+        <div className="relative w-full max-w-5xl h-[70vh] overflow-hidden rounded-xl border border-neutral-800 bg-neutral-950">
+          <div className="pointer-events-none absolute left-6 top-4 z-20 text-sm font-semibold text-neutral-200">
+            {model.name || "Component"}
+          </div>
           <button
             onClick={closeViewer}
-            className="absolute top-4 right-4 rounded-full border border-neutral-700 bg-neutral-900/80 px-3 py-1 text-xs text-neutral-300 hover:bg-neutral-800"
+            className="absolute top-4 right-4 z-30 rounded-full border border-neutral-700 bg-neutral-900/80 px-3 py-1 text-xs text-neutral-300 transition hover:bg-neutral-800 hover:text-neutral-100"
           >
             Close
           </button>
-          <STLViewer stlBase64={model.stlContent} componentName={model.name ?? "Component"} />
+          <div className="absolute inset-0">
+            <STLViewer stlBase64={model.stlContent} componentName={model.name ?? "Component"} />
+          </div>
         </div>
       </div>
     )
@@ -575,7 +582,6 @@ export function HardwareViewer({ creation, onRegenerate, onGenerateComponentMode
 
                   {components.map((component) => {
                     const status = component.model?.status ?? "idle"
-                    const isLoading = status === "queued" || status === "processing"
 
                     return (
                       <div

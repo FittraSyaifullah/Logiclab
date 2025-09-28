@@ -1,11 +1,12 @@
 "use client"
 
-import { useEffect, useMemo, useState } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { Canvas } from "@react-three/fiber"
-import { OrbitControls, PerspectiveCamera, GizmoHelper, GizmoViewport, Stage } from "@react-three/drei"
-import { Mesh, MeshStandardMaterial, BufferGeometry } from "three"
+import { OrbitControls, PerspectiveCamera, GizmoHelper, GizmoViewport } from "@react-three/drei"
+import { Box3, Mesh, MeshStandardMaterial, Vector3, BufferGeometry, MathUtils } from "three"
 import { STLLoader } from "three/examples/jsm/loaders/STLLoader.js"
 import { Loader2 } from "lucide-react"
+import type { OrbitControls as OrbitControlsImpl } from "three-stdlib"
 
 interface STLViewerProps {
   stlBase64: string
@@ -25,9 +26,49 @@ function base64ToArrayBuffer(base64: string): ArrayBuffer {
 }
 
 export default function STLViewer({ stlBase64, componentName }: STLViewerProps) {
+  const containerRef = useRef<HTMLDivElement>(null)
+  const controlsRef = useRef<OrbitControlsImpl | null>(null)
   const [geometry, setGeometry] = useState<BufferGeometry | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [color] = useState<string>("#FF7F50")
+  const [cameraPosition, setCameraPosition] = useState<[number, number, number]>([110, 110, 110])
+  const [cameraTarget, setCameraTarget] = useState<[number, number, number]>([0, 0, 0])
+  const [controlsReady, setControlsReady] = useState(false)
+
+  const updateCamera = useCallback(
+    (geom: BufferGeometry) => {
+      const boundingBox = new Box3().setFromBufferAttribute(geom.attributes.position)
+
+      const center = new Vector3()
+      boundingBox.getCenter(center)
+
+      const size = new Vector3()
+      boundingBox.getSize(size)
+      const sphereRadius = size.length() * 0.5 || 1
+
+      const container = containerRef.current
+      const aspect = container && container.clientHeight > 0 ? container.clientWidth / container.clientHeight : 1
+      const fov = MathUtils.degToRad(45)
+      const distance = sphereRadius / Math.sin(fov / 2)
+
+      const offset = new Vector3(distance, distance, distance)
+      if (aspect > 1) {
+        offset.x *= aspect
+      } else {
+        offset.y /= aspect
+      }
+
+      const newPosition: [number, number, number] = [
+        center.x + offset.x,
+        center.y + offset.y,
+        center.z + offset.z,
+      ]
+
+      setCameraTarget([center.x, center.y, center.z])
+      setCameraPosition(newPosition)
+    },
+    [],
+  )
 
   useEffect(() => {
     let cancelled = false
@@ -40,6 +81,7 @@ export default function STLViewer({ stlBase64, componentName }: STLViewerProps) 
       geom.computeVertexNormals()
       setGeometry(geom)
       setError(null)
+      updateCamera(geom)
     } catch (err) {
       if (cancelled) return
       console.error("[STLViewer] Failed to parse STL", err)
@@ -49,7 +91,7 @@ export default function STLViewer({ stlBase64, componentName }: STLViewerProps) 
     return () => {
       cancelled = true
     }
-  }, [stlBase64])
+  }, [stlBase64, updateCamera])
 
   const mesh = useMemo(() => {
     if (!geometry) return null
@@ -57,8 +99,15 @@ export default function STLViewer({ stlBase64, componentName }: STLViewerProps) 
     return new Mesh(geometry, material)
   }, [geometry, color])
 
+  useEffect(() => {
+    if (controlsRef.current) {
+      controlsRef.current.target.set(...cameraTarget)
+      controlsRef.current.update()
+    }
+  }, [cameraTarget])
+
   return (
-    <div className="relative h-full w-full">
+    <div ref={containerRef} className="relative h-full w-full">
       {!geometry && !error && (
         <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 text-neutral-200">
           <Loader2 className="h-6 w-6 animate-spin" />
@@ -75,17 +124,26 @@ export default function STLViewer({ stlBase64, componentName }: STLViewerProps) 
 
       {geometry && (
         <Canvas className="h-full w-full bg-neutral-950">
-          <PerspectiveCamera makeDefault position={[110, 110, 110]} fov={45} near={0.1} far={1000} />
+          <PerspectiveCamera makeDefault position={cameraPosition} fov={45} near={0.1} far={1000} />
           <ambientLight intensity={0.6} />
           <directionalLight position={[60, 60, 60]} intensity={1.2} />
           <directionalLight position={[-40, 40, 60]} intensity={0.4} />
-          <Stage adjustCamera={false} intensity={0.3}>
-            <primitive object={mesh} />
-          </Stage>
-          <OrbitControls enableDamping dampingFactor={0.1} />
-          <GizmoHelper alignment="bottom-right" margin={[80, 80]}>
+          <primitive object={mesh} />
+          <OrbitControls
+            ref={(value) => {
+              controlsRef.current = value
+              setControlsReady(!!value)
+            }}
+            makeDefault
+            enableDamping
+            dampingFactor={0.1}
+            target={cameraTarget}
+          />
+          {controlsReady && (
+            <GizmoHelper alignment="bottom-right" margin={[80, 80]} onTarget={() => controlsRef.current?.target}>
             <GizmoViewport axisColors={["#ff7f50", "#73c2fb", "#caffbf"]} />
-          </GizmoHelper>
+            </GizmoHelper>
+          )}
         </Canvas>
       )}
     </div>
