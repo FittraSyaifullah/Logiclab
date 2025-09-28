@@ -504,7 +504,6 @@ function DashboardContent({ onLogout, initialSearchInput }: DashboardProps) {
       }
     }
     loadAllProjects()
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.id, project?.id])
 
   useEffect(() => {

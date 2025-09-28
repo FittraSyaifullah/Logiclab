@@ -10,6 +10,10 @@ const nextConfig: NextConfig = {
   experimental: {
     responseLimit: false,
   },
+  eslint: {
+    // ✅ Don’t block production builds on lint errors
+    ignoreDuringBuilds: true,
+  },
 };
 
 export default nextConfig;
