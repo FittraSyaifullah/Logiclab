@@ -33,6 +33,24 @@ CREATE TABLE public.credit_transactions (
   CONSTRAINT credit_transactions_pkey PRIMARY KEY (id),
   CONSTRAINT credit_transactions_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.users(id)
 );
+CREATE TABLE public.hardware_models (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  updated_at timestamp with time zone NOT NULL DEFAULT now(),
+  project_id uuid NOT NULL,
+  component_id text NOT NULL UNIQUE,
+  component_name text NOT NULL,
+  creation_id uuid NOT NULL,
+  job_id uuid NOT NULL,
+  stl_base64 text NOT NULL,
+  scad_code text NOT NULL,
+  parameters jsonb,
+  stl_mime text DEFAULT 'model/stl'::text,
+  scad_mime text DEFAULT 'application/x-openscad'::text,
+  CONSTRAINT hardware_models_pkey PRIMARY KEY (id),
+  CONSTRAINT hardware_models_project_id_fkey FOREIGN KEY (project_id) REFERENCES public.projects(id),
+  CONSTRAINT hardware_models_job_id_fkey FOREIGN KEY (job_id) REFERENCES public.jobs(id)
+);
 CREATE TABLE public.hardware_reports (
   id uuid NOT NULL DEFAULT gen_random_uuid(),
   created_at timestamp with time zone NOT NULL DEFAULT now(),

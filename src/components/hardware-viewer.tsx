@@ -26,6 +26,12 @@ import {
 } from "lucide-react"
 import type { Creation, HardwareComponentModel, HardwareReports } from "@/lib/types"
 import { cn } from "@/lib/utils"
+import dynamic from "next/dynamic"
+import "@/components/viewers/stl-viewer-styles.css"
+
+const STLViewer = dynamic(() => import("@/components/viewers/stl-viewer"), {
+  ssr: false,
+})
 
 interface HardwareViewerProps {
   creation: Creation
@@ -91,13 +97,17 @@ const toKebabCase = (value: string) =>
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/^-+|-+$/g, "")
 
-const decodeBase64ToUint8Array = (base64: string) => {
-  const normalized = base64.replace(/\s/g, "")
-  const binaryString = typeof window === "undefined" ? atob(normalized) : window.atob(normalized)
-  const len = binaryString.length
+const base64ToUint8Array = (base64: string) => {
+  const clean = base64.replace(/\s/g, "")
+  if (typeof window === "undefined") {
+    const buf = Buffer.from(clean, "base64")
+    return new Uint8Array(buf.buffer, buf.byteOffset, buf.byteLength)
+  }
+  const binary = window.atob(clean)
+  const len = binary.length
   const bytes = new Uint8Array(len)
   for (let i = 0; i < len; i++) {
-    bytes[i] = binaryString.charCodeAt(i)
+    bytes[i] = binary.charCodeAt(i)
   }
   return bytes
 }
@@ -111,8 +121,8 @@ const downloadMeshFile = (component: ComponentCardData, projectTitle: string, ty
 
   if (type === "stl") {
     if (!model.stlContent) return
-    const bytes = decodeBase64ToUint8Array(model.stlContent)
-    const blob = new Blob([bytes.buffer], { type: model.stlMimeType ?? "model/stl" })
+    const bytes = base64ToUint8Array(model.stlContent)
+    const blob = new Blob([bytes], { type: model.stlMimeType ?? "model/stl" })
     const url = URL.createObjectURL(blob)
     const link = document.createElement("a")
     link.href = url
@@ -176,6 +186,7 @@ const renderDetailedBreakdown = (content?: string) => {
 export function HardwareViewer({ creation, onRegenerate, onGenerateComponentModel }: HardwareViewerProps) {
   const [activeTab, setActiveTab] = useState("3d-components")
   const [regeneratingTabs, setRegeneratingTabs] = useState<string[]>([])
+  const [previewComponentId, setPreviewComponentId] = useState<string | null>(null)
 
   const hardwareReports = creation.hardwareReports as HardwareReports | undefined
   const componentModels = creation.hardwareModels ?? {}
@@ -198,6 +209,30 @@ export function HardwareViewer({ creation, onRegenerate, onGenerateComponentMode
       }
     })
   }, [hardwareReports, componentModels])
+
+  const openViewer = (componentId: string) => setPreviewComponentId(componentId)
+  const closeViewer = () => setPreviewComponentId(null)
+
+  const renderPreviewViewer = () => {
+    if (!previewComponentId) return null
+    const model = componentModels[previewComponentId]
+    if (!model?.stlContent) return null
+
+    return (
+      <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/70 backdrop-blur">
+        <div className="relative w-full max-w-5xl h-[70vh] rounded-xl border border-neutral-800 bg-neutral-950">
+          <div className="absolute left-6 top-4 text-sm font-semibold text-neutral-200">{model.name || "Component"}</div>
+          <button
+            onClick={closeViewer}
+            className="absolute top-4 right-4 rounded-full border border-neutral-700 bg-neutral-900/80 px-3 py-1 text-xs text-neutral-300 hover:bg-neutral-800"
+          >
+            Close
+          </button>
+          <STLViewer stlBase64={model.stlContent} componentName={model.name ?? "Component"} />
+        </div>
+      </div>
+    )
+  }
 
   const handleRegenerate = async (tabId: string) => {
     setRegeneratingTabs((prev) => [...prev, tabId])
@@ -357,6 +392,71 @@ export function HardwareViewer({ creation, onRegenerate, onGenerateComponentMode
     )
   }
 
+  const renderComponentActions = (component: ComponentCardData) => {
+    const status = component.model?.status ?? "idle"
+    const isLoading = status === "queued" || status === "processing"
+    const canPreview = status === "completed" && (component.model?.stlContent)
+
+    return (
+      <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+        <div className="flex flex-wrap items-center gap-2">
+          <Button
+            variant="default"
+            disabled={isLoading || !onGenerateComponentModel}
+            className={cn("gap-2", isLoading && "cursor-progress")}
+            onClick={() =>
+              onGenerateComponentModel?.({
+                componentId: component.id,
+                componentName: component.name,
+                prompt: component.prompt,
+              })
+            }
+          >
+            {isLoading ? (
+              <>
+                <Loader2 className="h-4 w-4 animate-spin" />
+                Generating STL & SCAD…
+              </>
+            ) : (
+              <>
+                <Hammer className="h-4 w-4" />
+                Generate 3D Model
+              </>
+            )}
+          </Button>
+
+          <Button variant="secondary" size="sm" disabled={!canPreview} onClick={() => openViewer(component.id)}>
+            <Box className="h-4 w-4 mr-1" />
+            Preview Model
+          </Button>
+        </div>
+
+        <div className="flex flex-wrap items-center gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            disabled={!component.model?.stlSignedUrl && !component.model?.stlContent}
+            onClick={() => downloadMeshFile(component, creation.title, "stl")}
+            className="gap-2"
+          >
+            <FileDown className="h-4 w-4" />
+            Download STL
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            disabled={!component.model?.scadSignedUrl && !component.model?.scadCode}
+            onClick={() => downloadMeshFile(component, creation.title, "scad")}
+            className="gap-2"
+          >
+            <FileCode className="h-4 w-4" />
+            Download SCAD
+          </Button>
+        </div>
+      </div>
+    )
+  }
+
   if (creation.hardwareData?.isGenerating) {
     return (
       <div className="flex-1 p-6 flex items-center justify-center">
@@ -393,6 +493,7 @@ export function HardwareViewer({ creation, onRegenerate, onGenerateComponentMode
 
   return (
     <div className="flex-1 p-6 h-full flex flex-col">
+      {renderPreviewViewer()}
       <Tabs value={activeTab} onValueChange={setActiveTab} className="h-full flex flex-col">
         <div className="flex items-center justify-between mb-4">
           <TabsList className="grid w-full max-w-lg grid-cols-3">
@@ -527,55 +628,7 @@ export function HardwareViewer({ creation, onRegenerate, onGenerateComponentMode
                           </div>
                         )}
 
-                        <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-                          <Button
-                            variant="default"
-                            disabled={isLoading || !onGenerateComponentModel}
-                            className={cn("gap-2", isLoading && "cursor-progress")}
-                            onClick={() =>
-                              onGenerateComponentModel?.({
-                                componentId: component.id,
-                                componentName: component.name,
-                                prompt: component.prompt,
-                              })
-                            }
-                          >
-                            {isLoading ? (
-                              <>
-                                <Loader2 className="h-4 w-4 animate-spin" />
-                                Generating STL & SCAD…
-                              </>
-                            ) : (
-                              <>
-                                <Hammer className="h-4 w-4" />
-                                Generate 3D Model
-                              </>
-                            )}
-                          </Button>
-
-                          <div className="flex flex-wrap items-center gap-2">
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              disabled={!component.model?.stlContent}
-                              onClick={() => downloadMeshFile(component, creation.title, "stl")}
-                              className="gap-2"
-                            >
-                              <FileDown className="h-4 w-4" />
-                              Download STL
-                            </Button>
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              disabled={!component.model?.scadCode}
-                              onClick={() => downloadMeshFile(component, creation.title, "scad")}
-                              className="gap-2"
-                            >
-                              <FileCode className="h-4 w-4" />
-                              Download SCAD
-                            </Button>
-                          </div>
-                        </div>
+                        {renderComponentActions(component)}
 
                         {component.model?.error && (
                           <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700 dark:border-red-900/50 dark:bg-red-950/40 dark:text-red-200">
