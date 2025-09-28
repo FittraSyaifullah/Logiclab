@@ -140,8 +140,10 @@ export interface HardwareComponentModel {
   jobId?: string
   scadCode?: string
   stlContent?: string
+  stlSignedUrl?: string
   stlMimeType?: "model/stl" | string
   scadMimeType?: "application/x-openscad" | string
+  scadSignedUrl?: string
   parameters?: Array<{
     name: string
     value: number

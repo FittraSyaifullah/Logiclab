@@ -80,7 +80,7 @@ export default function STLViewer({ stlBase64, componentName }: STLViewerProps) 
           <directionalLight position={[60, 60, 60]} intensity={1.2} />
           <directionalLight position={[-40, 40, 60]} intensity={0.4} />
           <Stage adjustCamera={false} intensity={0.3}>
-            <primitive object={mesh} />
+            {mesh && <primitive object={mesh as unknown as object} />}
           </Stage>
           <OrbitControls enableDamping dampingFactor={0.1} />
           <GizmoHelper alignment="bottom-right" margin={[80, 80]}>

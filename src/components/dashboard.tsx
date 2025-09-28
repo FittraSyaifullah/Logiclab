@@ -975,6 +975,11 @@ function DashboardContent({ onLogout, initialSearchInput }: DashboardProps) {
 
         // Create a job record for tracking
         const supabase = createSupabaseClient()
+        if (!user || !project) {
+          console.warn('[HARDWARE] Missing user or project context; skipping job record insert')
+          continue
+        }
+
         const { error: jobError } = await supabase
           .from('jobs')
           .insert({

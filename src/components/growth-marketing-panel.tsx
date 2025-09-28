@@ -103,9 +103,9 @@ export function GrowthMarketingPanel({ isOpen, onClose }: GrowthMarketingPanelPr
     const addText = (text: string, fontSize = 10, isBold = false) => {
       doc.setFontSize(fontSize)
       if (isBold) {
-        doc.setFont(undefined, "bold")
+        doc.setFont("helvetica", "bold")
       } else {
-        doc.setFont(undefined, "normal")
+        doc.setFont("helvetica", "normal")
       }
 
       const lines = doc.splitTextToSize(text, pageWidth - 2 * margin)

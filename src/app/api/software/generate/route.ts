@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createSupabaseServerClient } from '@/lib/supabase/server'
+import { createV0Chat } from '@/lib/v0-service'
 
 export async function POST(request: NextRequest) {
   try {
@@ -78,68 +79,23 @@ export async function POST(request: NextRequest) {
       })
       .eq('id', job.id)
 
-    // Simulate the v0 processing (this would normally be done by the edge function)
-    // We'll process it synchronously for now to get the basic flow working
+    // Process via v0 service wrapper (synchronous behavior with short polling)
     try {
-      const v0ApiKey = process.env.V0_API_KEY
-      if (!v0ApiKey) {
-        throw new Error('V0_API_KEY not configured')
-      }
-
-      // Import v0 client dynamically
-      const { createClient } = await import('v0-sdk')
-      const v0Client = createClient({ apiKey: v0ApiKey })
-
-      console.log(`[SOFTWARE] Creating v0 chat for project: ${project.v0_id}`)
-      const chatResult = await v0Client.chats.create({
+      console.log(`[SOFTWARE] Creating v0 chat via service for project: ${project.v0_id}`)
+      const chatResult = await createV0Chat({
         projectId: project.v0_id,
         message: prompt,
-        async: true,
       })
 
-      // Poll for completion
-      let demoUrl = chatResult.latestVersion?.demoUrl
-      let assistantMessage: string | undefined
-
-      const maxAttempts = 10
-      for (let attempt = 1; attempt <= maxAttempts; attempt++) {
-        console.log(`[SOFTWARE] Polling attempt ${attempt}/${maxAttempts}`)
-
-        try {
-          const completedChat = await v0Client.chats.getById({ chatId: chatResult.id })
-          demoUrl = completedChat.latestVersion?.demoUrl
-          assistantMessage = completedChat.messages?.find((msg: any) => msg.role === 'assistant')?.content
-          console.log(`[SOFTWARE] Poll result - Demo URL: ${demoUrl}, Message: ${assistantMessage?.substring(0, 100)}...`)
-
-          // If we have a demo URL, we're done
-          if (demoUrl) {
-            break
-          }
-
-          // If we have an assistant message but no demo URL, v0 is asking for clarification
-          if (assistantMessage && !demoUrl) {
-            console.log(`[SOFTWARE] V0 provided clarification message instead of demo URL`)
-            break
-          }
-
-        } catch (pollError) {
-          console.warn(`[SOFTWARE] Poll attempt ${attempt} failed:`, pollError)
-        }
-
-        // Wait 30 seconds before next attempt (unless this is the last attempt)
-        if (attempt < maxAttempts) {
-          await new Promise(resolve => setTimeout(resolve, 30000))
-        }
+      if (chatResult.error) {
+        throw new Error(chatResult.error)
       }
 
-      // Check final result - either we have a demo URL (success) or we have a clarification message
+      const chatId = chatResult.chatId
+      const demoUrl = chatResult.demoUrl
+      const assistantMessage = chatResult.message
       const hasDemoUrl = !!demoUrl
       const hasClarification = !!assistantMessage && !demoUrl
-
-      if (!hasDemoUrl && !hasClarification) {
-        throw new Error('No demo URL or clarification message from v0 after polling')
-      }
-
       console.log(`[SOFTWARE] Final result: hasDemoUrl=${hasDemoUrl}, hasClarification=${hasClarification}`)
 
       // Create software record (handles both scenarios: with and without demo URL)
@@ -149,8 +105,8 @@ export async function POST(request: NextRequest) {
           project_id: projectId,
           title: title,
           demo_url: demoUrl || null, // Can be null if v0 needs clarification
-          url: chatResult.webUrl,
-          software_id: chatResult.id
+          url: chatResult.chatUrl || null,
+          software_id: chatId || null
         })
         .select()
         .single()
@@ -226,9 +182,11 @@ export async function POST(request: NextRequest) {
     }
 
   } catch (error) {
-    console.error(`[SOFTWARE] Software generation error:`, error)
+    const err = error as unknown
+    const message = err && typeof err === 'object' && 'message' in err ? String((err as any).message) : 'Internal server error'
+    console.error(`[SOFTWARE] Software generation error:`, err)
     return NextResponse.json(
-      { error: 'Internal server error' },
+      { error: message },
       { status: 500 }
     )
   }

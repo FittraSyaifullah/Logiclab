@@ -67,7 +67,7 @@ export function LogoHoverSidebar({
     }
   }
 
-  const handleChatSelect = (software: Software) => {
+  const handleChatSelect = (software: SoftwareItem) => {
     setSelectedChatId(software.id)
     onChatSelect?.(software)
   }
