@@ -123,7 +123,7 @@ export default function STLViewer({ stlBase64, componentName }: STLViewerProps) 
       )}
 
       {geometry && (
-        <Canvas className="h-full w-full bg-neutral-950">
+        <Canvas className="h-full w-full" style={{ background: "#d1d3d4" }}>
           <PerspectiveCamera makeDefault position={cameraPosition} fov={45} near={0.1} far={1000} />
           <ambientLight intensity={0.6} />
           <directionalLight position={[60, 60, 60]} intensity={1.2} />

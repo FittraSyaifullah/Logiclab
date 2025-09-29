@@ -360,6 +360,38 @@ function DashboardContent({ onLogout, initialSearchInput }: DashboardProps) {
 
   const creationMode = activeCreation?.mode || (activeCreation?.softwareData ? "software" : "hardware")
 
+  const convertScadToStlClient = async (
+    scadCode: string,
+    parameters?: Array<{ name: string; value: number }>,
+  ): Promise<{ stlContent?: string; error?: string }> => {
+    try {
+      const lookup = parameters?.reduce<Record<string, number>>((acc, parameter) => {
+        if (typeof parameter.value === "number") {
+          acc[parameter.name] = parameter.value
+        }
+        return acc
+      }, {})
+
+      const response = await fetch("/api/hardware/convert-scad", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ scadCode, parameters: lookup }),
+      })
+
+      if (!response.ok) {
+        const data = await response.json().catch(() => ({}))
+        throw new Error(data?.error || `SCAD conversion failed (${response.status})`)
+      }
+
+      const payload = await response.json()
+      return { stlContent: payload?.stlContent }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Unknown conversion error"
+      console.error("[HARDWARE] SCAD to STL conversion failed", error)
+      return { error: message }
+    }
+  }
+
   // Poll Supabase jobs table for hardware component model completion.
   const pollHardwareModelJobOnce = async ({
     creationId,
@@ -384,6 +416,20 @@ function DashboardContent({ onLogout, initialSearchInput }: DashboardProps) {
         const nextCreation = useCreationStore.getState().creations.find((c) => c.id === creationId)
         if (!nextCreation) return
 
+        let stlContent = data.component?.stlContent as string | undefined
+        const scadCode = data.component?.scadCode as string | undefined
+        const parameters = Array.isArray(data.component?.parameters) ? data.component?.parameters : undefined
+        let conversionError: string | undefined
+
+        if (!stlContent && scadCode) {
+          const { stlContent: convertedStl, error: conversionErr } = await convertScadToStlClient(scadCode, parameters)
+          if (convertedStl) {
+            stlContent = convertedStl
+          } else {
+            conversionError = conversionErr
+          }
+        }
+
         updateCreation(creationId, {
           ...nextCreation,
           hardwareModels: {
@@ -393,7 +439,7 @@ function DashboardContent({ onLogout, initialSearchInput }: DashboardProps) {
               name: data.component?.name ?? nextCreation.hardwareModels?.[componentId]?.name ?? "Component",
               status: data.status ?? "completed",
               jobId,
-              stlContent: data.component?.stlContent,
+              stlContent,
               scadCode: data.component?.scadCode,
               stlMimeType: data.component?.stlMimeType,
               scadMimeType: data.component?.scadMimeType,
@@ -405,10 +451,18 @@ function DashboardContent({ onLogout, initialSearchInput }: DashboardProps) {
           },
         })
 
-        if (data.component?.stlContent || data.component?.scadCode) {
+        if (stlContent || data.component?.scadCode) {
           toast({
             title: `${data.component?.name ?? "Component"} model ready`,
             description: "STL and SCAD assets have been generated successfully.",
+          })
+        }
+
+        if (conversionError) {
+          toast({
+            title: "Could not generate STL preview",
+            description: conversionError,
+            variant: "destructive",
           })
         }
 
