@@ -1,6 +1,6 @@
 "use client"
 
-import { useMemo, useState, type ComponentType } from "react"
+import { useEffect, useMemo, useState, type ComponentType } from "react"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -174,7 +174,7 @@ const renderDetailedBreakdown = (content?: string) => {
   return (
     <details className="rounded-lg border border-neutral-200 bg-neutral-50/50 dark:border-neutral-800 dark:bg-neutral-900/40">
       <summary className="cursor-pointer select-none px-4 py-2 text-sm font-semibold text-neutral-700 dark:text-neutral-200">
-        Detailed component breakdown
+        Detailed Component Breakdown
       </summary>
       <div className="px-4 py-3 text-sm text-neutral-600 dark:text-neutral-300 whitespace-pre-wrap">
         {content}
@@ -187,6 +187,7 @@ export function HardwareViewer({ creation, onRegenerate, onGenerateComponentMode
   const [activeTab, setActiveTab] = useState("3d-components")
   const [regeneratingTabs, setRegeneratingTabs] = useState<string[]>([])
   const [previewComponentId, setPreviewComponentId] = useState<string | null>(null)
+  const [activeComponentId, setActiveComponentId] = useState<string | null>(null)
 
   const hardwareReports = creation.hardwareReports as HardwareReports | undefined
   const componentModels = useMemo(
@@ -212,6 +213,22 @@ export function HardwareViewer({ creation, onRegenerate, onGenerateComponentMode
       }
     })
   }, [componentModels, hardwareReports])
+
+  useEffect(() => {
+    if (components.length === 0) {
+      setActiveComponentId(null)
+      return
+    }
+
+    if (!activeComponentId || !components.some((component) => component.id === activeComponentId)) {
+      setActiveComponentId(components[0].id)
+    }
+  }, [components, activeComponentId])
+
+  const activeComponent = useMemo(
+    () => components.find((component) => component.id === activeComponentId) ?? null,
+    [components, activeComponentId],
+  )
 
   const openViewer = (componentId: string) => setPreviewComponentId(componentId)
   const closeViewer = () => setPreviewComponentId(null)
@@ -573,41 +590,71 @@ export function HardwareViewer({ creation, onRegenerate, onGenerateComponentMode
                 </div>
               </CardHeader>
               <CardContent className="space-y-6">
-                <div className="grid gap-4">
-                  {components.length === 0 && (
-                    <div className="rounded-lg border border-dashed border-neutral-300 dark:border-neutral-700 p-6 text-center text-sm text-muted-foreground">
-                      No components detected yet.
+                {components.length === 0 ? (
+                  <div className="rounded-lg border border-dashed border-neutral-300 dark:border-neutral-700 p-6 text-center text-sm text-muted-foreground">
+                    No components detected yet.
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    <div className="relative" role="tablist" aria-label="3D Components">
+                      <div className="flex items-stretch gap-2 overflow-x-auto pb-2">
+                        {components.map((component) => {
+                          const isActive = component.id === activeComponentId
+                          return (
+                            <button
+                              key={component.id}
+                              type="button"
+                              onClick={() => setActiveComponentId(component.id)}
+                              role="tab"
+                              aria-selected={isActive}
+                              className={cn(
+                                "group relative flex min-w-[180px] items-center gap-2 rounded-t-lg border px-4 py-2 text-left transition",
+                                "bg-neutral-100/70 text-neutral-600 dark:bg-neutral-900/40 dark:text-neutral-300",
+                                "border-neutral-200/80 dark:border-neutral-700/60",
+                                "hover:bg-white dark:hover:bg-neutral-900",
+                                isActive &&
+                                  "bg-white text-neutral-900 dark:bg-neutral-800/80 dark:text-neutral-100 shadow-sm border-b-white dark:border-b-neutral-800",
+                              )}
+                            >
+                              <div className="flex h-5 w-5 items-center justify-center rounded-full bg-blue-100 text-blue-600 text-xs font-semibold dark:bg-blue-900/40 dark:text-blue-200">
+                                <Hammer className="h-3.5 w-3.5" />
+                              </div>
+                              <span className="truncate text-sm font-medium">{component.name || "Component"}</span>
+                              {isActive && (
+                                <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-blue-500" />
+                              )}
+                            </button>
+                          )
+                        })}
+                      </div>
+                      <div className="absolute inset-x-0 bottom-0 h-px bg-neutral-200 dark:bg-neutral-800" aria-hidden />
                     </div>
-                  )}
 
-                  {components.map((component) => {
-                    const status = component.model?.status ?? "idle"
-
-                    return (
-                      <div
-                        key={component.id}
-                        className="rounded-xl border border-neutral-200/70 dark:border-neutral-800 bg-white dark:bg-neutral-900 shadow-sm p-5 space-y-4"
-                      >
+                    {activeComponent && (
+                      <div className="rounded-b-xl rounded-tr-xl border border-neutral-200/70 dark:border-neutral-800 bg-white dark:bg-neutral-900 shadow-sm p-5 space-y-4">
                         <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                           <div>
                             <div className="flex items-center gap-2 text-base font-semibold text-neutral-900 dark:text-neutral-100">
                               <Hammer className="h-4 w-4 text-blue-500" />
-                              {component.name}
+                              {activeComponent.name}
                             </div>
                             <p className="mt-1 text-sm text-neutral-600 dark:text-neutral-300">
-                              {component.description || "AI generated component"}
+                              {activeComponent.description || "AI generated component"}
                             </p>
                           </div>
                           <div className="flex flex-col items-start gap-1 text-xs text-neutral-500 dark:text-neutral-400">
-                            <span>Print Time · {component.printTime || "TBD"}</span>
-                            <span>Material · {component.material || "TBD"}</span>
-                            <span>Supports · {component.supports || "TBD"}</span>
+                            <span>Print Time · {activeComponent.printTime || "TBD"}</span>
+                            <span>Material · {activeComponent.material || "TBD"}</span>
+                            <span>Supports · {activeComponent.supports || "TBD"}</span>
                           </div>
                         </div>
 
-                        <ComponentStatus status={status} updatedAt={component.model?.updatedAt} />
+                        <ComponentStatus
+                          status={activeComponent.model?.status ?? "idle"}
+                          updatedAt={activeComponent.model?.updatedAt}
+                        />
 
-                        {component.prompt && (
+                        {activeComponent.prompt && (
                           <div className="rounded-lg border border-blue-100 dark:border-blue-900 bg-blue-50/70 dark:bg-blue-900/20">
                             <div className="flex items-center justify-between px-3 py-2 border-b border-blue-100 dark:border-blue-900/60">
                               <span className="text-xs font-semibold uppercase tracking-wide text-blue-700 dark:text-blue-200">
@@ -616,35 +663,35 @@ export function HardwareViewer({ creation, onRegenerate, onGenerateComponentMode
                               <Button
                                 variant="ghost"
                                 size="sm"
-                                onClick={() => copyToClipboard(component.prompt ?? "")}
+                                onClick={() => copyToClipboard(activeComponent.prompt ?? "")}
                                 className="h-7 px-2 text-blue-600 hover:text-blue-800 dark:text-blue-200"
                               >
                                 <Copy className="w-3 h-3" />
                               </Button>
                             </div>
                             <div className="px-4 py-3 text-sm text-blue-900 dark:text-blue-100 whitespace-pre-wrap">
-                              {component.prompt}
+                              {activeComponent.prompt}
                             </div>
                           </div>
                         )}
 
-                        {component.notes && (
+                        {activeComponent.notes && (
                           <div className="rounded-lg border border-neutral-200 dark:border-neutral-700 bg-neutral-50/70 dark:bg-neutral-900/40 px-4 py-3 text-xs text-neutral-600 dark:text-neutral-300">
-                            {component.notes}
+                            {activeComponent.notes}
                           </div>
                         )}
 
-                        {renderComponentActions(component)}
+                        {renderComponentActions(activeComponent)}
 
-                        {component.model?.error && (
+                        {activeComponent.model?.error && (
                           <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700 dark:border-red-900/50 dark:bg-red-950/40 dark:text-red-200">
-                            <strong>Error:</strong> {component.model.error}
+                            <strong>Error:</strong> {activeComponent.model.error}
                           </div>
                         )}
                       </div>
-                    )
-                  })}
-                </div>
+                    )}
+                  </div>
+                )}
 
                 {renderDetailedBreakdown(hardwareReports["3d-components"]?.content)}
               </CardContent>
