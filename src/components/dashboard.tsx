@@ -6,12 +6,13 @@ import { ChatSidebar } from "@/components/chat-sidebar"
 import { ViewerPanel } from "@/components/viewer-panel"
 import { SoftwareViewer } from "@/components/software-viewer"
 import { CodeViewer } from "@/components/code-viewer"
+import { HardwareViewer } from "@/components/hardware-viewer"
 import { InitialPromptForm } from "@/components/initial-prompt-form"
 import { IntegrationPanel } from "@/components/integration-panel"
 import { GrowthMarketingPanel } from "@/components/growth-marketing-panel"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { LogoHoverSidebar } from "@/components/logo-hover-sidebar"
+import { LogoHoverSidebar, type SoftwareItem } from "@/components/logo-hover-sidebar"
 import {
   Monitor,
   Share,
@@ -31,6 +32,7 @@ import type { Creation } from "@/lib/types"
 import { useCreationStore } from "@/hooks/use-creation-store"
 import { useUserStore } from "@/hooks/use-user-store"
 import { cn } from "@/lib/utils"
+import { createSupabaseClient } from "@/lib/supabase/server"
 import { useToast } from "@/hooks/use-toast"
 import {
   DropdownMenu,
@@ -352,10 +354,158 @@ function DashboardContent({ onLogout, initialSearchInput }: DashboardProps) {
   const [showLogoSidebar, setShowLogoSidebar] = useState(false)
   const [selectedChat, setSelectedChat] = useState<any>(null)
   const [chatMessages, setChatMessages] = useState<any[]>([])
+  const [softwareList, setSoftwareList] = useState<SoftwareItem[]>([])
 
   const hoverTimeoutRef = useRef<NodeJS.Timeout | null>(null)
 
   const creationMode = activeCreation?.mode || (activeCreation?.softwareData ? "software" : "hardware")
+
+  // Poll Supabase jobs table for hardware component model completion.
+  const pollHardwareModelJobOnce = async ({
+    creationId,
+    componentId,
+    jobId,
+    attempt = 0,
+  }: {
+    creationId: string
+    componentId: string
+    jobId: string
+    attempt?: number
+  }) => {
+    try {
+        const response = await fetch(`/api/jobs/${jobId}?componentId=${componentId}`)
+      const data = await response.json()
+
+      if (!response.ok) {
+        throw new Error(data.error || `Failed to fetch job status for ${componentId}`)
+      }
+
+      if (data.completed) {
+        const nextCreation = useCreationStore.getState().creations.find((c) => c.id === creationId)
+        if (!nextCreation) return
+
+        updateCreation(creationId, {
+          ...nextCreation,
+          hardwareModels: {
+            ...(nextCreation.hardwareModels ?? {}),
+            [componentId]: {
+              componentId,
+              name: data.component?.name ?? nextCreation.hardwareModels?.[componentId]?.name ?? "Component",
+              status: data.status ?? "completed",
+              jobId,
+              stlContent: data.component?.stlContent,
+              scadCode: data.component?.scadCode,
+              stlMimeType: data.component?.stlMimeType,
+              scadMimeType: data.component?.scadMimeType,
+              parameters: data.component?.parameters,
+              metadata: data.component?.metadata,
+              error: data.component?.error,
+              updatedAt: new Date().toISOString(),
+            },
+          },
+        })
+
+        if (data.component?.stlContent || data.component?.scadCode) {
+          toast({
+            title: `${data.component?.name ?? "Component"} model ready`,
+            description: "STL and SCAD assets have been generated successfully.",
+          })
+        }
+
+        await loadHardwareReports(creationId)
+        return
+      }
+
+      if (data.status === "failed") {
+        const nextCreation = useCreationStore.getState().creations.find((c) => c.id === creationId)
+        if (!nextCreation) return
+
+        updateCreation(creationId, {
+          ...nextCreation,
+          hardwareModels: {
+            ...(nextCreation.hardwareModels ?? {}),
+            [componentId]: {
+              componentId,
+              name: nextCreation.hardwareModels?.[componentId]?.name ?? "Component",
+              status: "failed",
+              jobId,
+              error: data.error || "Generation failed",
+              updatedAt: new Date().toISOString(),
+            },
+          },
+        })
+
+        toast({
+          title: `Model generation failed for ${nextCreation.hardwareModels?.[componentId]?.name ?? "component"}`,
+          description: data.error || "An unknown error occurred.",
+          variant: "destructive",
+        })
+
+        return
+      }
+
+      if (attempt < 120) {
+        setTimeout(() => pollHardwareModelJobOnce({ creationId, componentId, jobId, attempt: attempt + 1 }), 5000)
+      }
+    } catch (error) {
+      console.error("[HARDWARE] Failed to poll model job:", error)
+
+      const nextCreation = useCreationStore.getState().creations.find((c) => c.id === creationId)
+      if (!nextCreation) return
+
+      updateCreation(creationId, {
+        ...nextCreation,
+        hardwareModels: {
+          ...(nextCreation.hardwareModels ?? {}),
+          [componentId]: {
+            componentId,
+            name: nextCreation.hardwareModels?.[componentId]?.name ?? "Component",
+            status: "failed",
+            jobId,
+            error: (error as Error).message,
+            updatedAt: new Date().toISOString(),
+          },
+        },
+      })
+
+      toast({
+        title: "Lost connection to model job",
+        description: (error as Error).message,
+        variant: "destructive",
+      })
+    }
+  }
+
+  // Load projects (software and hardware) after login
+  useEffect(() => {
+    const loadAllProjects = async () => {
+      if (!user?.id) return
+      try {
+        const resp = await fetch(`/api/user/data?userId=${user.id}`, { cache: "no-store" })
+        if (resp.ok) {
+          const data = await resp.json()
+          setSoftwareList(data.software || [])
+
+          // Optionally, preload latest hardware reports into current creation if needed
+          if (project?.id) {
+            try {
+              const hwResp = await fetch(`/api/hardware/reports?projectId=${project.id}&userId=${user.id}`, { cache: "no-store" })
+              if (hwResp.ok) {
+                const hw = await hwResp.json()
+                if (hw?.reports && activeCreation && activeCreation.mode === 'hardware') {
+                  updateCreation(activeCreation.id, { hardwareReports: hw.reports })
+                }
+              }
+            } catch {}
+          }
+        }
+      } catch (e) {
+        console.error('[DASHBOARD] Failed to load projects after login', e)
+      }
+    }
+    loadAllProjects()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.id, project?.id])
 
   useEffect(() => {
     if (activeCreation) {
@@ -363,11 +513,132 @@ function DashboardContent({ onLogout, initialSearchInput }: DashboardProps) {
     }
   }, [activeCreation, creationMode])
 
-  const generate3DModel = async (creationId: string) => {
+  const generate3DModel = async (
+    creationId: string,
+    options?: {
+      componentId?: string
+      componentName?: string
+      prompt?: string
+      mode?: "component" | "full"
+    }
+  ) => {
     const currentCreation = useCreationStore.getState().creations.find((c) => c.id === creationId)
 
     if (!currentCreation) {
       console.error(`Creation ${creationId} not found – cannot generate 3D model`)
+      return
+    }
+
+    const { user, project } = useUserStore.getState()
+
+    if (!user?.id || !project?.id) {
+      toast({
+        title: "Missing project context",
+        description: "Please reload LogicLab or re-authenticate before generating models.",
+        variant: "destructive",
+      })
+      return
+    }
+
+    const mode = options?.mode ?? "component"
+
+    if (mode === "component" && options?.componentId) {
+      const labels = {
+        queued: `Queued 3D generation for ${options.componentName ?? "component"}`,
+        started: `Generating 3D model for ${options.componentName ?? "component"}`,
+      }
+
+      const componentPayload = {
+        creationId,
+        componentId: options.componentId,
+        componentName: options.componentName,
+        prompt: options.prompt || currentCreation.prompt,
+        projectId: project.id,
+        userId: user.id,
+      }
+
+      updateCreation(creationId, {
+        ...currentCreation,
+        hardwareModels: {
+          ...(currentCreation.hardwareModels ?? {}),
+          [options.componentId]: {
+            componentId: options.componentId,
+            name: options.componentName ?? "Component",
+            status: "queued",
+            updatedAt: new Date().toISOString(),
+          },
+        },
+      })
+
+      toast({
+        title: labels.queued,
+        description: "We will notify you when the STL and SCAD are ready.",
+      })
+
+      try {
+        const response = await fetch("/api/hardware/models", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(componentPayload),
+        })
+
+        const data = await response.json()
+
+        if (!response.ok) {
+          throw new Error(data.error || `Failed to enqueue 3D model job for ${options.componentName}`)
+        }
+
+        const jobId = data.jobId as string | undefined
+
+        updateCreation(creationId, {
+          ...useCreationStore.getState().creations.find((c) => c.id === creationId)!,
+          hardwareModels: {
+            ...useCreationStore.getState().creations.find((c) => c.id === creationId)!.hardwareModels,
+            [options.componentId]: {
+              componentId: options.componentId,
+              name: options.componentName ?? "Component",
+              status: "processing",
+              jobId,
+              updatedAt: new Date().toISOString(),
+            },
+          },
+        })
+
+        if (jobId) {
+          setTimeout(() => pollHardwareModelJobOnce({ creationId, componentId: options.componentId!, jobId }), 3000)
+        }
+
+        toast({
+          title: labels.started,
+          description: "Hang tight while we create the STL and SCAD files.",
+        })
+      } catch (error) {
+        console.error("[HARDWARE] Failed to enqueue component model job:", error)
+
+        const nextCreation = useCreationStore.getState().creations.find((c) => c.id === creationId)
+        if (nextCreation) {
+          updateCreation(creationId, {
+            ...nextCreation,
+            hardwareModels: {
+              ...(nextCreation.hardwareModels ?? {}),
+              [options.componentId]: {
+                componentId: options.componentId,
+                name: options.componentName ?? "Component",
+                status: "failed",
+                error: (error as Error).message,
+                updatedAt: new Date().toISOString(),
+              },
+            },
+          })
+        }
+
+        toast({
+          title: `Could not start model generation for ${options.componentName ?? "component"}`,
+          description: (error as Error).message,
+          variant: "destructive",
+        })
+      }
+
       return
     }
 
@@ -641,6 +912,191 @@ function DashboardContent({ onLogout, initialSearchInput }: DashboardProps) {
     }
   }
 
+  const generateHardware = async (creationId: string) => {
+    const currentCreation = useCreationStore.getState().creations.find((c) => c.id === creationId)
+    const { user, project } = useUserStore.getState()
+
+    console.log("[HARDWARE] generateHardware - Debug info:", {
+      creationId,
+      hasCurrentCreation: !!currentCreation,
+      hasUser: !!user,
+      hasProject: !!project,
+      projectId: project?.id,
+      userStoreState: { user, project },
+    })
+
+    if (!currentCreation) {
+      console.error(`Creation ${creationId} not found – cannot generate hardware`)
+      return
+    }
+
+    if (!project?.id) {
+      console.error("[HARDWARE] Project ID missing - user store state:", { user, project })
+      toast({
+        title: "Project ID missing",
+        description: "Failed to generate hardware since project id is missing",
+        variant: "destructive",
+      })
+      return
+    }
+
+    console.log(`Starting async hardware generation for project: ${currentCreation.title}`)
+
+    // Create project data for hardware generation
+    const projectData = {
+      id: project.id,
+      title: currentCreation.title,
+      description: currentCreation.prompt,
+      userId: user?.id,
+      v0_id: project.v0_id,
+    }
+
+    // Generate hardware specifications directly
+    const jobKinds = ['3d', 'assembly', 'firmware']
+
+    for (const jobKind of jobKinds) {
+      try {
+        console.log(`[HARDWARE] Generating: ${jobKind}`)
+
+        // Call the generation endpoint directly
+        const endpoint = `/api/hardware/generate-${jobKind}`
+        const generationResponse = await fetch(endpoint, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ projectData }),
+        })
+
+        if (!generationResponse.ok) {
+          const errorData = await generationResponse.json().catch(() => ({ error: "Unknown error" }))
+          throw new Error(errorData.error || `HTTP ${generationResponse.status}: Generation failed`)
+        }
+
+        const generationData = await generationResponse.json()
+        console.log(`[HARDWARE] Successfully generated ${jobKind}:`, generationData)
+
+        // Create a job record for tracking
+        const supabase = createSupabaseClient()
+        const { error: jobError } = await supabase
+          .from('jobs')
+          .insert({
+            user_id: user.id,
+            project_id: project.id,
+            kind: `${jobKind}-components`,
+            status: 'completed',
+            priority: 50,
+            input: {
+              projectData,
+              generationType: 'hardware',
+              timestamp: new Date().toISOString(),
+            },
+            result: {
+              success: true,
+              reportId: generationData.reportId,
+              content: generationData.content,
+              timestamp: new Date().toISOString(),
+            },
+            finished_at: new Date().toISOString(),
+          })
+
+        if (jobError) {
+          console.error(`[HARDWARE] Failed to create job record for ${jobKind}:`, jobError)
+          // Don't throw here - continue with the process
+        } else {
+          console.log(`[HARDWARE] Job record created successfully for ${jobKind}`)
+        }
+
+      } catch (error: any) {
+        console.error(`[HARDWARE] Failed to generate ${jobKind}:`, {
+          error: error,
+          message: error.message,
+          stack: error.stack,
+          cause: error.cause
+        })
+
+        // Check if it's an OpenAI API error
+        if (error.message?.includes('OpenAI API')) {
+          toast({
+            title: `OpenAI API Error for ${jobKind === '3d' ? '3D components' : jobKind === 'assembly' ? 'assembly' : 'firmware'}`,
+            description: error.message,
+            variant: "destructive",
+          })
+        } else {
+          toast({
+            title: `Failed to generate ${jobKind === '3d' ? '3D components' : jobKind === 'assembly' ? 'assembly' : 'firmware'}`,
+            description: error.message || "Unknown error occurred",
+            variant: "destructive",
+          })
+        }
+      }
+    }
+
+    // Show initial toast
+    toast({
+      title: "Hardware Generation Started",
+      description: "Your hardware specifications are being generated. This may take up to 2 minutes.",
+    })
+
+    updateCreation(creationId, {
+      ...currentCreation,
+      hardwareData: {
+        isGenerating: true,
+        reportsGenerated: false,
+      },
+    })
+
+    // Wait for all generations to complete
+    setTimeout(async () => {
+      // Update creation with hardware data
+      updateCreation(creationId, {
+        ...currentCreation,
+        hardwareData: {
+          isGenerating: false,
+          reportsGenerated: true,
+        },
+      })
+
+      toast({
+        title: "Hardware Generation Complete",
+        description: "Your 3D components, assembly instructions, and firmware code are ready!",
+      })
+
+      // Load hardware reports
+      await loadHardwareReports(creationId)
+    }, 10000) // Wait 10 seconds for generation to complete
+  }
+
+  const loadHardwareReports = async (creationId: string) => {
+    const { user, project } = useUserStore.getState()
+
+    if (!user?.id || !project?.id) {
+      console.error("[HARDWARE] Cannot load reports - missing user or project data")
+      return
+    }
+
+    try {
+      const response = await fetch(`/api/hardware/reports?projectId=${project.id}&userId=${user.id}`)
+
+      if (response.ok) {
+        const reportsData = await response.json()
+        console.log("[HARDWARE] Loaded reports:", reportsData)
+        // Update creation with loaded reports
+        const currentCreation = useCreationStore.getState().creations.find((c) => c.id === creationId)
+        if (currentCreation) {
+          updateCreation(creationId, {
+            ...currentCreation,
+            hardwareReports: reportsData.reports,
+            hardwareModels: {
+              ...(currentCreation.hardwareModels ?? {}),
+              ...reportsData.models,
+            },
+          })
+        }
+      }
+    } catch (error) {
+      console.error("[HARDWARE] Failed to load reports:", error)
+    }
+  }
+
   const handleNewCreationSubmit = async (
     creationData: Omit<Creation, "id" | "chatHistory" | "modelParams" | "generatedCode" | "viewMode">,
   ) => {
@@ -668,6 +1124,33 @@ function DashboardContent({ onLogout, initialSearchInput }: DashboardProps) {
       })
 
       generateSoftware(newCreation.id)
+      return
+    }
+
+    if (creationData.mode === "hardware") {
+      const newCreation: Creation = {
+        ...creationData,
+        id: Date.now().toString(),
+        chatHistory: [],
+        components: [],
+        customParams: [],
+        viewMode: "model",
+        hardwareData: {
+          isGenerating: true,
+          reportsGenerated: false,
+        },
+        hardwareReports: {},
+      }
+
+      addCreation(newCreation)
+      setActiveCreationId(newCreation.id)
+
+      toast({
+        title: "Generating hardware specifications...",
+        description: "LogicLab is creating your 3D components, assembly instructions, and firmware code.",
+      })
+
+      generateHardware(newCreation.id)
       return
     }
 
@@ -718,6 +1201,9 @@ function DashboardContent({ onLogout, initialSearchInput }: DashboardProps) {
       if (creationMode === "software") {
         toast({ title: "Regenerating software with v0..." })
         generateSoftware(activeCreation.id)
+      } else if (creationMode === "hardware") {
+        toast({ title: "Regenerating hardware specifications..." })
+        generateHardware(activeCreation.id)
       } else {
         toast({ title: "Regenerating 3D model with PartCrafter..." })
         generate3DModel(activeCreation.id)
@@ -923,6 +1409,7 @@ function DashboardContent({ onLogout, initialSearchInput }: DashboardProps) {
         onMouseEnter={handleSidebarMouseEnter}
         onMouseLeave={handleSidebarMouseLeave}
         onChatSelect={handleChatSelect}
+        softwareList={softwareList}
       />
 
       <ChatSidebar onLogout={onLogout} onSendMessage={handleSendMessage} />
@@ -947,10 +1434,21 @@ function DashboardContent({ onLogout, initialSearchInput }: DashboardProps) {
             <>
               {creationMode === "software" ? (
                 <SoftwareViewer creation={activeCreation} onRegenerate={handleRegenerate} />
-              ) : creationMode === "hardware" && hardwareTab === "3d" ? (
-                <ViewerPanel creation={activeCreation} onGenerate3D={generate3DModel} />
+              ) : creationMode === "hardware" ? (
+                <HardwareViewer
+                  creation={activeCreation}
+                  onRegenerate={handleRegenerate}
+                  onGenerateComponentModel={({ componentId, componentName, prompt }) =>
+                    generate3DModel(activeCreation.id, {
+                      componentId,
+                      componentName,
+                      prompt,
+                      mode: "component",
+                    })
+                  }
+                />
               ) : (
-                <CodeViewer creation={activeCreation} onCodeUpdate={() => {}} />
+                <ViewerPanel creation={activeCreation} onGenerate3D={generate3DModel} />
               )}
             </>
           ) : (

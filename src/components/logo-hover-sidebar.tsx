@@ -6,7 +6,7 @@ import { useCreationStore } from "@/hooks/use-creation-store"
 import { useUserStore } from "@/hooks/use-user-store"
 import { useState, useEffect } from "react"
 
-interface Software {
+export interface SoftwareItem {
   id: string
   title: string
   demo_url: string
@@ -20,7 +20,8 @@ interface LogoHoverSidebarProps {
   onGrowthMarketing?: () => void
   onMouseEnter?: () => void
   onMouseLeave?: () => void
-  onChatSelect?: (software: Software) => void
+  onChatSelect?: (software: SoftwareItem) => void
+  softwareList?: SoftwareItem[]
 }
 
 export function LogoHoverSidebar({
@@ -30,26 +31,31 @@ export function LogoHoverSidebar({
   onMouseEnter,
   onMouseLeave,
   onChatSelect,
+  softwareList,
 }: LogoHoverSidebarProps) {
   const { creations, activeCreationId, setActiveCreationId } = useCreationStore()
   const { user, project } = useUserStore()
-  const [software, setSoftware] = useState<Software[]>([])
+  const [software, setSoftware] = useState<SoftwareItem[]>([])
   const [loading, setLoading] = useState(false)
   const [selectedChatId, setSelectedChatId] = useState<string | null>(null)
 
   // Load user's software (chats) when component mounts or user changes
   useEffect(() => {
-    if (user && project) {
+    if (softwareList && softwareList.length > 0) {
+      setSoftware(softwareList)
+      return
+    }
+    if (user && project && isVisible) {
       loadUserSoftware()
     }
-  }, [user, project])
+  }, [softwareList, user, project, isVisible])
 
   const loadUserSoftware = async () => {
     if (!user) return
     
     setLoading(true)
     try {
-      const response = await fetch(`/api/user/data?userId=${user.id}`)
+      const response = await fetch(`/api/user/data?userId=${user.id}`, { cache: 'no-store' })
       if (response.ok) {
         const data = await response.json()
         setSoftware(data.software || [])

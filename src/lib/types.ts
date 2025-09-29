@@ -17,7 +17,10 @@ export interface Creation {
   isGenerating3D?: boolean
   error?: string
   softwareData?: SoftwareData
+  hardwareData?: HardwareData
+  hardwareReports?: HardwareReports
   hardwareSpecs?: HardwareSpecs
+  hardwareModels?: Record<string, HardwareComponentModel>
   codeVersions?: CodeVersion[]
   activeCodeVersion?: string
 }
@@ -89,5 +92,63 @@ export interface Project {
   name: string
   description?: string
   v0_id?: string
+}
+
+export interface HardwareData {
+  isGenerating: boolean
+  reportsGenerated: boolean
+  error?: string
+}
+
+export interface HardwareReports {
+  "3d-components"?: {
+    content: string
+    components: Array<{
+      id: string
+      name: string
+      description: string
+      printTime: string
+      material: string
+      supports: string
+      prompt?: string
+      notes?: string
+      model?: HardwareComponentModel
+    }>
+    reportId?: string
+  }
+  "assembly-parts"?: {
+    content: string
+    partsCount: number
+    estimatedTime: string
+    difficultyLevel: string
+    reportId?: string
+  }
+  "firmware-code"?: {
+    content: string
+    language: string
+    platform: string
+    libraries: string[]
+    codeLines: number
+    reportId?: string
+  }
+}
+
+export interface HardwareComponentModel {
+  componentId: string
+  name: string
+  status: "idle" | "queued" | "processing" | "completed" | "failed"
+  jobId?: string
+  scadCode?: string
+  stlContent?: string
+  stlMimeType?: "model/stl" | string
+  scadMimeType?: "application/x-openscad" | string
+  parameters?: Array<{
+    name: string
+    value: number
+    unit?: string
+  }>
+  metadata?: Record<string, unknown>
+  error?: string
+  updatedAt?: string
 }
 

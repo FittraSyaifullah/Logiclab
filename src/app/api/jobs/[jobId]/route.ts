@@ -1,77 +1,76 @@
-import { NextRequest, NextResponse } from 'next/server'
-import { createSupabaseClient } from '@/lib/supabase/server'
+import { NextRequest, NextResponse } from "next/server"
+import { createSupabaseServerClient } from "@/lib/supabase/server"
 
-export async function GET(
-  request: NextRequest,
-  { params }: { params: { jobId: string } }
-) {
+export async function GET(request: NextRequest, context: { params: Promise<{ jobId: string }> }) {
   try {
-    const supabase = createSupabaseClient()
-
-    const jobId = params.jobId
-    console.log(`[JOBS] Status request for job: ${jobId}`)
+    const supabase = createSupabaseServerClient()
+    const { jobId } = await context.params
 
     if (!jobId) {
-      return NextResponse.json({ error: 'Job ID is required' }, { status: 400 })
+      return NextResponse.json({ error: "Job ID is required" }, { status: 400 })
     }
 
-    // Get job details
-    const { data: job, error: jobError } = await supabase
-      .from('jobs')
-      .select('*')
-      .eq('id', jobId)
-      .single()
+    const { data: job, error } = await supabase.from("jobs").select("*").eq("id", jobId).single()
 
-    if (jobError || !job) {
-      console.log(`[JOBS] Job not found:`, jobError?.message)
-      return NextResponse.json({ error: 'Job not found' }, { status: 404 })
+    if (error || !job) {
+      return NextResponse.json({ error: "Job not found" }, { status: 404 })
     }
 
-    console.log(`[JOBS] Job status: ${job.status}`)
-    console.log(`[JOBS] Job result:`, job.result)
+    const basePayload = {
+      jobId: job.id,
+      status: job.status as string,
+      startedAt: job.started_at,
+      finishedAt: job.finished_at,
+    }
 
-    // If job is completed, return the software data from result
-    if (job.status === 'completed') {
+    if (job.status === "completed") {
       const softwareData = job.result?.software
+      const hardwareResult = job.kind === "hardware-model-component" ? job.result ?? {} : null
 
       return NextResponse.json({
-        jobId: job.id,
-        status: job.status,
+        ...basePayload,
         completed: true,
-        software: softwareData ? {
-          id: softwareData.id,
-          title: softwareData.title,
-          demoUrl: softwareData.demoUrl,
-          chatId: softwareData.chatId
-        } : null,
-        finishedAt: job.finished_at
+        software: softwareData
+          ? {
+              id: softwareData.id,
+              title: softwareData.title,
+              demoUrl: softwareData.demoUrl,
+              chatId: softwareData.chatId,
+            }
+          : null,
+        component: hardwareResult
+          ? {
+              id: hardwareResult.componentId,
+              name: hardwareResult.componentName,
+              stlContent: hardwareResult.stlBase64,
+              scadCode: hardwareResult.scadCode,
+              parameters: hardwareResult.parameters,
+            }
+          : null,
       })
     }
 
-    // If job failed, return error details
-    if (job.status === 'failed') {
+    if (job.status === "failed") {
       return NextResponse.json({
-        jobId: job.id,
-        status: job.status,
+        ...basePayload,
         completed: false,
         error: job.error,
-        finishedAt: job.finished_at
       })
     }
 
-    // Job is still processing
     return NextResponse.json({
-      jobId: job.id,
-      status: job.status,
+      ...basePayload,
       completed: false,
-      startedAt: job.started_at
+      component:
+        job.kind === "hardware-model-component"
+          ? {
+              id: job.result?.componentId,
+              status: job.status,
+            }
+          : null,
     })
-
-  } catch (error) {
-    console.error(`[JOBS] Job status error:`, error)
-    return NextResponse.json(
-      { error: 'Internal server error' },
-      { status: 500 }
-    )
+  } catch (err) {
+    console.error("[JOBS] Job status error", err)
+    return NextResponse.json({ error: "Internal server error" }, { status: 500 })
   }
 }
