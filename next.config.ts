@@ -6,10 +6,7 @@ const nextConfig: NextConfig = {
   serverRuntimeConfig: {
     maxDuration: 120, // 2 minutes
   },
-  // Increase response limit for large AI responses
-  experimental: {
-    responseLimit: false,
-  },
+  // Removed unsupported experimental options
   eslint: {
     // ✅ Don’t block production builds on lint errors
     ignoreDuringBuilds: true,
