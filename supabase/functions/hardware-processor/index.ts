@@ -6,6 +6,60 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 }
 
+// Robustly extract a JSON object from LLM text that may include code fences,
+// escaped JSON, or extra prose around the payload.
+function extractJson(text: string): string | null {
+  const trimmed = text.trim()
+
+  // 1) Strip code fences ```json ... ``` or ``` ... ```
+  const fenceMatch = trimmed.match(/^```(?:json)?\s*([\s\S]*?)```$/i)
+  const fenced = fenceMatch ? fenceMatch[1].trim() : trimmed
+
+  // 2) Try raw parse first
+  try {
+    JSON.parse(fenced)
+    return fenced
+  } catch {}
+
+  // 3) Attempt to unescape quote-escaped JSON
+  const looksEscaped = /\\\"|\\\\n/.test(fenced)
+  if (looksEscaped) {
+    try {
+      const unescaped = fenced
+        .replace(/^"([\s\S]*)"$/s, '$1')
+        .replace(/\\\"/g, '"')
+        .replace(/\\\\/g, '\\')
+        .replace(/\\n/g, '\n')
+        .replace(/\\r/g, '\r')
+        .replace(/\\t/g, '\t')
+      JSON.parse(unescaped)
+      return unescaped
+    } catch {}
+  }
+
+  // 4) Balanced brace scan for first valid object
+  const start = fenced.indexOf('{')
+  if (start !== -1) {
+    let depth = 0
+    for (let i = start; i < fenced.length; i++) {
+      const ch = fenced[i]
+      if (ch === '{') depth++
+      else if (ch === '}') {
+        depth--
+        if (depth === 0) {
+          const candidate = fenced.slice(start, i + 1)
+          try {
+            JSON.parse(candidate)
+            return candidate
+          } catch {}
+        }
+      }
+    }
+  }
+
+  return null
+}
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders })
@@ -62,18 +116,18 @@ serve(async (req) => {
           throw new Error('ANTHROPIC_API_KEY not configured')
         }
 
-        const systemPrompt = `You are LogicLab, an AI CAD generator that produces parametric OpenSCAD code and printable STL meshes. You must:
-- Return JSON with keys "stl" (base64 encoded STL), "scad" (OpenSCAD code) and optionally "parameters" (array)
-- Ensure the STL is watertight and oriented upright with center at origin
+        const systemPrompt = `You are LogicLab, an AI CAD generator that produces parametric OpenSCAD code. You must:
+- Return JSON with keys "scad" (OpenSCAD code) and optionally "parameters" (array)
+- Return a single JSON object with no code fences and no string escaping
 - Declare adjustable parameters at the top of the SCAD
-- The STL must be encoded as standard binary STL, base64 encoded
-- For the STL, generate a simple geometric shape that represents the component (cube, cylinder, sphere, etc.) and encode it as base64`
+- Do NOT include any STL data; we will generate STL ourselves from the SCAD later`
 
         const userPrompt = `Component name: ${componentName}
 Project specification:
 ${prompt}
 
-Return JSON only with the STL encoded as base64 and the SCAD source code.`
+Return JSON only with keys: { "scad": string, "parameters"?: Array<{ name: string; value: number; unit?: string; metadata?: Record<string, unknown> }> }.
+Do not include code fences or extra prose. Do not include any STL.`
 
         const response = await fetch('https://api.anthropic.com/v1/messages', {
           method: 'POST',
@@ -120,26 +174,23 @@ Return JSON only with the STL encoded as base64 and the SCAD source code.`
           parsed = JSON.parse(text)
         } catch (err) {
           console.error('Failed to parse Anthropic response JSON', err, text)
-          // Attempt to extract the first JSON object from the response
-          const jsonMatch = text.match(/\{[\s\S]*\}/)
-          if (jsonMatch && jsonMatch[0]) {
-            try {
-              parsed = JSON.parse(jsonMatch[0])
-            } catch (nestedErr) {
-              console.error('Failed to parse extracted JSON', nestedErr)
-              throw new Error('Failed to parse Anthropic JSON response')
-            }
-          } else {
+          const extracted = extractJson(text)
+          if (!extracted) {
+            throw new Error('Failed to parse Anthropic JSON response')
+          }
+          try {
+            parsed = JSON.parse(extracted)
+          } catch (nestedErr) {
+            console.error('Failed to parse extracted JSON', nestedErr)
             throw new Error('Failed to parse Anthropic JSON response')
           }
         }
 
-        const stlBase64 = parsed?.stl
         const scadCode = parsed?.scad
         const parameters = parsed?.parameters
 
-        if (!stlBase64 || !scadCode) {
-          throw new Error('Anthropic response missing STL or SCAD content')
+        if (!scadCode) {
+          throw new Error('Anthropic response missing SCAD content')
         }
 
         await supabaseClient
@@ -150,7 +201,6 @@ Return JSON only with the STL encoded as base64 and the SCAD source code.`
               componentId,
               componentName,
               creationId,
-              stlBase64,
               scadCode,
               parameters,
             },
@@ -166,10 +216,8 @@ Return JSON only with the STL encoded as base64 and the SCAD source code.`
             component_name: componentName,
             creation_id: creationId,
             job_id: job.id,
-            stl_base64: stlBase64,
             scad_code: scadCode,
             parameters,
-            stl_mime: 'model/stl',
             scad_mime: 'application/x-openscad',
             updated_at: new Date().toISOString(),
           }, { onConflict: 'component_id' })

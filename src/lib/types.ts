@@ -140,12 +140,18 @@ export interface HardwareComponentModel {
   jobId?: string
   scadCode?: string
   stlContent?: string
+  transientStlContent?: string
   stlMimeType?: "model/stl" | string
   scadMimeType?: "application/x-openscad" | string
   parameters?: Array<{
     name: string
     value: number
     unit?: string
+    metadata?: {
+      min?: number
+      max?: number
+      step?: number
+    }
   }>
   metadata?: Record<string, unknown>
   error?: string

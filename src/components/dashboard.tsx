@@ -13,6 +13,7 @@ import { GrowthMarketingPanel } from "@/components/growth-marketing-panel"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { LogoHoverSidebar, type SoftwareItem } from "@/components/logo-hover-sidebar"
+import { useOpenScadWorker } from "@/hooks/useOpenScadWorker"
 import {
   Monitor,
   Share,
@@ -360,36 +361,34 @@ function DashboardContent({ onLogout, initialSearchInput }: DashboardProps) {
 
   const creationMode = activeCreation?.mode || (activeCreation?.softwareData ? "software" : "hardware")
 
-  const convertScadToStlClient = async (
-    scadCode: string,
-    parameters?: Array<{ name: string; value: number }>,
-  ): Promise<{ stlContent?: string; error?: string }> => {
+  // Dev-only: OpenSCAD worker test hook
+  const { compile: compileScadDev, status: compileStatus } = useOpenScadWorker()
+
+  const handleDevCompileTest = async () => {
     try {
-      const lookup = parameters?.reduce<Record<string, number>>((acc, parameter) => {
-        if (typeof parameter.value === "number") {
-          acc[parameter.name] = parameter.value
-        }
-        return acc
-      }, {})
-
-      const response = await fetch("/api/hardware/convert-scad", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ scadCode, parameters: lookup }),
-      })
-
-      if (!response.ok) {
-        const data = await response.json().catch(() => ({}))
-        throw new Error(data?.error || `SCAD conversion failed (${response.status})`)
-      }
-
-      const payload = await response.json()
-      return { stlContent: payload?.stlContent }
-    } catch (error) {
-      const message = error instanceof Error ? error.message : "Unknown conversion error"
-      console.error("[HARDWARE] SCAD to STL conversion failed", error)
-      return { error: message }
+      const scad = 'cube([10,10,10]);'
+      const blob = await compileScadDev(scad)
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = 'test-cube.stl'
+      document.body.appendChild(a)
+      a.click()
+      a.remove()
+      URL.revokeObjectURL(url)
+      toast({ title: 'Compiled STL', description: 'Downloaded test-cube.stl' })
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : 'Unknown error'
+      toast({ title: 'Compile failed', description: msg, variant: 'destructive' })
     }
+  }
+
+  // Deprecated server-side conversion; client worker handles SCAD->STL
+  const convertScadToStlClient = async (
+    _scadCode: string,
+    _parameters: Record<string, number>,
+  ): Promise<{ stlContent?: string; error?: string }> => {
+    return { error: 'Server conversion disabled; use client worker' }
   }
 
   // Poll Supabase jobs table for hardware component model completion.
@@ -421,14 +420,7 @@ function DashboardContent({ onLogout, initialSearchInput }: DashboardProps) {
         const parameters = Array.isArray(data.component?.parameters) ? data.component?.parameters : undefined
         let conversionError: string | undefined
 
-        if (!stlContent && scadCode) {
-          const { stlContent: convertedStl, error: conversionErr } = await convertScadToStlClient(scadCode, parameters)
-          if (convertedStl) {
-            stlContent = convertedStl
-          } else {
-            conversionError = conversionErr
-          }
-        }
+        // Do not attempt server-side STL conversion; SCAD is enough for client
 
         updateCreation(creationId, {
           ...nextCreation,
@@ -440,11 +432,13 @@ function DashboardContent({ onLogout, initialSearchInput }: DashboardProps) {
               status: data.status ?? "completed",
               jobId,
               stlContent,
+              metadata: {
+                ...(data.component?.metadata ?? {}),
+              },
               scadCode: data.component?.scadCode,
               stlMimeType: data.component?.stlMimeType,
               scadMimeType: data.component?.scadMimeType,
               parameters: data.component?.parameters,
-              metadata: data.component?.metadata,
               error: data.component?.error,
               updatedAt: new Date().toISOString(),
             },
@@ -1029,6 +1023,9 @@ function DashboardContent({ onLogout, initialSearchInput }: DashboardProps) {
         console.log(`[HARDWARE] Successfully generated ${jobKind}:`, generationData)
 
         // Create a job record for tracking
+        if (!user || !user.id) {
+          throw new Error('Missing user for job insert')
+        }
         const supabase = createSupabaseClient()
         const { error: jobError } = await supabase
           .from('jobs')
@@ -1516,6 +1513,13 @@ function DashboardContent({ onLogout, initialSearchInput }: DashboardProps) {
 
         {showGrowthMarketing && (
           <GrowthMarketingPanel isOpen={showGrowthMarketing} onClose={() => setShowGrowthMarketing(false)} />
+        )}
+        {process.env.NODE_ENV !== 'production' && (
+          <div className="fixed bottom-4 right-4 z-50">
+            <Button size="sm" variant="outline" onClick={handleDevCompileTest} disabled={compileStatus === 'working'}>
+              {compileStatus === 'working' ? 'Compiling…' : 'Test SCAD compile'}
+            </Button>
+          </div>
         )}
       </div>
     </div>

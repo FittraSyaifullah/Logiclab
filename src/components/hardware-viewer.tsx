@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useMemo, useState, useTransition, type ComponentType } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState, type ComponentType } from "react"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -8,13 +8,7 @@ import { Badge } from "@/components/ui/badge"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Slider } from "@/components/ui/slider"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Button } from "@/components/ui/button"
-import { Badge } from "@/components/ui/badge"
-import { Alert, AlertDescription } from "@/components/ui/alert"
-import { ScrollArea } from "@/components/ui/scroll-area"
-import { Slider } from "@/components/ui/slider"
+import { useToast } from "@/components/ui/use-toast"
 import {
   Box,
   FileText,
@@ -36,6 +30,8 @@ import type { Creation, HardwareComponentModel, HardwareReports } from "@/lib/ty
 import { cn } from "@/lib/utils"
 import dynamic from "next/dynamic"
 import "@/components/viewers/stl-viewer-styles.css"
+import { useOpenScadWorker } from "@/hooks/useOpenScadWorker"
+import { updateScadParameters } from "@/lib/scad/parameters"
 
 const STLViewer = dynamic(() => import("@/components/viewers/stl-viewer"), {
   ssr: false,
@@ -51,6 +47,16 @@ interface HardwareViewerProps {
   }) => void
 }
 
+type ComponentParameter = {
+  name: string
+  value: number
+  unit?: string
+  metadata?: Record<string, unknown>
+  sliderMin: number
+  sliderMax: number
+  sliderStep: number
+}
+
 interface ComponentCardData {
   id: string
   name: string
@@ -61,6 +67,7 @@ interface ComponentCardData {
   prompt?: string
   notes?: string
   model?: HardwareComponentModel
+  parameters: ComponentParameter[]
 }
 
 const STATUS_META: Record<HardwareComponentModel["status"] | "idle", {
@@ -120,7 +127,14 @@ const base64ToUint8Array = (base64: string) => {
   return bytes
 }
 
-const downloadMeshFile = (component: ComponentCardData, projectTitle: string, type: "stl" | "scad") => {
+const downloadMeshFile = (
+  component: ComponentCardData,
+  projectTitle: string,
+  type: "stl" | "scad",
+  overrideStlContent?: string,
+  meta?: { triangleCount?: number; warnings?: string[] },
+  onInvalid?: (message: string) => void,
+) => {
   const model = component.model
   if (!model) return
 
@@ -128,8 +142,13 @@ const downloadMeshFile = (component: ComponentCardData, projectTitle: string, ty
   const safeComponent = toKebabCase(component.name || "component")
 
   if (type === "stl") {
-    if (!model.stlContent) return
-    const bytes = base64ToUint8Array(model.stlContent)
+    const stlPayload = overrideStlContent ?? model.stlContent
+    if (!stlPayload) return
+    const bytes = base64ToUint8Array(stlPayload)
+    if (bytes.byteLength < 84) {
+      onInvalid?.("Generated STL shorter than binary header (84 bytes). Download aborted.")
+      return
+    }
     const blob = new Blob([bytes], { type: model.stlMimeType ?? "model/stl" })
     const url = URL.createObjectURL(blob)
     const link = document.createElement("a")
@@ -142,8 +161,9 @@ const downloadMeshFile = (component: ComponentCardData, projectTitle: string, ty
     return
   }
 
-  if (!model.scadCode) return
-  const blob = new Blob([model.scadCode], { type: model.scadMimeType ?? "application/x-openscad" })
+  const scad = currentScadByComponent[component.id] ?? model.scadCode
+  if (!scad) return
+  const blob = new Blob([scad], { type: model.scadMimeType ?? "application/x-openscad" })
   const url = URL.createObjectURL(blob)
   const link = document.createElement("a")
   link.href = url
@@ -192,15 +212,173 @@ const renderDetailedBreakdown = (content?: string) => {
 }
 
 export function HardwareViewer({ creation, onRegenerate, onGenerateComponentModel }: HardwareViewerProps) {
+  const { toast } = useToast()
   const [activeTab, setActiveTab] = useState("3d-components")
   const [regeneratingTabs, setRegeneratingTabs] = useState<string[]>([])
   const [previewComponentId, setPreviewComponentId] = useState<string | null>(null)
   const [activeComponentId, setActiveComponentId] = useState<string | null>(null)
+  const [parameterOverrides, setParameterOverrides] = useState<Record<string, Record<string, number>>>({})
+  const [computedStlContent, setComputedStlContent] = useState<Record<string, string>>({})
+  const [currentScadByComponent, setCurrentScadByComponent] = useState<Record<string, string>>({})
+  const [conversionErrors, setConversionErrors] = useState<Record<string, string>>({})
+  const [conversionMetadata, setConversionMetadata] = useState<
+    Record<string, { warnings: string[]; triangleCount: number | null }>
+  >({})
+  const [activeConversionTarget, setActiveConversionTarget] = useState<string | null>(null)
+  const [conversionStatus, setConversionStatus] = useState<Record<string, "idle" | "loading" | "error">>({})
+  const conversionRequestIds = useRef<Record<string, number>>({})
+  const conversionSequence = useRef(0)
+  const conversionTimers = useRef<Record<string, ReturnType<typeof setTimeout>>>({})
+  const { compile: compileScadWorker } = useOpenScadWorker()
+  const autoCompileInFlight = useRef<Set<string>>(new Set())
+
+  const blobToBase64 = useCallback(
+    (blob: Blob) =>
+      new Promise<string>((resolve, reject) => {
+        const reader = new FileReader()
+        reader.onload = () => {
+          const result = typeof reader.result === "string" ? reader.result : ""
+          const commaIndex = result.indexOf(",")
+          resolve(commaIndex >= 0 ? result.slice(commaIndex + 1) : result)
+        }
+        reader.onerror = () => reject(reader.error || new Error("Failed to read STL blob"))
+        reader.readAsDataURL(blob)
+      }),
+    [],
+  )
 
   const hardwareReports = creation.hardwareReports as HardwareReports | undefined
   const componentModels = useMemo(
     () => creation.hardwareModels ?? {},
     [creation.hardwareModels],
+  )
+
+  const triggerConversion = useCallback(
+    (component: ComponentCardData, parameterName: string, nextValue: number) => {
+      if (!component.model?.scadCode) {
+        toast({
+          title: "Missing SCAD source",
+          description: "Cannot regenerate STL without original SCAD code.",
+          variant: "destructive",
+        })
+        return
+      }
+
+      const lookupKey = `${component.id}:${parameterName}`
+      const requestId = ++conversionSequence.current
+      conversionRequestIds.current[component.id] = requestId
+
+      setActiveConversionTarget(lookupKey)
+      setConversionStatus((prev) => ({ ...prev, [component.id]: "loading" }))
+      setConversionErrors((prev) => {
+        const next = { ...prev }
+        delete next[lookupKey]
+        return next
+      })
+
+      if (conversionTimers.current[component.id]) {
+        clearTimeout(conversionTimers.current[component.id]!)
+      }
+
+      conversionTimers.current[component.id] = setTimeout(async () => {
+        const overrides = parameterOverrides[component.id] ?? {}
+        const finalOverrides = { ...overrides, [parameterName]: nextValue }
+
+        try {
+          // Rewrite SCAD source in-place based on parameters
+          const existingCode = currentScadByComponent[component.id] ?? component.model!.scadCode!
+          const nextCode = updateScadParameters(
+            existingCode,
+            Object.entries(finalOverrides).map(([name, value]) => ({ name, type: 'number', value })),
+          )
+          setCurrentScadByComponent((prev) => ({ ...prev, [component.id]: nextCode }))
+
+          // Compile rewritten SCAD (no -D defines)
+          const result = await compileScadWorker(nextCode, {})
+          // Convert blob to base64 for viewer and download re-use
+          const base64 = await blobToBase64(result.blob)
+
+          if (conversionRequestIds.current[component.id] !== requestId) return
+
+          setComputedStlContent((prev) => ({ ...prev, [component.id]: base64 }))
+          setConversionMetadata((prev) => ({
+            ...prev,
+            [component.id]: {
+              warnings: result.warnings,
+              triangleCount: result.triangleCount,
+            },
+          }))
+          setParameterOverrides((prev) => ({
+            ...prev,
+            [component.id]: finalOverrides,
+          }))
+          setConversionStatus((prev) => ({ ...prev, [component.id]: "idle" }))
+        } catch (error) {
+          if (conversionRequestIds.current[component.id] !== requestId) {
+            return
+          }
+
+          const message = error instanceof Error ? error.message : "Unknown conversion error"
+          setConversionErrors((prev) => ({ ...prev, [lookupKey]: message }))
+          setConversionStatus((prev) => ({ ...prev, [component.id]: "error" }))
+        }
+      }, 400)
+    },
+    [parameterOverrides, toast, compileScadWorker, blobToBase64],
+  )
+
+  const autoCompileComponent = useCallback(
+    async (component: ComponentCardData) => {
+      if (!component.model?.scadCode) return
+      if (autoCompileInFlight.current.has(component.id)) return
+
+      autoCompileInFlight.current.add(component.id)
+
+      setConversionStatus((prev) => ({ ...prev, [component.id]: "loading" }))
+      setConversionErrors((prev) => {
+        const next = { ...prev }
+        delete next[`${component.id}:__auto__`]
+        return next
+      })
+
+      const defaultOverrides = component.parameters.reduce<Record<string, number>>((acc, parameter) => {
+        acc[parameter.name] = Number.isFinite(Number(parameter.value)) ? Number(parameter.value) : 0
+        return acc
+      }, {})
+
+      try {
+        const startingCode = component.model.scadCode
+        const nextCode = updateScadParameters(
+          startingCode,
+          Object.entries(defaultOverrides).map(([name, value]) => ({ name, type: 'number', value })),
+        )
+        setCurrentScadByComponent((prev) => ({ ...prev, [component.id]: nextCode }))
+        const result = await compileScadWorker(nextCode, {})
+        const base64 = await blobToBase64(result.blob)
+
+        setComputedStlContent((prev) => ({ ...prev, [component.id]: base64 }))
+        setConversionMetadata((prev) => ({
+          ...prev,
+          [component.id]: {
+            warnings: result.warnings,
+            triangleCount: result.triangleCount,
+          },
+        }))
+        setParameterOverrides((prev) => ({
+          ...prev,
+          [component.id]: prev[component.id] ?? defaultOverrides,
+        }))
+        setConversionStatus((prev) => ({ ...prev, [component.id]: "idle" }))
+      } catch (error) {
+        const message = error instanceof Error ? error.message : "Unknown conversion error"
+        console.error(`[HARDWARE] Auto compile failed for ${component.id}`, error)
+        setConversionErrors((prev) => ({ ...prev, [`${component.id}:__auto__`]: message }))
+        setConversionStatus((prev) => ({ ...prev, [component.id]: "error" }))
+      } finally {
+        autoCompileInFlight.current.delete(component.id)
+      }
+    },
+    [blobToBase64, compileScadWorker],
   )
 
   const components = useMemo<ComponentCardData[]>(() => {
@@ -218,6 +396,36 @@ export function HardwareViewer({ creation, onRegenerate, onGenerateComponentMode
         prompt: component.prompt,
         notes: component.notes,
         model,
+        parameters: ((model?.parameters ?? []) as Array<{ name?: string; value?: number; unit?: string; metadata?: any }>).map(
+          (parameter, paramIndex) => {
+            const baseValue = Number(parameter?.value ?? 0) || 0
+            const metadata = (parameter?.metadata ?? {}) as Record<string, unknown>
+            const sliderMin =
+              typeof metadata.min !== "undefined" && Number.isFinite(Number(metadata.min))
+                ? Number(metadata.min)
+                : 0
+            const sliderMax =
+              typeof metadata.max !== "undefined" && Number.isFinite(Number(metadata.max))
+                ? Number(metadata.max)
+                : Math.max(baseValue * 2, baseValue + 10)
+            const sliderStep =
+              typeof metadata.step !== "undefined" && Number.isFinite(Number(metadata.step))
+                ? Number(metadata.step)
+                : Math.max((baseValue || 10) / 20, 0.5)
+
+            const name = (parameter?.name && parameter.name.trim()) || `Parameter ${paramIndex + 1}`
+
+            return {
+              name,
+              value: baseValue,
+              unit: parameter?.unit,
+              metadata,
+              sliderMin,
+              sliderMax,
+              sliderStep,
+            } as ComponentParameter
+          },
+        ),
       }
     })
   }, [componentModels, hardwareReports])
@@ -237,6 +445,25 @@ export function HardwareViewer({ creation, onRegenerate, onGenerateComponentMode
     () => components.find((component) => component.id === activeComponentId) ?? null,
     [components, activeComponentId],
   )
+
+  useEffect(() => {
+    if (!activeComponent) return
+
+    const existing = computedStlContent[activeComponent.id]
+    if (existing && existing.length > 0) {
+      // Already have a worker-generated STL cached
+      return
+    }
+
+    // Initialize current SCAD from model if not present
+    if (!currentScadByComponent[activeComponent.id] && activeComponent.model?.scadCode) {
+      setCurrentScadByComponent((prev) => ({ ...prev, [activeComponent.id]: activeComponent.model!.scadCode! }))
+    }
+
+    if (activeComponent.model?.scadCode) {
+      autoCompileComponent(activeComponent)
+    }
+  }, [activeComponent, computedStlContent, autoCompileComponent, currentScadByComponent])
 
   const openViewer = (componentId: string) => setPreviewComponentId(componentId)
   const closeViewer = () => setPreviewComponentId(null)
@@ -424,7 +651,11 @@ export function HardwareViewer({ creation, onRegenerate, onGenerateComponentMode
     )
   }
 
-  const renderComponentActions = (component: ComponentCardData) => {
+const renderComponentActions = (
+  component: ComponentCardData,
+  meta: { warnings: string[]; triangleCount: number | null } | undefined,
+  onInvalidDownload?: (message: string) => void,
+) => {
     const status = component.model?.status ?? "idle"
     const isLoading = status === "queued" || status === "processing"
     const canPreview = status === "completed" && (component.model?.stlContent)
@@ -467,8 +698,22 @@ export function HardwareViewer({ creation, onRegenerate, onGenerateComponentMode
           <Button
             variant="outline"
             size="sm"
-            disabled={!component.model?.stlSignedUrl && !component.model?.stlContent}
-            onClick={() => downloadMeshFile(component, creation.title, "stl")}
+            disabled={!component.model?.stlContent && !computedStlContent[component.id]}
+            onClick={() =>
+              downloadMeshFile(
+                component,
+                creation.title,
+                "stl",
+                computedStlContent[component.id],
+                meta,
+                (message) =>
+                  toast({
+                    title: "Invalid STL",
+                    description: message,
+                    variant: "destructive",
+                  }),
+              )
+            }
             className="gap-2"
           >
             <FileDown className="h-4 w-4" />
@@ -477,7 +722,7 @@ export function HardwareViewer({ creation, onRegenerate, onGenerateComponentMode
           <Button
             variant="outline"
             size="sm"
-            disabled={!component.model?.scadSignedUrl && !component.model?.scadCode}
+            disabled={!component.model?.scadCode}
             onClick={() => downloadMeshFile(component, creation.title, "scad")}
             className="gap-2"
           >
@@ -603,7 +848,7 @@ export function HardwareViewer({ creation, onRegenerate, onGenerateComponentMode
                 {components.length === 0 ? (
                   <div className="rounded-lg border border-dashed border-neutral-800 bg-neutral-900/60 p-6 text-center text-sm text-neutral-400">
                       No components detected yet.
-                  </div>
+                    </div>
                 ) : (
                   <div className="space-y-5">
                     <div className="relative" role="tablist" aria-label="3D Components">
@@ -644,9 +889,10 @@ export function HardwareViewer({ creation, onRegenerate, onGenerateComponentMode
                       <div className="overflow-hidden rounded-2xl border border-neutral-800 bg-neutral-950 shadow-lg">
                         <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_360px]">
                           <div className="relative h-[420px] bg-neutral-900/80">
-                            {activeComponent.model?.status === "completed" && activeComponent.model.stlContent ? (
+                            {activeComponent.model?.status === "completed" &&
+                            (computedStlContent[activeComponent.id] || activeComponent.model.stlContent) ? (
                               <STLViewer
-                                stlBase64={activeComponent.model.stlContent}
+                                stlBase64={computedStlContent[activeComponent.id] || activeComponent.model.stlContent!}
                                 componentName={activeComponent.name || "Component"}
                               />
                             ) : (
@@ -657,8 +903,8 @@ export function HardwareViewer({ creation, onRegenerate, onGenerateComponentMode
                                     ? "Generating 3D preview..."
                                     : "3D preview available after generation"}
                                 </p>
-                    </div>
-                  )}
+                              </div>
+                            )}
 
                             <div className="pointer-events-none absolute bottom-4 left-4 z-10 rounded-full bg-black/60 px-3 py-1 text-xs font-medium text-white/90">
                               {activeComponent.name || "Component"}
@@ -689,8 +935,8 @@ export function HardwareViewer({ creation, onRegenerate, onGenerateComponentMode
                                   activeComponent.material || "TBD",
                                   activeComponent.supports || "TBD",
                                 ][index]
-                                return (
-                                  <div
+                    return (
+                      <div
                                     key={label}
                                     className="rounded-xl border border-neutral-800 bg-neutral-900/70 px-4 py-3 text-xs text-neutral-400"
                                   >
@@ -709,33 +955,111 @@ export function HardwareViewer({ creation, onRegenerate, onGenerateComponentMode
                                   size="icon"
                                   className="h-8 w-8 text-neutral-500 hover:text-white"
                                   onClick={() => {
-                                    // future: reset parameters to defaults
+                                    if (!activeComponent) return
+                                    setParameterOverrides((prev) => {
+                                      const next = { ...prev }
+                                      delete next[activeComponent.id]
+                                      return next
+                                    })
+                                    setComputedStlContent((prev) => {
+                                      const next = { ...prev }
+                                      delete next[activeComponent.id]
+                                      return next
+                                    })
+                                    setConversionErrors((prev) => {
+                                      const next = { ...prev }
+                                      delete next[activeComponent.id]
+                                      return next
+                                    })
+                                    if (activeComponent.model?.stlContent) {
+                                      setComputedStlContent((prev) => ({
+                                        ...prev,
+                                        [activeComponent.id]: activeComponent.model?.stlContent ?? prev[activeComponent.id],
+                                      }))
+                                    }
                                   }}
                                 >
                                   <RefreshCw className="h-4 w-4" />
                                 </Button>
                               </div>
-                              <div className="space-y-2">
-                                {activeComponent.model?.parameters?.length ? (
-                                  activeComponent.model.parameters.map((parameter) => (
-                                    <div
-                                      key={parameter.name}
-                                      className="grid grid-cols-[minmax(0,2fr)_minmax(80px,1fr)] items-center gap-3 rounded-xl border border-neutral-800 bg-neutral-900/60 px-4 py-3 text-xs"
-                                    >
-                                      <div className="flex flex-col">
-                                        <span className="text-sm font-medium text-white/90">{parameter.name}</span>
-                                        <span className="text-[11px] uppercase tracking-wide text-neutral-500">Value</span>
-                                      </div>
-                                      <div className="flex items-center gap-2 justify-end">
-                                        <span className="text-sm font-semibold text-blue-400">
-                                          {parameter.value}
-                                        </span>
-                                        {parameter.unit && (
-                                          <span className="text-xs text-neutral-500">{parameter.unit}</span>
-                                        )}
+                              <div className="space-y-3">
+                                {activeComponent.parameters.length ? (
+                                  activeComponent.parameters.map((parameter, paramIndex) => {
+                                    const overridesForComponent = parameterOverrides[activeComponent.id] ?? {}
+                                    const currentOverride = overridesForComponent[parameter.name]
+                                    const rawDisplay = currentOverride ?? parameter.value
+                                    const displayValue = Number.isFinite(Number(rawDisplay)) ? Number(rawDisplay) : 0
+                                    const min = Number.isFinite(Number(parameter.sliderMin)) ? Number(parameter.sliderMin) : 0
+                                    const max = Number.isFinite(Number(parameter.sliderMax)) ? Number(parameter.sliderMax) : (displayValue > 0 ? Math.max(displayValue * 2, displayValue + 10) : 10)
+                                    const step = Number.isFinite(Number(parameter.sliderStep)) ? Number(parameter.sliderStep) : Math.max((displayValue || 10) / 20, 0.5)
+                                    return (
+                                      <div
+                                        key={`${activeComponent.id}-${parameter.name ?? paramIndex}`}
+                                        className="rounded-xl border border-neutral-800 bg-neutral-900/70 p-4 text-xs text-neutral-400"
+                                      >
+                                        <div className="flex items-center justify-between gap-3">
+                          <div>
+                                            <p className="text-sm font-semibold text-white/90">{parameter.name}</p>
+                                            {parameter.unit && (
+                                              <span className="text-[11px] uppercase tracking-wide text-neutral-500">
+                                                Adjust {parameter.unit}
+                                              </span>
+                                            )}
+                            </div>
+                                          <div className="flex items-center gap-2">
+                                            <div className="rounded-full bg-neutral-900 px-3 py-1 text-sm font-semibold text-neutral-100">
+                                              {Number.isFinite(displayValue) ? displayValue.toFixed(2) : "0.00"}
+                          </div>
+                                            <span className="rounded-full bg-blue-500/20 px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide text-blue-200">
+                                              {parameter.unit ?? "units"}
+                                            </span>
                           </div>
                         </div>
-                                  ))
+
+                                        <div className="mt-4">
+                                          <Slider
+                                            min={min}
+                                            max={max}
+                                            step={step}
+                                            value={[Number.isFinite(displayValue) ? displayValue : 0]}
+                                            aria-label={parameter.name}
+                                            className="group"
+                                            onValueChange={(value) => {
+                                              const nextValue = Number(value[0])
+                                              setParameterOverrides((prev) => ({
+                                                ...prev,
+                                                [activeComponent.id]: {
+                                                  ...(prev[activeComponent.id] ?? {}),
+                                                  [parameter.name]: nextValue,
+                                                },
+                                              }))
+                                            }}
+                                            onValueCommit={(value) => {
+                                              const nextValue = Number(value[0])
+                                              triggerConversion(activeComponent, parameter.name, nextValue)
+                                            }}
+                                          />
+                                          <div className="mt-2 flex justify-between text-[11px] text-neutral-500">
+                                            <span>{min.toFixed(2)}</span>
+                                            <span>{max.toFixed(2)}</span>
+                                          </div>
+                                        </div>
+
+                                        {conversionStatus[activeComponent.id] === "loading" &&
+                                          activeConversionTarget === `${activeComponent.id}:${parameter.name}` && (
+                                          <div className="mt-2 flex items-center gap-2 text-xs text-blue-300">
+                                            <Loader2 className="h-3 w-3 animate-spin" /> Updating 3D preview…
+                                          </div>
+                                        )}
+
+                                        {conversionErrors[`${activeComponent.id}:${parameter.name}`] && (
+                                          <div className="mt-2 rounded-lg border border-red-500/40 bg-red-950/40 px-3 py-2 text-[11px] text-red-200">
+                                            {conversionErrors[`${activeComponent.id}:${parameter.name}`]}
+                                          </div>
+                                        )}
+                                      </div>
+                                    )
+                                  })
                                 ) : (
                                   <div className="rounded-xl border border-dashed border-neutral-800 bg-neutral-900/40 p-4 text-xs text-neutral-500">
                                     No adjustable parameters detected.
@@ -772,15 +1096,24 @@ export function HardwareViewer({ creation, onRegenerate, onGenerateComponentMode
                             )}
 
                             <section className="flex flex-col gap-3 border-t border-neutral-900 pt-4">
-                              {renderComponentActions(activeComponent)}
+            {renderComponentActions(
+              activeComponent,
+              conversionMetadata[activeComponent.id],
+              (message) =>
+                toast({
+                  title: "Invalid STL",
+                  description: message,
+                  variant: "destructive",
+                }),
+            )}
                               {activeComponent.model?.error && (
                                 <div className="rounded-lg border border-red-500/40 bg-red-950/40 px-3 py-2 text-xs text-red-200">
                                   <strong className="font-semibold">Error:</strong> {activeComponent.model.error}
                           </div>
                         )}
                             </section>
-                          </div>
-                        </div>
+                      </div>
+                </div>
                       </div>
                     )}
                 </div>

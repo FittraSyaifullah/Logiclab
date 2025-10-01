@@ -11,6 +11,7 @@
   "dependencies": {
     "@jscad/openjscad": "^1.6.1",
     "@jscad/scad-deserializer": "^1.0.0-alpha.d0fb3056",
+    "@jscad/stl-deserializer": "^2.1.28",
     "@jscad/stl-serializer": "^2.1.21",
     "@radix-ui/react-alert-dialog": "^1.1.15",
     "@radix-ui/react-dialog": "^1.1.15",
@@ -32,6 +33,7 @@
     "jspdf": "^3.0.3",
     "lucide-react": "^0.543.0",
     "next": "15.5.3",
+    "openscad-wasm": "^0.0.4",
     "react": "19.1.0",
     "react-dom": "19.1.0",
     "tailwind-merge": "^3.3.1",
