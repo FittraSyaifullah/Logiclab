@@ -361,27 +361,7 @@ function DashboardContent({ onLogout, initialSearchInput }: DashboardProps) {
 
   const creationMode = activeCreation?.mode || (activeCreation?.softwareData ? "software" : "hardware")
 
-  // Dev-only: OpenSCAD worker test hook
-  const { compile: compileScadDev, status: compileStatus } = useOpenScadWorker()
-
-  const handleDevCompileTest = async () => {
-    try {
-      const scad = 'cube([10,10,10]);'
-      const blob = await compileScadDev(scad)
-      const url = URL.createObjectURL(blob)
-      const a = document.createElement('a')
-      a.href = url
-      a.download = 'test-cube.stl'
-      document.body.appendChild(a)
-      a.click()
-      a.remove()
-      URL.revokeObjectURL(url)
-      toast({ title: 'Compiled STL', description: 'Downloaded test-cube.stl' })
-    } catch (e) {
-      const msg = e instanceof Error ? e.message : 'Unknown error'
-      toast({ title: 'Compile failed', description: msg, variant: 'destructive' })
-    }
-  }
+  // Removed dev-only OpenSCAD test compile button
 
   // Deprecated server-side conversion; client worker handles SCAD->STL
   const convertScadToStlClient = async (
@@ -1514,13 +1494,7 @@ function DashboardContent({ onLogout, initialSearchInput }: DashboardProps) {
         {showGrowthMarketing && (
           <GrowthMarketingPanel isOpen={showGrowthMarketing} onClose={() => setShowGrowthMarketing(false)} />
         )}
-        {process.env.NODE_ENV !== 'production' && (
-          <div className="fixed bottom-4 right-4 z-50">
-            <Button size="sm" variant="outline" onClick={handleDevCompileTest} disabled={compileStatus === 'working'}>
-              {compileStatus === 'working' ? 'Compiling…' : 'Test SCAD compile'}
-            </Button>
-          </div>
-        )}
+        {/* Dev test compile button removed */}
       </div>
     </div>
   )
