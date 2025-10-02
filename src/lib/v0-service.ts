@@ -129,10 +129,10 @@ export async function createV0Chat(data: V0ChatData): Promise<V0ChatResult> {
       client.chats.create({
         projectId: data.projectId,
         message: data.message,
-        // Ensure synchronous behavior so latestVersion is materialized when possible
-        responseMode: 'sync' as any,
-      } as any),
-      110000 // 110 seconds timeout (just under 2 minutes)
+        // request synchronous response when supported
+        responseMode: 'sync',
+      }),
+      110000
     )
 
     console.log(`[V0] Chat created successfully:`, result)
@@ -162,8 +162,9 @@ export async function createV0Chat(data: V0ChatData): Promise<V0ChatResult> {
         
         // Extract latest assistant message if present
         let assistantMessage: string | undefined = undefined
-        if (Array.isArray((result as any).messages)) {
-          const assistantMessages = (result as any).messages.filter((m: any) => m.role === 'assistant')
+        const maybeMessages = (result as { messages?: Array<{ role: string; content: string }> })
+        if (Array.isArray(maybeMessages.messages)) {
+          const assistantMessages = maybeMessages.messages.filter((m) => m.role === 'assistant')
           if (assistantMessages.length > 0) {
             assistantMessage = assistantMessages[assistantMessages.length - 1].content
           }
@@ -184,8 +185,8 @@ export async function createV0Chat(data: V0ChatData): Promise<V0ChatResult> {
           for (let attempt = 1; attempt <= maxAttempts; attempt++) {
             await delay(1500)
             try {
-              const refreshed: any = await client.chats.getById({ chatId: (result as any).id } as any)
-              demoUrl = refreshed?.latestVersion?.demoUrl
+              const refreshed = await client.chats.getById({ chatId: (result as { id: string }).id })
+              demoUrl = (refreshed as { latestVersion?: { demoUrl?: string } }).latestVersion?.demoUrl
               console.log(`[V0] Poll attempt ${attempt}/${maxAttempts} - Demo URL: ${demoUrl}`)
               if (demoUrl) {
                 break

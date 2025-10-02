@@ -24,18 +24,19 @@ export async function GET(request: NextRequest) {
     }
 
     const items = (rows || [])
-      .filter((r: any) => r.projects?.owner_id === userId)
-      .map((r: any) => ({
-        reportId: r.id as string,
-        projectId: r.project_id as string,
-        title: (r.title as string | undefined) || (r.projects?.name as string | undefined) || 'Hardware Project',
-        createdAt: r.created_at as string,
+      .filter((r: { projects?: { owner_id?: string } }) => r.projects?.owner_id === userId)
+      .map((r: { id: string; project_id: string; title?: string; created_at: string; projects?: { name?: string } }) => ({
+        reportId: r.id,
+        projectId: r.project_id,
+        title: r.title || r.projects?.name || 'Hardware Project',
+        createdAt: r.created_at,
       }))
 
     return NextResponse.json({ success: true, items })
-  } catch (error: any) {
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : 'Unknown error'
     console.error('[HARDWARE] list reports API error:', error)
-    return NextResponse.json({ error: error.message }, { status: 500 })
+    return NextResponse.json({ error: message }, { status: 500 })
   }
 }
 

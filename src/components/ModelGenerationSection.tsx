@@ -1,6 +1,7 @@
 "use client"
 
 import { Badge } from "@/components/ui/badge"
+import Image from "next/image"
 
 export function ModelGenerationSection() {
   return (
@@ -13,9 +14,11 @@ export function ModelGenerationSection() {
         {/* Left side - Image */}
         <div className="flex items-center justify-center">
           <div className="w-full h-96 bg-gray-100 rounded-lg overflow-hidden shadow-lg">
-            <img
+            <Image
               src="/images/3d-model-generation-ui.png"
               alt="3D Model Generation UI"
+              width={1200}
+              height={600}
               className="w-full h-full object-cover"
             />
           </div>

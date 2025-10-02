@@ -69,8 +69,9 @@ export async function POST(request: NextRequest) {
       jobId: job.id,
       message: `${kind} job enqueued successfully`,
     })
-  } catch (error: any) {
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : 'Unknown error'
     console.error("[HARDWARE] Enqueue job error:", error)
-    return NextResponse.json({ error: error.message }, { status: 500 })
+    return NextResponse.json({ error: message }, { status: 500 })
   }
 }

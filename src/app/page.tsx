@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import Image from 'next/image'
 import { useRouter } from 'next/navigation'
 import { ArrowLeft, Search, Wrench, Cpu, Zap, Palette, Code, Box, Settings, MessageSquare, Check, Loader2, ArrowRight } from 'lucide-react'
 import { Button } from '@/components/ui/button'
@@ -255,7 +256,7 @@ export default function LandingPage() {
       {/* Header */}
       <header className="p-6 flex justify-between items-center">
           <div className="flex items-center gap-2">
-            <img src="/images/overhaul-logo.png" alt="Overhaul" className="w-8 h-8" />
+            <Image src="/images/overhaul-logo.png" alt="Overhaul" width={32} height={32} className="w-8 h-8" />
             <span className="text-xl font-bold text-black">Overhaul</span>
         </div>
 
@@ -280,7 +281,7 @@ export default function LandingPage() {
         <section className="px-6 pt-20 pb-5 text-center max-w-4xl mx-auto">
           {/* Centered Logo and Black Overhaul Text */}
           <div className="flex flex-col items-center justify-center mb-8">
-            <img src="/images/overhaul-logo.png" alt="Overhaul" className="w-16 h-16 mb-2" />
+            <Image src="/images/overhaul-logo.png" alt="Overhaul" width={64} height={64} className="w-16 h-16 mb-2" />
             <span className="text-5xl font-bold text-black">Overhaul</span>
           </div>
           <h1 className="text-5xl md:text-6xl font-bold mb-4">
@@ -339,9 +340,11 @@ export default function LandingPage() {
             <Card className="border-2 border-gray-100 hover:border-orange-200 transition-all duration-300 hover:scale-105 hover:shadow-lg">
               <CardContent className="p-8 text-center">
                 <div className="w-full h-48 bg-gray-100 rounded-lg mb-6 flex items-center justify-center overflow-hidden">
-                  <img
+                  <Image
                     src="/images/makerspace-1.png"
                     alt="Natural language input examples"
+                    width={640}
+                    height={384}
                     className="w-full h-full object-contain rounded-lg transition-transform duration-300 hover:scale-110"
                   />
                 </div>
@@ -357,9 +360,11 @@ export default function LandingPage() {
             <Card className="border-2 border-gray-100 hover:border-orange-200 transition-all duration-300 hover:scale-105 hover:shadow-lg">
               <CardContent className="p-8 text-center">
                 <div className="w-full h-48 bg-gray-100 rounded-lg mb-6 flex items-center justify-center overflow-hidden">
-                  <img
+                  <Image
                     src="/images/cad-box.jpg"
                     alt="CAD Box"
+                    width={640}
+                    height={384}
                     className="w-full h-full object-cover rounded-lg transition-transform duration-300 hover:scale-110"
                   />
                 </div>
@@ -378,9 +383,11 @@ export default function LandingPage() {
             <Card className="border-2 border-gray-100 hover:border-orange-200 transition-all duration-300 hover:scale-105 hover:shadow-lg">
               <CardContent className="p-8 text-center">
                 <div className="w-full h-48 bg-gray-100 rounded-lg mb-6 flex items-center justify-center overflow-hidden">
-                  <img
+                  <Image
                     src="/images/makerspace-2.png"
                     alt="Dimension control panel with sliders"
+                    width={640}
+                    height={384}
                     className="w-full h-full object-contain rounded-lg transition-transform duration-300 hover:scale-110"
                   />
                 </div>

@@ -111,10 +111,12 @@ Generate the JSON now. Output only the JSON object.`,
       return NextResponse.json({ error: "components must be an array" }, { status: 422 })
     }
     for (let i = 0; i < parsed.components.length; i++) {
-      const c = parsed.components[i] as any
+      const c = parsed.components[i] as Partial<ComponentSpec>
       // Alias support: map 'name' -> 'component', 'prompt' -> 'promptFor3DGeneration'
-      if (typeof c.component !== "string" && typeof c.name === "string") c.component = c.name
-      if (typeof c.promptFor3DGeneration !== "string" && typeof c.prompt === "string") c.promptFor3DGeneration = c.prompt
+      const aliasName = (c as Record<string, unknown>)['name']
+      const aliasPrompt = (c as Record<string, unknown>)['prompt']
+      if (typeof c.component !== "string" && typeof aliasName === "string") c.component = aliasName
+      if (typeof c.promptFor3DGeneration !== "string" && typeof aliasPrompt === "string") c.promptFor3DGeneration = aliasPrompt
 
       const valid =
         typeof c.component === "string" &&
@@ -156,7 +158,7 @@ Generate the JSON now. Output only the JSON object.`,
     }
 
     // Resolve target project row: prefer provided id, else create a new row
-    let targetReportId: string | null = providedReportId ?? null
+    const targetReportId: string | null = providedReportId ?? null
 
     let reportData: { id: string } | null, reportError: unknown
 
@@ -179,7 +181,7 @@ Generate the JSON now. Output only the JSON object.`,
         .from('hardware_projects')
         .insert({
           project_id: targetProjectId,
-          title: (projectData as any).title || parsed.project || 'Hardware Project',
+          title: (projectData as unknown as { title?: string }).title || parsed.project || 'Hardware Project',
           '3d_components': parsed,
         })
         .select()
@@ -254,7 +256,7 @@ Generate the JSON now. Output only the JSON object.`,
 
       // Store error using the same strict JSON shape to keep consumers consistent
       const errorJson = {
-        project: (projectData as any).title || "",
+        project: (projectData as unknown as { title?: string }).title || "",
         description: "",
         components: [],
         generalNotes: `Error generating 3D components: ${errorMessage}`,

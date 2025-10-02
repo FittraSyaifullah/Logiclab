@@ -1,11 +1,12 @@
 "use client"
 
 import type React from "react"
+import Image from "next/image"
 import { useState, useEffect, useRef } from "react"
 import { ChatSidebar } from "@/components/chat-sidebar"
 import { ViewerPanel } from "@/components/viewer-panel"
 import { SoftwareViewer } from "@/components/software-viewer"
-import { CodeViewer } from "@/components/code-viewer"
+// import { CodeViewer } from "@/components/code-viewer"
 import { HardwareViewer } from "@/components/hardware-viewer"
 import { InitialPromptForm } from "@/components/initial-prompt-form"
 import { IntegrationPanel } from "@/components/integration-panel"
@@ -14,7 +15,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { LogoHoverSidebar, type SoftwareItem } from "@/components/logo-hover-sidebar"
 import { useHardwareStore } from "@/hooks/use-hardware-store"
-import { useOpenScadWorker } from "@/hooks/useOpenScadWorker"
+// import { useOpenScadWorker } from "@/hooks/useOpenScadWorker"
 import {
   Monitor,
   Share,
@@ -163,9 +164,11 @@ function PersistentHeader({
           onMouseEnter={handleLogoMouseEnter}
           onMouseLeave={handleLogoMouseLeave}
         >
-          <img
+          <Image
             src="/images/2025_Overhaul_Logo-transparent.png"
             alt="Overhaul"
+            width={32}
+            height={32}
             className="w-8 h-8 transition-all duration-200 hover:brightness-110"
           />
           <div className="absolute inset-0 rounded-full bg-orange-500/20 scale-0 hover:scale-150 transition-transform duration-300 -z-10" />
@@ -354,8 +357,8 @@ function DashboardContent({ onLogout, initialSearchInput }: DashboardProps) {
   const [showIntegrations, setShowIntegrations] = useState(false)
   const [showGrowthMarketing, setShowGrowthMarketing] = useState(false)
   const [showLogoSidebar, setShowLogoSidebar] = useState(false)
-  const [selectedChat, setSelectedChat] = useState<any>(null)
-  const [chatMessages, setChatMessages] = useState<any[]>([])
+  const [selectedChat, setSelectedChat] = useState<{ id: string; title?: string; software_id?: string; demo_url?: string } | null>(null)
+  const [chatMessages, setChatMessages] = useState<Array<{ id: string; role: string; content: string; created_at?: string }>>([])
   const [softwareList, setSoftwareList] = useState<SoftwareItem[]>([])
 
   const hoverTimeoutRef = useRef<NodeJS.Timeout | null>(null)
@@ -396,9 +399,11 @@ function DashboardContent({ onLogout, initialSearchInput }: DashboardProps) {
         const nextCreation = useCreationStore.getState().creations.find((c) => c.id === creationId)
         if (!nextCreation) return
 
-        let stlContent = data.component?.stlContent as string | undefined
+        const stlContent = data.component?.stlContent as string | undefined
         const scadCode = data.component?.scadCode as string | undefined
-        const parameters = Array.isArray(data.component?.parameters) ? data.component?.parameters : undefined
+        const parameters = Array.isArray(data.component?.parameters)
+          ? (data.component?.parameters as Array<{ name?: string; value?: number; unit?: string; metadata?: Record<string, unknown> }>)
+          : undefined
         let conversionError: string | undefined
 
         // Do not attempt server-side STL conversion; SCAD is enough for client
@@ -872,7 +877,7 @@ function DashboardContent({ onLogout, initialSearchInput }: DashboardProps) {
 
                     // Update creation store with chat messages
                     const updatedCreation = {
-                      chatHistory: messagesData.messages?.map((msg: any) => ({
+                      chatHistory: (messagesData.messages as Array<{ id: string; role: 'user' | 'assistant'; content: string; created_at: string }> | undefined)?.map((msg) => ({
                         id: msg.id,
                         role: msg.role,
                         content: msg.content,
@@ -1302,7 +1307,7 @@ function DashboardContent({ onLogout, initialSearchInput }: DashboardProps) {
     }
   }
 
-  const handleChatSelect = async (software: any) => {
+  const handleChatSelect = async (software: { id: string; title?: string; software_id?: string; demo_url?: string }) => {
     if (!user?.id) {
       console.error('User ID not available for chat selection')
       return
@@ -1319,22 +1324,22 @@ function DashboardContent({ onLogout, initialSearchInput }: DashboardProps) {
         setChatMessages(data.messages || [])
         
         // Create a software creation for display
-        const softwareCreation: Creation = {
+          const softwareCreation: Creation = {
           id: software.id,
-          title: software.title,
-          prompt: data.messages?.[0]?.content || "Software project",
+            title: software.title ?? "Software",
+            prompt: (data.messages?.[0]?.content as string | undefined) ?? "Software project",
           mode: "software",
-          chatHistory: data.messages?.map((msg: any) => ({
-            id: msg.id,
-            role: msg.role,
-            content: msg.content,
-            createdAt: new Date(msg.created_at)
-          })) || [],
+            chatHistory: (data.messages as Array<{ id: string; role: 'user' | 'assistant'; content: string; created_at: string }> | undefined)?.map((msg) => ({
+              id: msg.id,
+              role: msg.role,
+              content: msg.content,
+              createdAt: new Date(msg.created_at)
+            })) || [],
           components: [],
           customParams: [],
           softwareData: {
-            chatId: software.software_id,
-            demoUrl: software.demo_url,
+              chatId: software.software_id ?? "",
+              demoUrl: software.demo_url ?? "",
             isGenerating: false
           }
         }
@@ -1404,8 +1409,8 @@ function DashboardContent({ onLogout, initialSearchInput }: DashboardProps) {
           console.log(`[DASHBOARD] Updating demo URL: ${responseData.demoUrl}`)
           updateCreation(selectedChat.id, {
             softwareData: {
-              chatId: selectedChat.software_id,
-              demoUrl: responseData.demoUrl,
+              chatId: selectedChat.software_id ?? "",
+              demoUrl: responseData.demoUrl as string,
               isGenerating: false
             }
           })
@@ -1421,7 +1426,7 @@ function DashboardContent({ onLogout, initialSearchInput }: DashboardProps) {
           
           // Update creation store with new messages
           const updatedCreation = {
-            chatHistory: messagesData.messages?.map((msg: any) => ({
+            chatHistory: (messagesData.messages as Array<{ id: string; role: 'user' | 'assistant'; content: string; created_at: string }> | undefined)?.map((msg) => ({
               id: msg.id,
               role: msg.role,
               content: msg.content,

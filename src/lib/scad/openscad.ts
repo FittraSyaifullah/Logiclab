@@ -15,12 +15,12 @@ let modulePromise: Promise<OpenScadModule> | null = null
 
 async function getFactory(): Promise<(opts: { locateFile: (p: string) => string }) => Promise<OpenScadModule>> {
   const jsPath = path.join(process.cwd(), "openscad-wasm", "openscad.js")
-  let imported: any
+  let imported: unknown
   try {
     imported = await import(pathToFileURL(jsPath).href)
   } catch {}
 
-  let candidate = imported?.default ?? imported
+  let candidate = (imported as { default?: unknown } | undefined)?.default ?? imported
 
   if (typeof candidate !== "function") {
     // Fallback to CJS require if the bundler didn't expose ESM default properly

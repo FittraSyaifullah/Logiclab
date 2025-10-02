@@ -42,14 +42,28 @@ export async function GET(request: NextRequest) {
     }
 
     // Transform reports into the expected format expected by the UI
-    const transformedReports: any = {}
+    const transformedReports: Record<string, unknown> = {}
 
     if (reports && reports.length > 0) {
       const latestReport = reports[0]
 
       // Extract different report sections
       if (latestReport['3d_components']) {
-        const raw3d = latestReport['3d_components'] as any
+        const raw3d = latestReport['3d_components'] as unknown as {
+          project?: string
+          description?: string
+          components?: Array<{
+            component?: string
+            description?: string
+            printTime?: string
+            material?: string
+            supports?: string
+            promptFor3DGeneration?: string
+            printSpecifications?: string
+            assemblyNotes?: string
+          }>
+          generalNotes?: string
+        }
         // If the stored data is in the new strict JSON shape, map it to the UI's expected structure
         const looksLikeStrictJson = raw3d && typeof raw3d === 'object' && 'project' in raw3d && 'components' in raw3d
         if (looksLikeStrictJson) {
@@ -59,7 +73,7 @@ export async function GET(request: NextRequest) {
             const content = [descriptionText, notesText].filter(Boolean).join('\n\n')
 
             const mappedComponents = Array.isArray(raw3d.components)
-              ? raw3d.components.map((c: any) => ({
+              ? raw3d.components.map((c) => ({
                   // UI expects these keys
                   name: c?.component ?? '',
                   description: c?.description ?? '',
@@ -79,20 +93,20 @@ export async function GET(request: NextRequest) {
             }
           } catch {
             // If mapping fails for any reason, fall back to passing through the raw value
-            transformedReports['3d-components'] = { ...(raw3d as any), reportId: latestReport.id }
+            transformedReports['3d-components'] = { ...(raw3d as Record<string, unknown>), reportId: latestReport.id }
           }
         } else {
           // Keep legacy shape as-is
-          transformedReports['3d-components'] = { ...(raw3d as any), reportId: latestReport.id }
+          transformedReports['3d-components'] = { ...(raw3d as Record<string, unknown>), reportId: latestReport.id }
         }
       }
 
       if (latestReport.assembly_parts) {
-        transformedReports['assembly-parts'] = { ...(latestReport.assembly_parts as any), reportId: latestReport.id }
+        transformedReports['assembly-parts'] = { ...(latestReport.assembly_parts as Record<string, unknown>), reportId: latestReport.id }
       }
 
       if (latestReport.firmware_code) {
-        transformedReports['firmware-code'] = { ...(latestReport.firmware_code as any), reportId: latestReport.id }
+        transformedReports['firmware-code'] = { ...(latestReport.firmware_code as Record<string, unknown>), reportId: latestReport.id }
       }
     }
 
@@ -104,8 +118,9 @@ export async function GET(request: NextRequest) {
       title: reports?.[0]?.title || null,
       count: reports?.length || 0,
     })
-  } catch (error: any) {
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : 'Unknown error'
     console.error("[HARDWARE] Reports API error:", error)
-    return NextResponse.json({ error: error.message }, { status: 500 })
+    return NextResponse.json({ error: message }, { status: 500 })
   }
 }

@@ -161,8 +161,8 @@ Do not include code fences or extra prose. Do not include any STL.`
         }
 
         const payloadJson = await response.json()
-        const contentBlocks = Array.isArray(payloadJson?.content) ? payloadJson.content : []
-        const textBlock = contentBlocks.find((block: any) => block?.type === 'text')
+        const contentBlocks = Array.isArray(payloadJson?.content) ? (payloadJson.content as Array<{ type?: string; text?: string }>) : []
+        const textBlock = contentBlocks.find((block) => block?.type === 'text')
         const text = typeof textBlock?.text === 'string' ? textBlock.text : undefined
 
         if (!text) {

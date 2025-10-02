@@ -44,13 +44,13 @@ async function getOpenScad() {
       .replace(/^\s*export\s+[^\n]*$/gm, "")
     const blob = new Blob([patchedSrc], { type: 'application/javascript' })
     const blobUrl = URL.createObjectURL(blob)
-    ;(self as any).importScripts(blobUrl)
+    ;(self as unknown as { importScripts: (url: string) => void }).importScripts(blobUrl)
     try { console.log('[OpenSCAD Worker] importScripts ok via blob:', jsUrl) } catch {}
   } catch (e) {
     try { console.error('[OpenSCAD Worker] importScripts failed:', jsUrl, e) } catch {}
     throw e
   }
-  const factory = (self as any).OpenSCAD
+  const factory = (self as unknown as { OpenSCAD?: (opts: unknown) => unknown }).OpenSCAD
   if (typeof factory !== 'function') throw new Error('OpenSCAD factory not found')
   try { console.log('[OpenSCAD Worker] factory located') } catch {}
   const stderrBuffer: string[] = []
@@ -70,13 +70,13 @@ async function getOpenScad() {
       lastStderr = stderrBuffer
     },
     noInitialRun: true,
-    onAbort: (reason: any) => { try { console.error('[OpenSCAD abort]', reason) } catch {} },
+    onAbort: (reason: unknown) => { try { console.error('[OpenSCAD abort]', reason) } catch {} },
   })
-  try { await (instance as any).ready } catch {}
-  ;(instance as any)._stderrBuffer = stderrBuffer
-  ;(instance as any)._stdoutBuffer = stdoutBuffer
+  try { await (instance as unknown as { ready?: Promise<void> }).ready } catch {}
+  ;(instance as unknown as { _stderrBuffer?: string[] })._stderrBuffer = stderrBuffer
+  ;(instance as unknown as { _stdoutBuffer?: string[] })._stdoutBuffer = stdoutBuffer
   try { console.log('[OpenSCAD Worker] instance ready') } catch {}
-  return instance as {
+  return instance as unknown as {
     FS: {
       writeFile: (p: string, d: string | Uint8Array) => void
       readFile: (p: string, opts?: { encoding: 'binary' | 'utf8' }) => Uint8Array | string
@@ -149,8 +149,8 @@ async function handleCompile(msg: CompileRequest): Promise<CompileResponse> {
       }
     }
 
-    const stderrBuffer = (instance as any)._stderrBuffer as string[] | undefined
-    const stdoutBuffer = (instance as any)._stdoutBuffer as string[] | undefined
+    const stderrBuffer = (instance as unknown as { _stderrBuffer?: string[] })._stderrBuffer
+    const stdoutBuffer = (instance as unknown as { _stdoutBuffer?: string[] })._stdoutBuffer
     if (stderrBuffer) {
       stderrBuffer.length = 0
       lastStderr = stderrBuffer
@@ -186,8 +186,8 @@ async function handleCompile(msg: CompileRequest): Promise<CompileResponse> {
 
     // Ensure fontconfig env is visible to the module
     try {
-      const currentEnv = (instance as any).ENV || {}
-      ;(instance as any).ENV = {
+      const currentEnv = (instance as unknown as { ENV?: Record<string, string> }).ENV || {}
+      ;(instance as unknown as { ENV?: Record<string, string> }).ENV = {
         ...currentEnv,
         FONTCONFIG_FILE: '/etc/fonts/fonts.conf',
         FONTCONFIG_PATH: '/etc/fonts',
@@ -227,7 +227,9 @@ async function handleCompile(msg: CompileRequest): Promise<CompileResponse> {
       }
 
       const warnings = new Set<string>()
-      analysis.warnings.forEach((warning) => warnings.add(warning))
+      if (Array.isArray(analysis.warnings)) {
+        analysis.warnings.forEach((warning) => warnings.add(warning))
+      }
 
       if (code !== 0) {
         const filtered = stderrMsg
@@ -254,7 +256,7 @@ async function handleCompile(msg: CompileRequest): Promise<CompileResponse> {
         ok: true,
         fileType: 'stl',
         bytes: data,
-        triangleCount: analysis.triangleCount,
+        triangleCount: analysis.triangleCount ?? 0,
         warnings: Array.from(warnings),
       }
     }
@@ -299,10 +301,10 @@ self.onmessage = async (ev: MessageEvent<CompileRequest>) => {
   const res = await handleCompile(req)
   // Transfer the underlying ArrayBuffer when possible
   if (res.ok) {
-    const ab = (res as any).bytes.buffer as ArrayBuffer
-    ;(self as any).postMessage(res, [ab])
+    const ab = (res as { bytes: Uint8Array }).bytes.buffer
+    ;(self as unknown as { postMessage: (message: unknown, transfer?: Transferable[]) => void }).postMessage(res, [ab])
   } else {
-    ;(self as any).postMessage(res)
+    ;(self as unknown as { postMessage: (message: unknown) => void }).postMessage(res)
   }
 }
 

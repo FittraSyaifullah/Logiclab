@@ -333,7 +333,7 @@ export function HardwareViewer({ creation, onRegenerate, onGenerateComponentMode
         }
       }, 400)
     },
-    [parameterOverrides, toast, compileScadWorker, blobToBase64],
+    [parameterOverrides, toast, compileScadWorker, blobToBase64, currentScadByComponent],
   )
 
   const autoCompileComponent = useCallback(
@@ -405,7 +405,7 @@ export function HardwareViewer({ creation, onRegenerate, onGenerateComponentMode
         prompt: component.prompt,
         notes: component.notes,
         model,
-        parameters: ((model?.parameters ?? []) as Array<{ name?: string; value?: number; unit?: string; metadata?: any }>).map(
+        parameters: ((model?.parameters ?? []) as Array<{ name?: string; value?: number; unit?: string; metadata?: Record<string, unknown> }>).map(
           (parameter, paramIndex) => {
             const baseValue = Number(parameter?.value ?? 0) || 0
             const metadata = (parameter?.metadata ?? {}) as Record<string, unknown>
@@ -514,7 +514,8 @@ export function HardwareViewer({ creation, onRegenerate, onGenerateComponentMode
       }
       
       const apiEndpoint = endpointMap[tabId] || `generate-${tabId}`
-      const reportId = (hardwareReports?.[tabId as keyof HardwareReports] as any)?.reportId as string | undefined
+      const tabReport = hardwareReports?.[tabId as keyof HardwareReports] as { reportId?: string } | undefined
+      const reportId = tabReport?.reportId
       const response = await fetch(`/api/hardware/${apiEndpoint}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },

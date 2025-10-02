@@ -17,7 +17,6 @@ interface AuthContextType {
   signUp: (email: string, password: string, firstName: string, lastName: string) => Promise<{ error: string | null }>
   signIn: (email: string, password: string) => Promise<{ error: string | null }>
   signOut: () => Promise<{ error: string | null }>
-  signInWithGoogle: () => Promise<{ error: string | null }>
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined)
@@ -129,24 +128,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }
 
-  const signInWithGoogle = async () => {
-    try {
-      // For now, redirect to a Google OAuth flow
-      // In a real implementation, you'd set up Google OAuth with your API routes
-      window.location.href = '/api/auth/google'
-      return { error: null }
-    } catch (error) {
-      return { error: 'An unexpected error occurred' }
-    }
-  }
-
   const value = {
     user,
     loading,
     signUp,
     signIn,
     signOut,
-    signInWithGoogle,
   }
 
   return (

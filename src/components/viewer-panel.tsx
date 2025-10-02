@@ -1,6 +1,7 @@
 "use client"
 
 import type React from "react"
+import Image from "next/image"
 import { useState, useEffect } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
@@ -87,9 +88,11 @@ export function ViewerPanel({ creation, onGenerate3D }: ViewerPanelProps) {
                 ) : hasImage ? (
                   <div className="w-full h-full flex items-center justify-center">
                     <div className="max-w-md max-h-full">
-                      <img
+                      <Image
                         src={creation.imageUrl || "/placeholder.svg"}
                         alt={creation.title}
+                        width={800}
+                        height={600}
                         className="w-full h-full object-contain rounded-lg shadow-lg"
                       />
                     </div>

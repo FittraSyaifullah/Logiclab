@@ -8,7 +8,6 @@ const nextConfig: NextConfig = {
   },
   // Increase response limit for large AI responses
   experimental: {
-    responseLimit: false,
   },
 };
 

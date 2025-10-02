@@ -1,6 +1,7 @@
 "use client"
 
 import { Suspense, useRef, useState } from "react"
+import Image from "next/image"
 import { Canvas, useFrame } from "@react-three/fiber"
 import { OrbitControls, Environment, useGLTF, Html } from "@react-three/drei"
 import * as THREE from "three"
@@ -57,7 +58,13 @@ export function ClientViewer({ creation }: { creation: Creation }) {
       ) : hasImage ? (
         <div className="w-full h-full flex items-center justify-center">
           <div className="max-w-md max-h-full">
-            <img src={creation.imageUrl || "/placeholder.svg"} alt={creation.title} className="w-full h-full object-contain rounded-lg shadow-lg" />
+            <Image
+              src={creation.imageUrl || "/placeholder.svg"}
+              alt={creation.title}
+              width={800}
+              height={600}
+              className="w-full h-full object-contain rounded-lg shadow-lg"
+            />
           </div>
         </div>
       ) : (

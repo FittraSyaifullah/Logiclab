@@ -84,9 +84,10 @@ export async function POST(request: NextRequest) {
     }
 
     return NextResponse.json({ success: true, jobId: job.id })
-  } catch (error: any) {
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : 'Internal server error'
     console.error("[HARDWARE] Error in /api/hardware/models", error)
-    return NextResponse.json({ error: error.message || "Internal server error" }, { status: 500 })
+    return NextResponse.json({ error: message }, { status: 500 })
   }
 }
 

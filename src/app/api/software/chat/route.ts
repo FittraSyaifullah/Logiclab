@@ -108,7 +108,7 @@ export async function POST(request: NextRequest) {
     // Update software with new URLs if provided
     if (v0Result.demoUrl || v0Result.chatUrl) {
       console.log(`[CHAT] Updating software URLs`)
-      const updateData: any = {}
+      const updateData: { demo_url?: string; url?: string } = {}
       if (v0Result.demoUrl) updateData.demo_url = v0Result.demoUrl
       if (v0Result.chatUrl) updateData.url = v0Result.chatUrl
       

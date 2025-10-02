@@ -26,33 +26,19 @@ serve(async (req) => {
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
     const supabase = createClient(supabaseUrl, supabaseServiceKey)
 
-    // Get the authorization header token
-    const authHeader = req.headers.get('Authorization')!
-    const token = authHeader.replace('Bearer ', '')
+    // Get job details from the payload (includes userId for authorization)
+    const parsed = await req.json() as JobPayload & { userId?: string }
+    const { jobId, projectId, prompt, title } = parsed
+    const userId = parsed.userId
 
-    // Verify the user
-    const { data: { user } } = await supabase.auth.getUser(token)
-
-    if (!user) {
-      return new Response(
-        JSON.stringify({ error: 'Unauthorized' }),
-        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      )
-    }
-
-    console.log(`[EDGE] Processing v0 job for user: ${user.id}`)
-
-    // Get job details from the payload
-    const { jobId, projectId, prompt, title } = await req.json() as JobPayload
-
-    if (!jobId || !projectId || !prompt) {
+    if (!jobId || !projectId || !prompt || !userId) {
       return new Response(
         JSON.stringify({ error: 'Missing required job parameters' }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       )
     }
 
-    console.log(`[EDGE] Job details: ${jobId}, ${projectId}, ${title}`)
+    console.log(`[EDGE] Job details: ${jobId}, ${projectId}, ${title}, user: ${userId}`)
 
     // Update job status to processing
     await supabase
@@ -70,7 +56,7 @@ serve(async (req) => {
       .from('projects')
       .select('v0_id')
       .eq('id', projectId)
-      .eq('owner_id', user.id)
+      .eq('owner_id', userId)
       .single()
 
     if (!project?.v0_id) {
@@ -153,7 +139,8 @@ serve(async (req) => {
 
         if (demoUrl) {
           // Extract assistant message
-          assistantMessage = completedChat.messages?.find((msg: any) => msg.role === 'assistant')?.content
+          const messages = completedChat.messages as Array<{ role?: string; content?: string }> | undefined
+          assistantMessage = messages?.find((msg) => msg.role === 'assistant')?.content
           console.log(`[EDGE] Demo URL found: ${demoUrl}`)
           break
         }

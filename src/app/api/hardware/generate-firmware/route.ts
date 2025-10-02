@@ -4,7 +4,10 @@ import { createSupabaseServerClient } from "@/lib/supabase/server"
 
 export async function POST(request: NextRequest) {
   try {
-    const { projectData, reportId: providedReportId } = await request.json()
+    const { projectData, reportId: providedReportId } = await request.json() as {
+      projectData: { id: string; description?: string; microcontroller?: string; title?: string }
+      reportId?: string
+    }
 
     if (!projectData) {
       return NextResponse.json({ error: "Project data is required" }, { status: 400 })
@@ -53,7 +56,7 @@ Generate complete firmware code for this hardware project.`,
           maxTokens: 2000,
         })
         return text
-      } catch (error: any) {
+      } catch (error: unknown) {
         console.log("Using fallback content due to API limitation")
         throw error
       }
@@ -76,7 +79,7 @@ Generate complete firmware code for this hardware project.`,
       targetReportId = existingReport?.id ?? null
     }
 
-    let reportData, reportError
+    let reportData: { id: string } | null, reportError: unknown
 
     if (targetReportId) {
       // Update existing row
@@ -103,7 +106,7 @@ Generate complete firmware code for this hardware project.`,
         .from('hardware_projects')
         .insert({
           project_id: projectData.id,
-          title: (projectData as any).title || 'Hardware Project',
+          title: typeof projectData.title === 'string' ? projectData.title : 'Hardware Project',
           firmware_code: {
             content: text,
             language,
@@ -132,23 +135,23 @@ Generate complete firmware code for this hardware project.`,
       libraries: ["Servo.h", "NewPing.h"],
       codeLines: 85,
     })
-  } catch (error: any) {
+  } catch (error: unknown) {
+    const errObj = error as { message?: string; stack?: string; cause?: unknown }
     console.error("[FIRMWARE] Error generating firmware code:", {
-      error: error,
-      message: error.message,
-      stack: error.stack,
-      cause: error.cause
+      error,
+      message: errObj?.message,
+      stack: errObj?.stack,
+      cause: errObj?.cause,
     })
 
     const supabase = createSupabaseServerClient()
     const { projectData } = await request.json()
 
     let errorMessage = "Unknown error occurred"
-
-    if (error.message?.includes('OpenAI API')) {
-      errorMessage = `OpenAI API error: ${error.message}`
-    } else if (error.message) {
-      errorMessage = error.message
+    if (typeof errObj?.message === 'string' && errObj.message.includes('OpenAI API')) {
+      errorMessage = `OpenAI API error: ${errObj.message}`
+    } else if (typeof errObj?.message === 'string') {
+      errorMessage = errObj.message
     }
 
     try {
@@ -161,7 +164,7 @@ Generate complete firmware code for this hardware project.`,
         .limit(1)
         .maybeSingle()
 
-      let reportData, reportError
+      let reportData: { id: string } | null, reportError: unknown
 
       if (existingReport) {
         // Update existing row
@@ -188,7 +191,7 @@ Generate complete firmware code for this hardware project.`,
           .from('hardware_projects')
           .insert({
             project_id: projectData.id,
-            title: (projectData as any).title || 'Hardware Project',
+            title: typeof projectData.title === 'string' ? projectData.title : 'Hardware Project',
             firmware_code: {
               content: `Error generating firmware code: ${errorMessage}`,
               language: "Unknown",
@@ -208,7 +211,7 @@ Generate complete firmware code for this hardware project.`,
         error: errorMessage,
         reportId: reportData?.id,
       }, { status: 500 })
-    } catch (dbError: any) {
+    } catch (dbError: unknown) {
       console.error("[FIRMWARE] Database error:", dbError)
       return NextResponse.json({
         error: `Generation failed and database error: ${errorMessage}`,

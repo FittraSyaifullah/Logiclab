@@ -46,8 +46,9 @@ export async function generateText({
     console.log(`[OPENAI] Successfully generated response with ${data.usage?.total_tokens || 0} tokens`)
 
     return { text: data.choices[0].message.content }
-  } catch (error: any) {
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : String(error)
     console.error("[OPENAI] Error calling OpenAI API:", error)
-    throw new Error(`OpenAI API error: ${error.message}`)
+    throw new Error(`OpenAI API error: ${message}`)
   }
 }

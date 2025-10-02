@@ -46,7 +46,8 @@ function toScadValue(param: ParameterLike): string {
     default: {
       // default to number
       if (Array.isArray(value)) {
-        return `[${(value as any[]).join(',')}]`
+        const arr = value as Array<string | number | boolean>
+        return `[${arr.map((v) => String(v)).join(',')}]`
       }
       if (typeof value === 'string') return `"${escapeReplacement(escapeQuotes(value))}"`
       return String(value)

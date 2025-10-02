@@ -4,7 +4,10 @@ import { createSupabaseServerClient } from "@/lib/supabase/server"
 
 export async function POST(request: NextRequest) {
   try {
-    const { projectData, reportId: providedReportId } = await request.json()
+    const { projectData, reportId: providedReportId } = await request.json() as {
+      projectData: { id: string; description?: string; title?: string }
+      reportId?: string
+    }
 
     if (!projectData) {
       return NextResponse.json({ error: "Project data is required" }, { status: 400 })
@@ -34,7 +37,7 @@ Generate comprehensive assembly instructions and parts list for this hardware pr
           maxTokens: 2000,
         })
         return text
-      } catch (error: any) {
+      } catch (error: unknown) {
         console.log("Using fallback content due to API limitation")
         throw error
       }
@@ -57,7 +60,7 @@ Generate comprehensive assembly instructions and parts list for this hardware pr
       targetReportId = existingReport?.id ?? null
     }
 
-    let reportData, reportError
+    let reportData: { id: string } | null, reportError: unknown
 
     if (targetReportId) {
       // Update existing row
@@ -83,7 +86,7 @@ Generate comprehensive assembly instructions and parts list for this hardware pr
         .from('hardware_projects')
         .insert({
           project_id: projectData.id,
-          title: (projectData as any).title || 'Hardware Project',
+          title: typeof projectData.title === 'string' ? projectData.title : 'Hardware Project',
           assembly_parts: {
             content: text,
             partsCount: 8,
@@ -110,12 +113,13 @@ Generate comprehensive assembly instructions and parts list for this hardware pr
       estimatedTime: "2-3 hours",
       difficultyLevel: "Beginner",
     })
-  } catch (error: any) {
+  } catch (error: unknown) {
+    const errObj = error as { message?: string; stack?: string; cause?: unknown }
     console.error("[ASSEMBLY] Error generating assembly instructions:", {
-      error: error,
-      message: error.message,
-      stack: error.stack,
-      cause: error.cause
+      error,
+      message: errObj?.message,
+      stack: errObj?.stack,
+      cause: errObj?.cause,
     })
 
     const supabase = createSupabaseServerClient()
@@ -123,10 +127,10 @@ Generate comprehensive assembly instructions and parts list for this hardware pr
 
     let errorMessage = "Unknown error occurred"
 
-    if (error.message?.includes('OpenAI API')) {
-      errorMessage = `OpenAI API error: ${error.message}`
-    } else if (error.message) {
-      errorMessage = error.message
+    if (typeof errObj?.message === 'string' && errObj.message.includes('OpenAI API')) {
+      errorMessage = `OpenAI API error: ${errObj.message}`
+    } else if (typeof errObj?.message === 'string') {
+      errorMessage = errObj.message
     }
 
     try {
@@ -139,7 +143,7 @@ Generate comprehensive assembly instructions and parts list for this hardware pr
         .limit(1)
         .maybeSingle()
 
-      let reportData, reportError
+      let reportData: { id: string } | null, reportError: unknown
 
       if (existingReport) {
         // Update existing row
@@ -165,7 +169,7 @@ Generate comprehensive assembly instructions and parts list for this hardware pr
           .from('hardware_projects')
           .insert({
             project_id: projectData.id,
-            title: (projectData as any).title || 'Hardware Project',
+            title: typeof projectData.title === 'string' ? projectData.title : 'Hardware Project',
             assembly_parts: {
               content: `Error generating assembly instructions: ${errorMessage}`,
               partsCount: 0,
@@ -184,7 +188,7 @@ Generate comprehensive assembly instructions and parts list for this hardware pr
         error: errorMessage,
         reportId: reportData?.id,
       }, { status: 500 })
-    } catch (dbError: any) {
+    } catch (dbError: unknown) {
       console.error("[ASSEMBLY] Database error:", dbError)
       return NextResponse.json({
         error: `Generation failed and database error: ${errorMessage}`,
