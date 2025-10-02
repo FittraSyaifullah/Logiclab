@@ -122,6 +122,28 @@ The application is designed to work with the provided database schema including:
 - `npm run start` - Start production server
 - `npm run lint` - Run ESLint
 
+## Environment Variables
+
+Ensure these environment variables are set in `.env.local` (for local dev) and your deployment environment:
+
+```
+# Supabase project settings
+NEXT_PUBLIC_SUPABASE_URL=
+NEXT_PUBLIC_SUPABASE_ANON_KEY=
+
+# v0 SDK
+V0_API_KEY=
+
+# Supabase Edge Functions
+# Direct URL to the deployed v0-processor function
+# Example: https://<project>.supabase.co/functions/v1/v0-processor
+SUPABASE_SOFTWARE_FUNCTION_URL=
+```
+
+Notes:
+- `SUPABASE_SOFTWARE_FUNCTION_URL` is used by `src/app/api/software/generate/route.ts` to invoke the long-running software generation worker. This decouples invocation from URL derivation and supports custom domains or per-env differences.
+- Keep secrets out of version control and configure them in your hosting provider.
+
 ### Code Style
 
 - TypeScript for type safety

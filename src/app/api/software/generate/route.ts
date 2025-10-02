@@ -69,14 +69,12 @@ export async function POST(request: NextRequest) {
 
     // Trigger Supabase Edge Function (v0-processor) to process asynchronously
     try {
-      const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
-      if (!supabaseUrl) {
-        throw new Error('NEXT_PUBLIC_SUPABASE_URL not configured')
+      const functionUrl = process.env.SUPABASE_SOFTWARE_FUNCTION_URL
+      if (!functionUrl) {
+        throw new Error('SUPABASE_SOFTWARE_FUNCTION_URL not configured')
       }
-      const functionsUrl = supabaseUrl.replace('.supabase.co', '.functions.supabase.co')
-      const invokeUrl = `${functionsUrl}/v0-processor`
 
-      await fetch(invokeUrl, {
+      await fetch(functionUrl, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
