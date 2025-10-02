@@ -4,6 +4,7 @@ import { Plus, TrendingUp, Settings, HelpCircle, MessageSquare } from "lucide-re
 import { cn } from "@/lib/utils"
 import { useCreationStore } from "@/hooks/use-creation-store"
 import { useUserStore } from "@/hooks/use-user-store"
+import { useHardwareStore } from "@/hooks/use-hardware-store"
 import { useState, useEffect } from "react"
 
 export interface SoftwareItem {
@@ -22,6 +23,7 @@ interface LogoHoverSidebarProps {
   onMouseLeave?: () => void
   onChatSelect?: (software: SoftwareItem) => void
   softwareList?: SoftwareItem[]
+  onHardwareProjectSelect?: (projectId: string) => void
 }
 
 export function LogoHoverSidebar({
@@ -32,9 +34,11 @@ export function LogoHoverSidebar({
   onMouseLeave,
   onChatSelect,
   softwareList,
+  onHardwareProjectSelect,
 }: LogoHoverSidebarProps) {
   const { creations, activeCreationId, setActiveCreationId } = useCreationStore()
   const { user, project } = useUserStore()
+  const { reportsList } = useHardwareStore()
   const [software, setSoftware] = useState<SoftwareItem[]>([])
   const [loading, setLoading] = useState(false)
   const [selectedChatId, setSelectedChatId] = useState<string | null>(null)
@@ -144,39 +148,33 @@ export function LogoHoverSidebar({
             )}
           </div>
 
-          {/* Hardware Creations */}
+          {/* Hardware Projects */}
           <div className="text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-3 mt-6">
-            Hardware Creations
+            Hardware Projects
           </div>
 
           <div className="space-y-1 overflow-y-auto max-h-[calc(50vh-8rem)]">
-            {creations && creations.length > 0 ? (
-              creations
-                .filter((creation) => creation.mode === "hardware")
-                .map((creation) => (
-                  <Button
-                    key={creation.id}
-                    variant="ghost"
-                    onClick={() => setActiveCreationId(creation.id)}
-                    className={cn(
-                      "w-full justify-start text-left p-3 h-auto",
-                      activeCreationId === creation.id
-                        ? "bg-orange-100 dark:bg-orange-950/50 text-orange-900 dark:text-orange-100"
-                        : "text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800",
-                    )}
-                  >
-                    <div className="flex flex-col items-start w-full">
-                      <div className="font-medium text-sm truncate w-full">{creation.title}</div>
-                      <div className="text-xs text-slate-500 dark:text-slate-400 truncate w-full">
-                        Hardware • {new Date(Number.parseInt(creation.id)).toLocaleDateString()}
-                      </div>
+            {reportsList && reportsList.length > 0 ? (
+              reportsList.map((item) => (
+                <Button
+                  key={`${item.projectId}:${item.reportId}`}
+                  variant="ghost"
+                  onClick={() => onHardwareProjectSelect?.(item.projectId)}
+                  className={cn(
+                    "w-full justify-start text-left p-3 h-auto",
+                    "text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800",
+                  )}
+                >
+                  <div className="flex flex-col items-start w-full">
+                    <div className="font-medium text-sm truncate w-full">{item.projectName || 'Hardware Project'}</div>
+                    <div className="text-xs text-slate-500 dark:text-slate-400 truncate w-full">
+                      {new Date(item.createdAt).toLocaleDateString()}
                     </div>
-                  </Button>
-                ))
+                  </div>
+                </Button>
+              ))
             ) : (
-              <div className="text-sm text-slate-500 dark:text-slate-400 text-center py-4">
-                No hardware creations yet.
-              </div>
+              <div className="text-sm text-slate-500 dark:text-slate-400 text-center py-4">No hardware projects yet.</div>
             )}
           </div>
         </div>

@@ -13,6 +13,7 @@ import { GrowthMarketingPanel } from "@/components/growth-marketing-panel"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { LogoHoverSidebar, type SoftwareItem } from "@/components/logo-hover-sidebar"
+import { useHardwareStore } from "@/hooks/use-hardware-store"
 import { useOpenScadWorker } from "@/hooks/useOpenScadWorker"
 import {
   Monitor,
@@ -526,6 +527,18 @@ function DashboardContent({ onLogout, initialSearchInput }: DashboardProps) {
               }
             } catch {}
           }
+
+          // Populate hover-sidebar hardware projects list
+          try {
+            const listResp = await fetch(`/api/hardware/reports/list?userId=${user.id}`, { cache: 'no-store' })
+            if (listResp.ok) {
+              const listData = await listResp.json()
+              const { setReportsList } = useHardwareStore.getState()
+              setReportsList(listData.items || [])
+            }
+          } catch (e) {
+            console.error('[DASHBOARD] Failed to load hardware reports list', e)
+          }
         }
       } catch (e) {
         console.error('[DASHBOARD] Failed to load projects after login', e)
@@ -1000,6 +1013,23 @@ function DashboardContent({ onLogout, initialSearchInput }: DashboardProps) {
         }
 
         const generationData = await generationResponse.json()
+        // Persist latest reportId in creation for reuse
+        if (typeof generationData?.reportId === 'string') {
+          const latest = useCreationStore.getState().creations.find((c) => c.id === creationId)
+          if (latest) {
+            updateCreation(creationId, {
+              ...latest,
+              hardwareReports: {
+                ...((latest.hardwareReports as any) || {}),
+                [jobKind === '3d' ? '3d-components' : jobKind === 'assembly' ? 'assembly-parts' : 'firmware-code']:
+                  {
+                    ...(((latest.hardwareReports as any)?.[jobKind === '3d' ? '3d-components' : jobKind === 'assembly' ? 'assembly-parts' : 'firmware-code']) || {}),
+                    reportId: generationData.reportId,
+                  },
+              },
+            })
+          }
+        }
         console.log(`[HARDWARE] Successfully generated ${jobKind}:`, generationData)
 
         // Create a job record for tracking
@@ -1441,6 +1471,63 @@ function DashboardContent({ onLogout, initialSearchInput }: DashboardProps) {
         onMouseLeave={handleSidebarMouseLeave}
         onChatSelect={handleChatSelect}
         softwareList={softwareList}
+        onHardwareProjectSelect={async (selectedProjectId) => {
+          const currentUser = useUserStore.getState().user
+          if (!currentUser?.id) return
+          try {
+            // Fetch reports for selected project
+            const reportsResp = await fetch(`/api/hardware/reports?projectId=${selectedProjectId}&userId=${currentUser.id}`, { cache: 'no-store' })
+            if (reportsResp.ok) {
+              const data = await reportsResp.json()
+              const { setReportsForProject } = useHardwareStore.getState()
+              setReportsForProject(selectedProjectId, data.reports || {})
+
+              // Update or create a hardware creation to show these reports
+              const activeId = useCreationStore.getState().activeCreationId
+              const active = activeId ? useCreationStore.getState().creations.find(c => c.id === activeId) : null
+              if (active && active.mode === 'hardware') {
+                updateCreation(active.id, { hardwareReports: data.reports || {} })
+              } else {
+                const title = data?.reports?.["3d-components"]?.project || 'Hardware Project'
+                const newCreation: Creation = {
+                  id: Date.now().toString(),
+                  title,
+                  prompt: '',
+                  mode: 'hardware',
+                  chatHistory: [],
+                  components: [],
+                  customParams: [],
+                  viewMode: 'model',
+                  hardwareData: { isGenerating: false, reportsGenerated: true },
+                  hardwareReports: data.reports || {},
+                }
+                addCreation(newCreation)
+                setActiveCreationId(newCreation.id)
+              }
+            }
+
+            // Fetch component models for selected project
+            const modelsResp = await fetch(`/api/hardware/models/list?projectId=${selectedProjectId}&userId=${currentUser.id}`, { cache: 'no-store' })
+            if (modelsResp.ok) {
+              const modelsData = await modelsResp.json()
+              const { setModelsForProject } = useHardwareStore.getState()
+              setModelsForProject(selectedProjectId, modelsData.models || {})
+
+              // Merge into active creation if any
+              const activeId = useCreationStore.getState().activeCreationId
+              if (activeId) {
+                const curr = useCreationStore.getState().creations.find(c => c.id === activeId)
+                if (curr && curr.mode === 'hardware') {
+                  updateCreation(activeId, { hardwareModels: { ...(curr.hardwareModels ?? {}), ...(modelsData.models || {}) } })
+                }
+              }
+            }
+          } catch (e) {
+            console.error('[DASHBOARD] Failed to lazy-load hardware project', e)
+          } finally {
+            setShowLogoSidebar(false)
+          }
+        }}
       />
 
       <ChatSidebar onLogout={onLogout} onSendMessage={handleSendMessage} />

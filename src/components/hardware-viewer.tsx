@@ -127,52 +127,15 @@ const base64ToUint8Array = (base64: string) => {
   return bytes
 }
 
-const downloadMeshFile = (
+// Declared inside component to access local state such as currentScadByComponent
+let downloadMeshFile: (
   component: ComponentCardData,
   projectTitle: string,
   type: "stl" | "scad",
   overrideStlContent?: string,
   meta?: { triangleCount?: number; warnings?: string[] },
   onInvalid?: (message: string) => void,
-) => {
-  const model = component.model
-  if (!model) return
-
-  const safeProject = toKebabCase(projectTitle || "logiclab-project")
-  const safeComponent = toKebabCase(component.name || "component")
-
-  if (type === "stl") {
-    const stlPayload = overrideStlContent ?? model.stlContent
-    if (!stlPayload) return
-    const bytes = base64ToUint8Array(stlPayload)
-    if (bytes.byteLength < 84) {
-      onInvalid?.("Generated STL shorter than binary header (84 bytes). Download aborted.")
-      return
-    }
-    const blob = new Blob([bytes], { type: model.stlMimeType ?? "model/stl" })
-    const url = URL.createObjectURL(blob)
-    const link = document.createElement("a")
-    link.href = url
-    link.download = `${safeProject}-${safeComponent}.stl`
-    document.body.appendChild(link)
-    link.click()
-    document.body.removeChild(link)
-    URL.revokeObjectURL(url)
-    return
-  }
-
-  const scad = currentScadByComponent[component.id] ?? model.scadCode
-  if (!scad) return
-  const blob = new Blob([scad], { type: model.scadMimeType ?? "application/x-openscad" })
-  const url = URL.createObjectURL(blob)
-  const link = document.createElement("a")
-  link.href = url
-  link.download = `${safeProject}-${safeComponent}.scad`
-  document.body.appendChild(link)
-  link.click()
-  document.body.removeChild(link)
-  URL.revokeObjectURL(url)
-}
+) => void
 
 const ComponentStatus = ({
   status,
@@ -222,7 +185,7 @@ export function HardwareViewer({ creation, onRegenerate, onGenerateComponentMode
   const [currentScadByComponent, setCurrentScadByComponent] = useState<Record<string, string>>({})
   const [conversionErrors, setConversionErrors] = useState<Record<string, string>>({})
   const [conversionMetadata, setConversionMetadata] = useState<
-    Record<string, { warnings: string[]; triangleCount: number | null }>
+    Record<string, { warnings: string[]; triangleCount?: number }>
   >({})
   const [activeConversionTarget, setActiveConversionTarget] = useState<string | null>(null)
   const [conversionStatus, setConversionStatus] = useState<Record<string, "idle" | "loading" | "error">>({})
@@ -231,6 +194,52 @@ export function HardwareViewer({ creation, onRegenerate, onGenerateComponentMode
   const conversionTimers = useRef<Record<string, ReturnType<typeof setTimeout>>>({})
   const { compile: compileScadWorker } = useOpenScadWorker()
   const autoCompileInFlight = useRef<Set<string>>(new Set())
+  downloadMeshFile = (
+    component,
+    projectTitle,
+    type,
+    overrideStlContent,
+    meta,
+    onInvalid,
+  ) => {
+    const model = component.model
+    if (!model) return
+
+    const safeProject = toKebabCase(projectTitle || "logiclab-project")
+    const safeComponent = toKebabCase(component.name || "component")
+
+    if (type === "stl") {
+      const stlPayload = overrideStlContent ?? model.stlContent
+      if (!stlPayload) return
+      const bytes = base64ToUint8Array(stlPayload)
+      if (bytes.byteLength < 84) {
+        onInvalid?.("Generated STL shorter than binary header (84 bytes). Download aborted.")
+        return
+      }
+      const blob = new Blob([bytes], { type: model.stlMimeType ?? "model/stl" })
+      const url = URL.createObjectURL(blob)
+      const link = document.createElement("a")
+      link.href = url
+      link.download = `${safeProject}-${safeComponent}.stl`
+      document.body.appendChild(link)
+      link.click()
+      document.body.removeChild(link)
+      URL.revokeObjectURL(url)
+      return
+    }
+
+    const scad = currentScadByComponent[component.id] ?? model.scadCode
+    if (!scad) return
+    const blob = new Blob([scad], { type: model.scadMimeType ?? "application/x-openscad" })
+    const url = URL.createObjectURL(blob)
+    const link = document.createElement("a")
+    link.href = url
+    link.download = `${safeProject}-${safeComponent}.scad`
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+    URL.revokeObjectURL(url)
+  }
 
   const blobToBase64 = useCallback(
     (blob: Blob) =>
@@ -505,6 +514,7 @@ export function HardwareViewer({ creation, onRegenerate, onGenerateComponentMode
       }
       
       const apiEndpoint = endpointMap[tabId] || `generate-${tabId}`
+      const reportId = (hardwareReports?.[tabId as keyof HardwareReports] as any)?.reportId as string | undefined
       const response = await fetch(`/api/hardware/${apiEndpoint}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -514,6 +524,7 @@ export function HardwareViewer({ creation, onRegenerate, onGenerateComponentMode
             title: creation.title,
             description: creation.prompt,
           },
+          reportId,
         }),
       })
 
@@ -661,7 +672,7 @@ export function HardwareViewer({ creation, onRegenerate, onGenerateComponentMode
 
 const renderComponentActions = (
   component: ComponentCardData,
-  meta: { warnings: string[]; triangleCount: number | null } | undefined,
+  meta: { warnings?: string[]; triangleCount?: number } | undefined,
   onInvalidDownload?: (message: string) => void,
 ) => {
     const status = component.model?.status ?? "idle"

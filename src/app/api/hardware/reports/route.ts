@@ -75,23 +75,24 @@ export async function GET(request: NextRequest) {
             transformedReports['3d-components'] = {
               content,
               components: mappedComponents,
+              reportId: latestReport.id,
             }
           } catch {
             // If mapping fails for any reason, fall back to passing through the raw value
-            transformedReports['3d-components'] = raw3d
+            transformedReports['3d-components'] = { ...(raw3d as any), reportId: latestReport.id }
           }
         } else {
           // Keep legacy shape as-is
-          transformedReports['3d-components'] = raw3d
+          transformedReports['3d-components'] = { ...(raw3d as any), reportId: latestReport.id }
         }
       }
 
       if (latestReport.assembly_parts) {
-        transformedReports['assembly-parts'] = latestReport.assembly_parts
+        transformedReports['assembly-parts'] = { ...(latestReport.assembly_parts as any), reportId: latestReport.id }
       }
 
       if (latestReport.firmware_code) {
-        transformedReports['firmware-code'] = latestReport.firmware_code
+        transformedReports['firmware-code'] = { ...(latestReport.firmware_code as any), reportId: latestReport.id }
       }
     }
 

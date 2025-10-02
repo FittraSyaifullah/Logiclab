@@ -4,7 +4,7 @@ import { createSupabaseServerClient } from "@/lib/supabase/server"
 
 export async function POST(request: NextRequest) {
   try {
-    const { projectData } = await request.json()
+    const { projectData, reportId: providedReportId } = await request.json()
 
     if (!projectData) {
       return NextResponse.json({ error: "Project data is required" }, { status: 400 })
@@ -42,16 +42,24 @@ Generate comprehensive assembly instructions and parts list for this hardware pr
 
     const text = await generateWithFallback()
 
-    // Check if a hardware report already exists for this project
-    const { data: existingReport } = await supabase
-      .from('hardware_reports')
-      .select('id')
-      .eq('project_id', projectData.id)
-      .single()
+    // Resolve target report: prefer provided reportId, else latest by project
+    let targetReportId: string | null = null
+    if (providedReportId) {
+      targetReportId = providedReportId
+    } else {
+      const { data: existingReport } = await supabase
+        .from('hardware_reports')
+        .select('id')
+        .eq('project_id', projectData.id)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle()
+      targetReportId = existingReport?.id ?? null
+    }
 
     let reportData, reportError
 
-    if (existingReport) {
+    if (targetReportId) {
       // Update existing row
       const result = await supabase
         .from('hardware_reports')
@@ -63,7 +71,7 @@ Generate comprehensive assembly instructions and parts list for this hardware pr
             difficultyLevel: "Beginner",
           }
         })
-        .eq('project_id', projectData.id)
+        .eq('id', targetReportId)
         .select()
         .single()
 

@@ -25,9 +25,11 @@ export async function POST(request: NextRequest) {
   }
 
   let projectData: ProjectData | undefined
+  let providedReportId: string | undefined
   try {
     const body = await request.json()
     projectData = body?.projectData as ProjectData | undefined
+    providedReportId = body?.reportId as string | undefined
 
     if (!projectData) {
       return NextResponse.json({ error: "Project data is required" }, { status: 400 })
@@ -153,23 +155,31 @@ Generate the JSON now. Output only the JSON object.`,
       return NextResponse.json({ error: "Valid project id not found" }, { status: 400 })
     }
 
-    // Check if a hardware report already exists for this project
-    const { data: existingReport } = await supabase
-      .from('hardware_reports')
-      .select('id')
-      .eq('project_id', targetProjectId)
-      .single()
+    // Resolve target report: prefer provided reportId, else latest by project
+    let targetReportId: string | null = null
+    if (providedReportId) {
+      targetReportId = providedReportId
+    } else {
+      const { data: existingReport } = await supabase
+        .from('hardware_reports')
+        .select('id')
+        .eq('project_id', targetProjectId)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle()
+      targetReportId = existingReport?.id ?? null
+    }
 
     let reportData: { id: string } | null, reportError: unknown
 
-    if (existingReport) {
+    if (targetReportId) {
       // Update existing row with the generated JSON
       const result = await supabase
         .from('hardware_reports')
         .update({
           '3d_components': parsed,
         })
-        .eq('project_id', targetProjectId)
+        .eq('id', targetReportId)
         .select()
         .single()
 
