@@ -4,11 +4,13 @@ import { sendV0Message } from '@/lib/v0-service'
 
 export async function POST(request: NextRequest) {
   try {
+    console.log(`[CHAT] ===== CHAT API ENDPOINT START =====`)
     const supabase = createSupabaseServerClient()
     
     const body = await request.json()
     const { softwareId, message, userId } = body
     console.log(`[CHAT] Message request - User: ${userId}, Software: ${softwareId}, Message: ${message?.substring(0, 50)}...`)
+    console.log(`[CHAT] Full request body:`, { softwareId, message: message?.substring(0, 100), userId })
 
     if (!userId) {
       console.log(`[CHAT] Message failed - User ID missing`)
@@ -16,7 +18,7 @@ export async function POST(request: NextRequest) {
     }
 
     if (!softwareId || !message) {
-      console.log(`[CHAT] Message failed - Missing required fields`)
+      console.log(`[CHAT] Message failed - Missing required fields: softwareId=${!!softwareId}, message=${!!message}`)
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 })
     }
 
@@ -45,6 +47,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Send message to v0
+    console.log(`[CHAT] ===== CALLING V0 SERVICE =====`)
     console.log(`[CHAT] Sending message to v0 chat: ${software.software_id}`)
     console.log(`[CHAT] Message content: ${message}`)
     console.log(`[CHAT] Calling sendV0Message with:`, {
@@ -57,7 +60,10 @@ export async function POST(request: NextRequest) {
       message
     })
 
+    console.log(`[CHAT] ===== V0 SERVICE RESULT =====`)
     console.log(`[CHAT] V0 result received:`, v0Result)
+    console.log(`[CHAT] V0 result type:`, typeof v0Result)
+    console.log(`[CHAT] V0 result keys:`, Object.keys(v0Result || {}))
 
     if (v0Result.error) {
       console.log(`[CHAT] V0 message failed:`, v0Result.error)
@@ -124,14 +130,19 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    console.log(`[CHAT] ===== CHAT API ENDPOINT SUCCESS =====`)
     console.log(`[CHAT] Chat message completed successfully`)
-    return NextResponse.json({
+    const finalResponse = {
       demoUrl: v0Result.demoUrl || software.demo_url,
       message: 'Message sent successfully'
-    })
+    }
+    console.log(`[CHAT] Final response:`, finalResponse)
+    return NextResponse.json(finalResponse)
 
   } catch (error) {
+    console.error(`[CHAT] ===== CHAT API ENDPOINT ERROR =====`)
     console.error(`[CHAT] Chat message error:`, error)
+    console.error(`[CHAT] Error stack:`, error instanceof Error ? error.stack : 'No stack trace')
     return NextResponse.json(
       { error: 'Internal server error' },
       { status: 500 }

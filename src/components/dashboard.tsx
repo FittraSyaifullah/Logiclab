@@ -556,6 +556,20 @@ function DashboardContent({ onLogout, initialSearchInput }: DashboardProps) {
   useEffect(() => {
     if (activeCreation) {
       setViewMode(activeCreation.viewMode || (creationMode === "software" ? "code" : "model"))
+      // Auto-select software chat when switching to a software creation that has softwareData
+      if (
+        creationMode === "software" &&
+        activeCreation.softwareData &&
+        activeCreation.id &&
+        (!selectedChat || selectedChat.id !== activeCreation.id)
+      ) {
+        setSelectedChat({
+          id: activeCreation.id,
+          title: activeCreation.title,
+          software_id: activeCreation.softwareData.chatId,
+          demo_url: activeCreation.softwareData.demoUrl,
+        })
+      }
     }
   }, [activeCreation, creationMode])
 
@@ -885,6 +899,14 @@ function DashboardContent({ onLogout, initialSearchInput }: DashboardProps) {
                       })) || []
                     }
                     updateCreation(creationId, updatedCreation)
+
+                // Set selected chat so UI knows which software is active for messages
+                setSelectedChat({
+                  id: statusData.software.id,
+                  title: latest?.title || currentCreation.title,
+                  software_id: statusData.software.chatId,
+                  demo_url: statusData.software.demoUrl,
+                })
                   }
                 } catch (error) {
                   console.error(`[DASHBOARD] Failed to load chat messages:`, error)
@@ -1378,24 +1400,42 @@ function DashboardContent({ onLogout, initialSearchInput }: DashboardProps) {
   }
 
   const handleSendMessage = async (message: string) => {
-    if (!selectedChat || !user?.id) {
-      console.log(`[DASHBOARD] handleSendMessage - Missing required data: selectedChat=${!!selectedChat}, user.id=${!!user?.id}`)
+    console.log(`[DASHBOARD] ===== HANDLE SEND MESSAGE START =====`)
+    console.log(`[DASHBOARD] handleSendMessage - Message: ${message.substring(0, 100)}`)
+    
+    if (!user?.id) {
+      console.log(`[DASHBOARD] handleSendMessage - Missing required data: user.id=${!!user?.id}`)
+      return
+    }
+    // Fallback: if selectedChat is not set, try to use activeCreation when in software mode
+    const effectiveSoftwareId = selectedChat?.id || (creationMode === 'software' ? activeCreation?.id : undefined)
+    if (!effectiveSoftwareId) {
+      console.log(`[DASHBOARD] handleSendMessage - No software selected (selectedChat and activeCreation missing)`)
       return
     }
     
-    console.log(`[DASHBOARD] handleSendMessage - Sending message to software: ${selectedChat.id}`)
+    console.log(`[DASHBOARD] handleSendMessage - Sending message to software: ${effectiveSoftwareId}`)
+    console.log(`[DASHBOARD] Selected chat data:`, {
+      id: selectedChat?.id,
+      software_id: selectedChat?.software_id,
+      title: selectedChat?.title
+    })
     
     try {
+      console.log(`[DASHBOARD] ===== MAKING API REQUEST =====`)
+      const requestBody = {
+        softwareId: effectiveSoftwareId,
+        message: message,
+        userId: user.id
+      }
+      console.log(`[DASHBOARD] Request body:`, requestBody)
+      
       const response = await fetch('/api/software/chat', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({
-          softwareId: selectedChat.id,
-          message: message,
-          userId: user.id
-        })
+        body: JSON.stringify(requestBody)
       })
       
       console.log(`[DASHBOARD] handleSendMessage response status: ${response.status}`)
@@ -1416,14 +1456,15 @@ function DashboardContent({ onLogout, initialSearchInput }: DashboardProps) {
       }
       
       if (response.ok) {
+        console.log(`[DASHBOARD] ===== API REQUEST SUCCESS =====`)
         console.log(`[DASHBOARD] handleSendMessage successful:`, responseData)
         
         // Update the software creation with new demo URL
-        if (responseData.demoUrl) {
+        if (responseData.demoUrl && effectiveSoftwareId) {
           console.log(`[DASHBOARD] Updating demo URL: ${responseData.demoUrl}`)
-          updateCreation(selectedChat.id, {
+          updateCreation(effectiveSoftwareId, {
             softwareData: {
-              chatId: selectedChat.software_id ?? "",
+              chatId: selectedChat?.software_id ?? activeCreation?.softwareData?.chatId ?? "",
               demoUrl: responseData.demoUrl as string,
               isGenerating: false
             }
@@ -1431,8 +1472,8 @@ function DashboardContent({ onLogout, initialSearchInput }: DashboardProps) {
         }
         
         // Reload messages to get the updated conversation
-        console.log(`[DASHBOARD] Reloading messages for software: ${selectedChat.id}`)
-        const messagesResponse = await fetch(`/api/software/messages?softwareId=${selectedChat.id}&userId=${user.id}`)
+        console.log(`[DASHBOARD] Reloading messages for software: ${effectiveSoftwareId}`)
+        const messagesResponse = await fetch(`/api/software/messages?softwareId=${effectiveSoftwareId}&userId=${user.id}`)
         if (messagesResponse.ok) {
           const messagesData = await messagesResponse.json()
           console.log(`[DASHBOARD] Messages reloaded: ${messagesData.messages?.length || 0} messages`)
@@ -1447,16 +1488,19 @@ function DashboardContent({ onLogout, initialSearchInput }: DashboardProps) {
               createdAt: new Date(msg.created_at)
             })) || []
           }
-          updateCreation(selectedChat.id, updatedCreation)
+          updateCreation(effectiveSoftwareId, updatedCreation)
+          console.log(`[DASHBOARD] ===== HANDLE SEND MESSAGE SUCCESS =====`)
         } else {
           console.error(`[DASHBOARD] Failed to reload messages: ${messagesResponse.status}`)
         }
       } else {
+        console.error(`[DASHBOARD] ===== API REQUEST ERROR =====`)
         const errorMessage = responseData?.error || `HTTP ${response.status}: Server error`
         console.error(`[DASHBOARD] handleSendMessage failed:`, errorMessage)
         throw new Error(errorMessage)
       }
     } catch (error) {
+      console.error(`[DASHBOARD] ===== HANDLE SEND MESSAGE ERROR =====`)
       console.error(`[DASHBOARD] handleSendMessage error:`, error)
       toast({
         title: "Error",

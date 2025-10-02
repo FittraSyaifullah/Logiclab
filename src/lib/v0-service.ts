@@ -60,15 +60,8 @@ export async function createV0Project(data: V0ProjectData): Promise<V0ProjectRes
     const v0ApiKey = process.env.V0_API_KEY
     
     if (!v0ApiKey) {
-      console.warn(`[V0] V0_API_KEY not found, using mock response`)
-      // Mock response for development
-      const mockProject = {
-        id: `v0_${Date.now()}`,
-        name: data.name,
-        description: data.description,
-      }
-      console.log(`[V0] Mock project created: ${mockProject.id}`)
-      return { project: mockProject }
+      console.error(`[V0] V0_API_KEY not configured`)
+      return { error: 'V0_API_KEY not configured' }
     }
 
     // Initialize v0 SDK
@@ -106,12 +99,8 @@ export async function createV0Chat(data: V0ChatData): Promise<V0ChatResult> {
     const v0ApiKey = process.env.V0_API_KEY
     
     if (!v0ApiKey) {
-      console.warn(`[V0] V0_API_KEY not found, using mock response`)
-      // Mock response for development
-      const mockChatId = `chat_${Date.now()}`
-      const mockDemoUrl = `https://v0.dev/demo/${mockChatId}`
-      console.log(`[V0] Mock chat created: ${mockChatId}`)
-      return { chatId: mockChatId, demoUrl: mockDemoUrl }
+      console.error(`[V0] V0_API_KEY not configured`)
+      return { error: 'V0_API_KEY not configured' }
     }
 
     // Initialize v0 SDK
@@ -241,25 +230,31 @@ export async function createV0Chat(data: V0ChatData): Promise<V0ChatResult> {
 
 export async function sendV0Message(data: V0MessageData): Promise<V0MessageResult> {
   try {
+    console.log(`[V0] ===== SEND V0 MESSAGE START =====`)
     console.log(`[V0] Sending message to chat: ${data.chatId}`)
+    console.log(`[V0] Message content: ${data.message}`)
+    console.log(`[V0] Input data:`, { chatId: data.chatId, message: data.message.substring(0, 100) })
+    
     const v0ApiKey = process.env.V0_API_KEY
+    console.log(`[V0] V0_API_KEY present: ${!!v0ApiKey}`)
     
     if (!v0ApiKey) {
-      console.warn(`[V0] V0_API_KEY not found, using mock response`)
-      // Mock response for development
-      const mockDemoUrl = `https://v0.dev/demo/${data.chatId}?updated=${Date.now()}`
-      console.log(`[V0] Mock message sent, demo URL: ${mockDemoUrl}`)
-      return { demoUrl: mockDemoUrl }
+      console.error(`[V0] V0_API_KEY not configured`)
+      return { error: 'V0_API_KEY not configured' }
     }
 
     // Initialize v0 SDK
+    console.log(`[V0] Initializing v0 SDK client`)
     const client = createClient({
       apiKey: v0ApiKey,
     })
+    console.log(`[V0] v0 SDK client created successfully`)
 
+    console.log(`[V0] ===== MAKING V0 API CALL =====`)
     console.log(`[V0] Making API call to send message using SDK`)
     console.log(`[V0] - Chat ID: ${data.chatId}`)
     console.log(`[V0] - Message: ${data.message}`)
+    console.log(`[V0] - Timeout: 110000ms`)
     
     const result = await withTimeout(
       client.chats.sendMessage({
@@ -268,12 +263,19 @@ export async function sendV0Message(data: V0MessageData): Promise<V0MessageResul
       }),
       110000 // 110 seconds timeout (just under 2 minutes)
     )
+    
+    console.log(`[V0] ===== V0 API CALL COMPLETED =====`)
+    console.log(`[V0] API call completed successfully`)
 
+    console.log(`[V0] ===== PROCESSING V0 API RESULT =====`)
     console.log(`[V0] Message sent successfully:`, result)
     console.log(`[V0] Full result structure:`, JSON.stringify(result, null, 2))
+    console.log(`[V0] Result type:`, typeof result)
+    console.log(`[V0] Result keys:`, Object.keys(result || {}))
     
     // Handle different response types
     if ('id' in result) {
+      console.log(`[V0] ===== PROCESSING CHAT RESULT =====`)
       console.log(`[V0] Chat ID: ${result.id}`)
       console.log(`[V0] Web URL (chat URL): ${result.webUrl}`)
       console.log(`[V0] Demo URL (iframe URL): ${result.latestVersion?.demoUrl}`)
@@ -297,14 +299,18 @@ export async function sendV0Message(data: V0MessageData): Promise<V0MessageResul
       const demoUrl = result.latestVersion?.demoUrl
       const chatUrl = result.webUrl
       
+      console.log(`[V0] ===== FINAL RESULT MAPPING =====`)
       console.log(`[V0] Mapped URLs - Demo: ${demoUrl}, Chat: ${chatUrl}`)
       console.log(`[V0] Assistant message: ${assistantMessage}`)
       
-      return {
+      const finalResult = {
         demoUrl: demoUrl,
         chatUrl: chatUrl,
         message: assistantMessage
       }
+      console.log(`[V0] ===== SEND V0 MESSAGE SUCCESS =====`)
+      console.log(`[V0] Final result:`, finalResult)
+      return finalResult
     } else {
       // Handle stream response or other types
       console.log(`[V0] Stream response received`)
@@ -315,7 +321,11 @@ export async function sendV0Message(data: V0MessageData): Promise<V0MessageResul
       }
     }
   } catch (error) {
+    console.error(`[V0] ===== SEND V0 MESSAGE ERROR =====`)
     console.error(`[V0] Message sending failed:`, error)
+    console.error(`[V0] Error type:`, typeof error)
+    console.error(`[V0] Error message:`, error instanceof Error ? error.message : 'Unknown error')
+    console.error(`[V0] Error stack:`, error instanceof Error ? error.stack : 'No stack trace')
     return {
       error: error instanceof Error ? error.message : 'Failed to send v0 message'
     }

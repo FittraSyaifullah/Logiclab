@@ -131,7 +131,7 @@ Ensure these environment variables are set in `.env.local` (for local dev) and y
 NEXT_PUBLIC_SUPABASE_URL=
 NEXT_PUBLIC_SUPABASE_ANON_KEY=
 
-# v0 SDK
+# v0 SDK (required)
 V0_API_KEY=
 
 # Supabase Edge Functions
@@ -147,6 +147,7 @@ SUPABASE_SERVICE_ROLE_KEY=
 Notes:
 - `SUPABASE_SOFTWARE_FUNCTION_URL` is used by `src/app/api/software/generate/route.ts` to invoke the long-running software generation worker. This decouples invocation from URL derivation and supports custom domains or per-env differences.
 - `SUPABASE_SERVICE_ROLE_KEY` is sent as `Authorization: Bearer <key>` when invoking edge functions so they can read headers and use service role inside the function (per Supabase Functions auth).
+- `V0_API_KEY` is required for all v0 interactions (`src/lib/v0-service.ts`). If it is missing, API calls will fail explicitly to satisfy transparent error handling.
 - Keep secrets out of version control and configure them in your hosting provider.
 
 ### Code Style
