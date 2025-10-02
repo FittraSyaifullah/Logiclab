@@ -146,8 +146,8 @@ export default function LandingPage() {
       <div className="min-h-screen bg-white flex items-center justify-center p-4 animate-in fade-in duration-500">
         <div className="max-w-md w-full text-center space-y-6 animate-in slide-in-from-bottom-4 duration-700 delay-150">
           <img
-            src="/images/overhaul-logo.png"
-            alt="Overhaul"
+            src="/images/Buildables-Logo.png"
+            alt="Buildables"
             className="w-16 h-16 mx-auto animate-in zoom-in duration-500 delay-300"
           />
 
@@ -256,8 +256,8 @@ export default function LandingPage() {
       {/* Header */}
       <header className="p-6 flex justify-between items-center">
           <div className="flex items-center gap-2">
-            <Image src="/images/overhaul-logo.png" alt="Overhaul" width={32} height={32} className="w-8 h-8" />
-            <span className="text-xl font-bold text-black">Overhaul</span>
+            <Image src="/images/Buildables-Logo.png" alt="Buildables" width={32} height={32} className="w-8 h-8" />
+            <span className="text-xl font-bold text-black">Buildables</span>
         </div>
 
         <div className="flex items-center gap-3">
@@ -279,10 +279,10 @@ export default function LandingPage() {
 
       {/* Hero Section */}
         <section className="px-6 pt-20 pb-5 text-center max-w-4xl mx-auto">
-          {/* Centered Logo and Black Overhaul Text */}
+          {/* Centered Logo and Black Buildables Text */}
           <div className="flex flex-col items-center justify-center mb-8">
-            <Image src="/images/overhaul-logo.png" alt="Overhaul" width={64} height={64} className="w-16 h-16 mb-2" />
-            <span className="text-5xl font-bold text-black">Overhaul</span>
+            <Image src="/images/Buildables-Logo.png" alt="Buildables" width={64} height={64} className="w-16 h-16 mb-2" />
+            <span className="text-5xl font-bold text-black">Buildables</span>
           </div>
           <h1 className="text-5xl md:text-6xl font-bold mb-4">
             {"Hey! I know what we're gonna build today".split(" ").map((word, index) => (
@@ -300,7 +300,7 @@ export default function LandingPage() {
                 value={searchInput}
                 onChange={handleSearchInputChange}
                 onKeyPress={handleSearchKeyPress}
-                placeholder="Start building with Overhaul..."
+                placeholder="Start building with Buildables..."
                 className="w-full pl-12 pr-16 py-4 border-2 border-gray-200 rounded-full text-left hover:border-orange-300 transition-all duration-300 bg-white bg-opacity-80 shadow-[0_0_20px_rgba(249,115,22,0.3)] hover:shadow-[0_0_30px_rgba(249,115,22,0.5)] focus:shadow-[0_0_30px_rgba(249,115,22,0.5)] hover:scale-105 focus:scale-105 focus:border-orange-400 focus:outline-none"
               />
               <ArrowRight
