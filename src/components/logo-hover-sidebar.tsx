@@ -2,10 +2,9 @@
 import { Button } from "@/components/ui/button"
 import { Plus, TrendingUp, Settings, HelpCircle, MessageSquare } from "lucide-react"
 import { cn } from "@/lib/utils"
-import { useCreationStore } from "@/hooks/use-creation-store"
 import { useUserStore } from "@/hooks/use-user-store"
 import { useHardwareStore } from "@/hooks/use-hardware-store"
-import { useState, useEffect } from "react"
+import { useState, useEffect, useCallback } from "react"
 
 export interface SoftwareItem {
   id: string
@@ -36,7 +35,6 @@ export function LogoHoverSidebar({
   softwareList,
   onHardwareProjectSelect,
 }: LogoHoverSidebarProps) {
-  const { creations, activeCreationId, setActiveCreationId } = useCreationStore()
   const { user, project } = useUserStore()
   const { reportsList } = useHardwareStore()
   const [software, setSoftware] = useState<SoftwareItem[]>([])
@@ -44,17 +42,7 @@ export function LogoHoverSidebar({
   const [selectedChatId, setSelectedChatId] = useState<string | null>(null)
 
   // Load user's software (chats) when component mounts or user changes
-  useEffect(() => {
-    if (softwareList && softwareList.length > 0) {
-      setSoftware(softwareList)
-      return
-    }
-    if (user && project && isVisible) {
-      loadUserSoftware()
-    }
-  }, [softwareList, user, project, isVisible])
-
-  const loadUserSoftware = async () => {
+  const loadUserSoftware = useCallback(async () => {
     if (!user) return
     
     setLoading(true)
@@ -69,11 +57,21 @@ export function LogoHoverSidebar({
     } finally {
       setLoading(false)
     }
-  }
+  }, [user])
 
-  const handleChatSelect = (software: Software) => {
-    setSelectedChatId(software.id)
-    onChatSelect?.(software)
+  useEffect(() => {
+    if (softwareList && softwareList.length > 0) {
+      setSoftware(softwareList)
+      return
+    }
+    if (user && project && isVisible) {
+      void loadUserSoftware()
+    }
+  }, [softwareList, user, project, isVisible, loadUserSoftware])
+
+  const handleChatSelect = (softwareItem: SoftwareItem) => {
+    setSelectedChatId(softwareItem.id)
+    onChatSelect?.(softwareItem)
   }
 
   return (

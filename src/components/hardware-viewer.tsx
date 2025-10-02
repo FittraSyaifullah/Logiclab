@@ -61,9 +61,9 @@ interface ComponentCardData {
   id: string
   name: string
   description?: string
-  printTime: string
-  material: string
-  supports: string
+  printTime?: string
+  material?: string
+  supports?: string
   prompt?: string
   notes?: string
   model?: HardwareComponentModel

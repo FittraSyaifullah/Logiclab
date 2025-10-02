@@ -102,11 +102,9 @@ export function GrowthMarketingPanel({ isOpen, onClose }: GrowthMarketingPanelPr
     // Helper function to add text with word wrapping
     const addText = (text: string, fontSize = 10, isBold = false) => {
       doc.setFontSize(fontSize)
-      if (isBold) {
-        doc.setFont(undefined, "bold")
-      } else {
-        doc.setFont(undefined, "normal")
-      }
+      const baseFont = doc.getFontList().helvetica ? "helvetica" : "times"
+      const fontStyle: "bold" | "normal" = isBold ? "bold" : "normal"
+      doc.setFont(baseFont, fontStyle)
 
       const lines = doc.splitTextToSize(text, pageWidth - 2 * margin)
 

@@ -8,7 +8,11 @@ export async function GET() {
   try {
     const wasmPath = path.join(process.cwd(), "openscad-wasm", "openscad.wasm")
     const data = await fs.readFile(wasmPath)
-    return new NextResponse(data, {
+    const arrayBuffer = new ArrayBuffer(data.byteLength)
+    const view = new Uint8Array(arrayBuffer)
+    view.set(data)
+
+    return new NextResponse(arrayBuffer, {
       status: 200,
       headers: {
         "Content-Type": "application/wasm",

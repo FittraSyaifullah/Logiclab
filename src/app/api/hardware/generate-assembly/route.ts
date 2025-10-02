@@ -60,7 +60,8 @@ Generate comprehensive assembly instructions and parts list for this hardware pr
       targetReportId = existingReport?.id ?? null
     }
 
-    let reportData: { id: string } | null, reportError: unknown
+    let reportData: { id: string } | null = null
+    let reportError: unknown = null
 
     if (targetReportId) {
       // Update existing row
@@ -77,7 +78,6 @@ Generate comprehensive assembly instructions and parts list for this hardware pr
         .eq('id', targetReportId)
         .select()
         .single()
-
       reportData = result.data
       reportError = result.error
     } else {
@@ -96,7 +96,6 @@ Generate comprehensive assembly instructions and parts list for this hardware pr
         })
         .select()
         .single()
-
       reportData = result.data
       reportError = result.error
     }
@@ -104,6 +103,11 @@ Generate comprehensive assembly instructions and parts list for this hardware pr
     if (reportError) {
       console.error("Failed to store assembly report:", reportError)
       return NextResponse.json({ error: "Failed to store report" }, { status: 500 })
+    }
+
+    if (!reportData) {
+      console.error("Assembly report upsert returned no data")
+      return NextResponse.json({ error: "Failed to retrieve stored report" }, { status: 500 })
     }
 
     return NextResponse.json({
@@ -143,7 +147,8 @@ Generate comprehensive assembly instructions and parts list for this hardware pr
         .limit(1)
         .maybeSingle()
 
-      let reportData: { id: string } | null, reportError: unknown
+      let reportData: { id: string } | null = null
+      let reportError: unknown = null
 
       if (existingReport) {
         // Update existing row
@@ -160,7 +165,6 @@ Generate comprehensive assembly instructions and parts list for this hardware pr
           .eq('id', existingReport.id)
           .select()
           .single()
-
         reportData = result.data
         reportError = result.error
       } else {
@@ -179,7 +183,6 @@ Generate comprehensive assembly instructions and parts list for this hardware pr
           })
           .select()
           .single()
-
         reportData = result.data
         reportError = result.error
       }

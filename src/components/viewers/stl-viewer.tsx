@@ -37,7 +37,9 @@ export default function STLViewer({ stlBase64, componentName }: STLViewerProps) 
 
   const updateCamera = useCallback(
     (geom: BufferGeometry) => {
-      const boundingBox = new Box3().setFromBufferAttribute(geom.attributes.position)
+      geom.computeBoundingBox()
+      const safeBoundingBox = geom.boundingBox ?? new Box3().setFromCenterAndSize(new Vector3(), new Vector3(1, 1, 1))
+      const boundingBox = safeBoundingBox.clone()
 
       const center = new Vector3()
       boundingBox.getCenter(center)
@@ -93,7 +95,7 @@ export default function STLViewer({ stlBase64, componentName }: STLViewerProps) 
     }
   }, [stlBase64, updateCamera])
 
-  const mesh = useMemo(() => {
+  const mesh = useMemo<Mesh | null>(() => {
     if (!geometry) return null
     const material = new MeshStandardMaterial({ color, metalness: 0.25, roughness: 0.45 })
     return new Mesh(geometry, material)
@@ -128,7 +130,7 @@ export default function STLViewer({ stlBase64, componentName }: STLViewerProps) 
           <ambientLight intensity={0.6} />
           <directionalLight position={[60, 60, 60]} intensity={1.2} />
           <directionalLight position={[-40, 40, 60]} intensity={0.4} />
-          <primitive object={mesh} />
+          {mesh && <primitive object={mesh} />}
           <OrbitControls
             ref={(value) => {
               controlsRef.current = value
@@ -140,7 +142,11 @@ export default function STLViewer({ stlBase64, componentName }: STLViewerProps) 
             target={cameraTarget}
           />
           {controlsReady && (
-            <GizmoHelper alignment="bottom-right" margin={[80, 80]} onTarget={() => controlsRef.current?.target}>
+            <GizmoHelper
+              alignment="bottom-right"
+              margin={[80, 80]}
+              onTarget={() => controlsRef.current?.target ?? new Vector3(...cameraTarget)}
+            >
             <GizmoViewport axisColors={["#ff7f50", "#73c2fb", "#caffbf"]} />
             </GizmoHelper>
           )}

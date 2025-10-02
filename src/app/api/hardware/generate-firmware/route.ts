@@ -79,7 +79,8 @@ Generate complete firmware code for this hardware project.`,
       targetReportId = existingReport?.id ?? null
     }
 
-    let reportData: { id: string } | null, reportError: unknown
+    let reportData: { id: string } | null = null
+    let reportError: unknown = null
 
     if (targetReportId) {
       // Update existing row
@@ -127,6 +128,11 @@ Generate complete firmware code for this hardware project.`,
       return NextResponse.json({ error: "Failed to store report" }, { status: 500 })
     }
 
+    if (!reportData) {
+      console.error("Firmware report upsert returned no data")
+      return NextResponse.json({ error: "Failed to retrieve stored report" }, { status: 500 })
+    }
+
     return NextResponse.json({
       content: text,
       reportId: reportData.id,
@@ -164,7 +170,8 @@ Generate complete firmware code for this hardware project.`,
         .limit(1)
         .maybeSingle()
 
-      let reportData: { id: string } | null, reportError: unknown
+      let reportData: { id: string } | null = null
+      let reportError: unknown = null
 
       if (existingReport) {
         // Update existing row
