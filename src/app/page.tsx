@@ -332,9 +332,9 @@ export default function LandingPage() {
           <ModelGenerationSection />
         </div>
 
-        {/* How Overhaul Works */}
+        {/* How Buildables Works */}
         <section className="px-6 pt-5 pb-20 max-w-6xl mx-auto">
-          <h2 className="text-4xl font-bold text-center text-gray-900 mb-16">How Overhaul works</h2>
+          <h2 className="text-4xl font-bold text-center text-gray-900 mb-16">How Buildables works</h2>
           <div className="grid md:grid-cols-3 gap-8">
             {/* Card 1 */}
             <Card className="border-2 border-gray-100 hover:border-orange-200 transition-all duration-300 hover:scale-105 hover:shadow-lg">
@@ -351,7 +351,7 @@ export default function LandingPage() {
                 <Badge className="mb-4 bg-orange-100 text-orange-800">1</Badge>
                 <h3 className="text-2xl font-bold text-gray-900 mb-4">Talk in plain English</h3>
                 <p className="text-black">
-                  Use prompts in Overhaul to describe and edit the prototype you want to create.
+                  Use prompts in Buildables to describe and edit the prototype you want to create.
                 </p>
               </CardContent>
             </Card>
@@ -373,7 +373,7 @@ export default function LandingPage() {
                   Print and deploy your printable prototype with firmware code
                 </h3>
                 <p className="text-black">
-                  Overhaul will generate a printable 3D prototype or its components to be assembled. Works on
+                  Buildables will generate a printable 3D prototype or its components to be assembled. Works on
                   microcontrollers (ESP32, Raspberry Pi and Arduino)
                 </p>
               </CardContent>

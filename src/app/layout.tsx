@@ -28,7 +28,7 @@ const arialMono = localFont({
 });
 
 export const metadata: Metadata = {
-  title: "LogicLab - AI-Powered Product Creation",
+  title: "Buildables - AI-Powered Product Creation",
   description: "Build hardware or software prototypes, run business analysis, and generate 3D visualizations without coding.",
 };
 

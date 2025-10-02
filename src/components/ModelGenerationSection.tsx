@@ -7,7 +7,7 @@ export function ModelGenerationSection() {
   return (
     <section className="px-6 py-20 max-w-6xl mx-auto">
       <h2 className="text-4xl font-bold text-center text-gray-900 mb-16">
-        See Overhaul in action
+        See Buildables in action
       </h2>
       
       <div className="grid md:grid-cols-2 gap-8">
@@ -34,7 +34,7 @@ export function ModelGenerationSection() {
               From idea to 3D model in minutes
             </h3>
             <p className="text-lg text-gray-700">
-              Watch how Overhaul transforms your natural language descriptions into 
+              Watch how Buildables transforms your natural language descriptions into 
               ready-to-print 3D models with embedded firmware code.
             </p>
           </div>

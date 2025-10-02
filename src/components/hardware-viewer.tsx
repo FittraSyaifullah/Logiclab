@@ -82,7 +82,7 @@ const STATUS_META: Record<HardwareComponentModel["status"] | "idle", {
     icon: Hammer,
   },
   queued: {
-    label: "Queued in LogicLab",
+    label: "Queued in Buildables",
     tone: "text-blue-600 dark:text-blue-300",
     icon: Loader2,
     spin: true,
@@ -205,7 +205,7 @@ export function HardwareViewer({ creation, onRegenerate, onGenerateComponentMode
     const model = component.model
     if (!model) return
 
-    const safeProject = toKebabCase(projectTitle || "logiclab-project")
+    const safeProject = toKebabCase(projectTitle || "Buildables-project")
     const safeComponent = toKebabCase(component.name || "component")
 
     if (type === "stl") {

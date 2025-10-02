@@ -580,7 +580,7 @@ function DashboardContent({ onLogout, initialSearchInput }: DashboardProps) {
     if (!user?.id || !project?.id) {
       toast({
         title: "Missing project context",
-        description: "Please reload LogicLab or re-authenticate before generating models.",
+        description: "Please reload Buildables or re-authenticate before generating models.",
         variant: "destructive",
       })
       return
@@ -1215,7 +1215,7 @@ function DashboardContent({ onLogout, initialSearchInput }: DashboardProps) {
 
       toast({
         title: "Generating software...",
-        description: "LogicLab is creating your application with AI.",
+        description: "Buildables is creating your application with AI.",
       })
 
       generateSoftware(newCreation.id)
@@ -1242,7 +1242,7 @@ function DashboardContent({ onLogout, initialSearchInput }: DashboardProps) {
 
       toast({
         title: "Generating hardware specifications...",
-        description: "LogicLab is creating your 3D components, assembly instructions, and firmware code.",
+        description: "Buildables is creating your 3D components, assembly instructions, and firmware code.",
       })
 
       generateHardware(newCreation.id)
