@@ -1,0 +1,54 @@
+---
+alwaysApply: false
+---
+# AI Coding Rules for Vercel Deployment
+
+## 1. Type Safety
+- Enable `"strict": true` in `tsconfig.json`.
+- Do NOT use `any`. Prefer explicit types.
+- All function parameters and return values must be typed.
+- Do NOT assign `null` or `undefined` unless explicitly typed.
+- Use ESLint rules:
+  - `@typescript-eslint/no-unsafe-assignment`
+  - `@typescript-eslint/no-unsafe-call`
+  - `@typescript-eslint/no-explicit-any`
+  - `@typescript-eslint/strict-boolean-expressions`
+
+## 2. Module Imports
+- Only import dependencies declared in `package.json`.
+- File imports must match **exact case** of filenames (Linux/Vercel is case-sensitive).
+- Avoid dynamic imports of unknown paths unless absolutely necessary.
+
+## 3. Environment Variables
+- Only use variables defined in `.env` or Vercel dashboard.
+- Do NOT hardcode secrets in code.
+- Always validate environment variables before use.
+
+## 4. Vercel Build Compatibility
+- Code must compile with `npm run build` without errors.
+- Avoid Node native modules or binaries not supported by Vercel.
+- WASM or experimental modules must be correctly imported and included in deployment.
+- Production build must pass ESLint checks: `npm run lint`.
+
+## 5. Next.js / Frontend Guidelines
+- All pages/components must be fully typed with TypeScript.
+- No `any` or unsafe casts in React props.
+- Prefer `getStaticProps` or `getServerSideProps` with typed return objects.
+- Avoid runtime-only type assumptions.
+
+## 6. Testing & Validation
+- Run `tsc --noEmit` to ensure zero type errors.
+- Run `eslint . --ext .ts,.tsx` to enforce lint/type rules.
+- Ensure `npm run build` succeeds locally before deployment.
+
+## 7. Coding Style
+- Follow Airbnb or equivalent TypeScript style guide.
+- Consistent indentation (2 spaces).
+- No unused variables, imports, or functions.
+- All async functions must handle errors properly (try/catch or `.catch`).
+
+## 8. Deployment Check
+- Always verify `npm run build` passes.
+- All static assets and dynamic imports resolved correctly.
+- Ensure no platform-specific assumptions (Windows vs Linux) exist.
+
