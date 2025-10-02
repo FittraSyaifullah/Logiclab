@@ -70,13 +70,20 @@ export async function POST(request: NextRequest) {
     // Trigger Supabase Edge Function (v0-processor) to process asynchronously
     try {
       const functionUrl = process.env.SUPABASE_SOFTWARE_FUNCTION_URL
+      const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY
       if (!functionUrl) {
         throw new Error('SUPABASE_SOFTWARE_FUNCTION_URL not configured')
+      }
+      if (!serviceRoleKey) {
+        throw new Error('SUPABASE_SERVICE_ROLE_KEY not configured')
       }
 
       await fetch(functionUrl, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${serviceRoleKey}`,
+        },
         body: JSON.stringify({
           jobId: job.id,
           projectId,

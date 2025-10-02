@@ -138,10 +138,15 @@ V0_API_KEY=
 # Direct URL to the deployed v0-processor function
 # Example: https://<project>.supabase.co/functions/v1/v0-processor
 SUPABASE_SOFTWARE_FUNCTION_URL=
+
+# Service role key for authenticated function invocation
+# Required by software/hardware API routes to call Supabase Functions with bearer auth
+SUPABASE_SERVICE_ROLE_KEY=
 ```
 
 Notes:
 - `SUPABASE_SOFTWARE_FUNCTION_URL` is used by `src/app/api/software/generate/route.ts` to invoke the long-running software generation worker. This decouples invocation from URL derivation and supports custom domains or per-env differences.
+- `SUPABASE_SERVICE_ROLE_KEY` is sent as `Authorization: Bearer <key>` when invoking edge functions so they can read headers and use service role inside the function (per Supabase Functions auth).
 - Keep secrets out of version control and configure them in your hosting provider.
 
 ### Code Style
