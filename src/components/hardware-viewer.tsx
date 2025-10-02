@@ -497,7 +497,15 @@ export function HardwareViewer({ creation, onRegenerate, onGenerateComponentMode
     setRegeneratingTabs((prev) => [...prev, tabId])
 
     try {
-      const response = await fetch(`/api/hardware/generate-${tabId}`, {
+      // Map tabId to correct API endpoint
+      const endpointMap: Record<string, string> = {
+        "3d-components": "generate-3d",
+        "assembly-parts": "generate-assembly", 
+        "firmware-code": "generate-firmware"
+      }
+      
+      const apiEndpoint = endpointMap[tabId] || `generate-${tabId}`
+      const response = await fetch(`/api/hardware/${apiEndpoint}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({

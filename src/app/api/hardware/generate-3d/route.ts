@@ -3,8 +3,31 @@ import { generateText, aiModel } from "@/lib/openai"
 import { createSupabaseServerClient } from "@/lib/supabase/server"
 
 export async function POST(request: NextRequest) {
+  interface ProjectData {
+    id: string
+    description?: string
+  }
+  interface ComponentSpec {
+    component: string
+    description: string
+    promptFor3DGeneration: string
+    printSpecifications: string
+    assemblyNotes: string
+    printTime: string
+    material: string
+    supports: string
+  }
+  interface Generate3DJson {
+    project: string
+    description: string
+    components: ComponentSpec[]
+    generalNotes: string
+  }
+
+  let projectData: ProjectData | undefined
   try {
-    const { projectData } = await request.json()
+    const body = await request.json()
+    projectData = body?.projectData as ProjectData | undefined
 
     if (!projectData) {
       return NextResponse.json({ error: "Project data is required" }, { status: 400 })
@@ -12,11 +35,10 @@ export async function POST(request: NextRequest) {
 
     const supabase = createSupabaseServerClient()
 
-    const generateWithFallback = async () => {
-      try {
-        const { text } = await generateText({
-          model: aiModel,
-          system: `You are an AI engineer specializing in breaking down hardware projects into 3D printable components.
+    // Call model to return STRICT JSON only (no prose or code fences)
+    const { text } = await generateText({
+      model: aiModel,
+      system: `You are an AI engineer specializing in breaking down hardware projects into 3D printable components.
 
 Your role is to:
 1. Analyze the hardware project and identify all structural components that can be 3D printed
@@ -31,122 +53,135 @@ For complex appliances like washing machines, dishwashers, or large devices:
 - Focus on demonstrating key mechanisms and principles
 - Provide multiple size options (prototype scale vs functional scale)
 
-Focus on creating modular, printable parts that users can assemble themselves. Consider standard 3D printer bed sizes (200x200mm typical) and avoid overhangs that require excessive supports.
+Return ONLY a single valid JSON object using double quotes, with exactly these keys at the top level and no others:
+- project: string
+- description: string
+- components: array of objects, each object must contain ALL of these keys with string values:
+  - component
+  - description
+  - promptFor3DGeneration
+  - printSpecifications
+  - assemblyNotes
+  - printTime
+  - material
+  - supports
+- generalNotes: string
 
-IMPORTANT: Generate prompts for each separate component that can be used with 3D modeling software or AI 3D generation tools, not actual 3D models.`,
-          prompt: `Project: ${projectData.description}
+Rules:
+- Do not include any markdown, code fences, or explanation text.
+- The number of components should match the complexity of the request.
+- Design for standard 3D printer bed sizes (≈200x200mm) and minimize supports.
+- Focus on modular, printable parts that can be assembled by the user.
+`,
+      prompt: `Project context:
+${projectData?.description || ""}
 
-Generate detailed 3D printable components for this hardware project. If this is a complex appliance or large device, create a scaled-down functional prototype that demonstrates the key mechanisms. Break down complex parts into smaller assemblable pieces and provide prompts for generating each component.
+Generate the JSON now. Output only the JSON object.`,
+      temperature: 0.7,
+      maxTokens: 2000,
+    })
 
-For each component, provide:
-1. **Prompt for 3D Generation**: Detailed description for 3D modeling
-2. Print specifications (time, material, supports)
-3. Assembly notes and hardware requirements`,
-          temperature: 0.7,
-          maxTokens: 2000,
-        })
-        return text
-      } catch (error: any) {
-        console.log("Using fallback content due to API limitation")
-        throw error // This will trigger the fallback content below
+    // Parse and validate JSON from the model
+    const raw = (text || "").trim()
+    const start = raw.indexOf("{")
+    const end = raw.lastIndexOf("}")
+    if (start === -1 || end === -1 || end <= start) {
+      return NextResponse.json({ error: "Model did not return valid JSON object." }, { status: 422 })
+    }
+    let parsed: Generate3DJson
+    try {
+      parsed = JSON.parse(raw.slice(start, end + 1)) as Generate3DJson
+    } catch {
+      return NextResponse.json({ error: "JSON parse failed: Invalid JSON returned by model." }, { status: 422 })
+    }
+
+    // Structural validation with light alias handling for minor drift
+    const requiredTopKeys = ["project", "description", "components", "generalNotes"]
+    for (const key of requiredTopKeys) {
+      if (!(key in parsed)) {
+        return NextResponse.json({ error: `Missing required key: ${key}` }, { status: 422 })
+      }
+    }
+    if (typeof parsed.project !== "string" || typeof parsed.description !== "string" || typeof parsed.generalNotes !== "string") {
+      return NextResponse.json({ error: "Top-level keys must be strings: project, description, generalNotes" }, { status: 422 })
+    }
+    if (!Array.isArray(parsed.components)) {
+      return NextResponse.json({ error: "components must be an array" }, { status: 422 })
+    }
+    for (let i = 0; i < parsed.components.length; i++) {
+      const c = parsed.components[i] as any
+      // Alias support: map 'name' -> 'component', 'prompt' -> 'promptFor3DGeneration'
+      if (typeof c.component !== "string" && typeof c.name === "string") c.component = c.name
+      if (typeof c.promptFor3DGeneration !== "string" && typeof c.prompt === "string") c.promptFor3DGeneration = c.prompt
+
+      const valid =
+        typeof c.component === "string" &&
+        typeof c.description === "string" &&
+        typeof c.promptFor3DGeneration === "string" &&
+        typeof c.printSpecifications === "string" &&
+        typeof c.assemblyNotes === "string" &&
+        typeof c.printTime === "string" &&
+        typeof c.material === "string" &&
+        typeof c.supports === "string"
+
+      if (!valid) {
+        return NextResponse.json({ error: `Component ${i} has invalid or missing fields` }, { status: 422 })
       }
     }
 
-    const text = await generateWithFallback()
+    // Log the parsed JSON for testing
+    console.log("[3D] Generated JSON data:", JSON.stringify(parsed, null, 2))
+
+    // Resolve target project id (UI may send a non-UUID creation id)
+    const isUuid = (value: string | undefined): boolean => {
+      if (!value) return false
+      return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value)
+    }
+    let targetProjectId: string | null = null
+    if (isUuid(projectData?.id)) {
+      targetProjectId = projectData!.id
+    } else {
+      const { data: latestProject } = await supabase
+        .from('projects')
+        .select('id')
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .single()
+      targetProjectId = latestProject?.id ?? null
+    }
+    if (!targetProjectId) {
+      return NextResponse.json({ error: "Valid project id not found" }, { status: 400 })
+    }
 
     // Check if a hardware report already exists for this project
     const { data: existingReport } = await supabase
       .from('hardware_reports')
       .select('id')
-      .eq('project_id', projectData.id)
+      .eq('project_id', targetProjectId)
       .single()
 
-    let reportData, reportError
+    let reportData: { id: string } | null, reportError: unknown
 
     if (existingReport) {
-      // Update existing row
+      // Update existing row with the generated JSON
       const result = await supabase
         .from('hardware_reports')
         .update({
-          '3d_components': {
-            content: text,
-            components: [
-              {
-                name: "Main Housing",
-                description: "Primary enclosure for electronics",
-                printTime: "2-3 hours",
-                material: "PLA",
-                supports: "Minimal",
-              },
-              {
-                name: "Sensor Mount",
-                description: "Adjustable mount for sensors",
-                printTime: "30 minutes",
-                material: "PLA",
-                supports: "None",
-              },
-              {
-                name: "Control Interface Panel",
-                description: "Face plate for control indicators and buttons",
-                printTime: "45 minutes",
-                material: "PLA (white for light diffusion)",
-                supports: "None",
-              },
-              {
-                name: "Motor Mount Assembly",
-                description: "Bracket for mounting servo motors with adjustable positioning",
-                printTime: "1 hour",
-                material: "PETG for strength",
-                supports: "Minimal",
-              },
-            ],
-          }
+          '3d_components': parsed,
         })
-        .eq('project_id', projectData.id)
+        .eq('project_id', targetProjectId)
         .select()
         .single()
 
       reportData = result.data
       reportError = result.error
     } else {
-      // Create new row
+      // Create new row with the generated JSON
       const result = await supabase
         .from('hardware_reports')
         .insert({
-          project_id: projectData.id,
-          '3d_components': {
-            content: text,
-            components: [
-              {
-                name: "Main Housing",
-                description: "Primary enclosure for electronics",
-                printTime: "2-3 hours",
-                material: "PLA",
-                supports: "Minimal",
-              },
-              {
-                name: "Sensor Mount",
-                description: "Adjustable mount for sensors",
-                printTime: "30 minutes",
-                material: "PLA",
-                supports: "None",
-              },
-              {
-                name: "Control Interface Panel",
-                description: "Face plate for control indicators and buttons",
-                printTime: "45 minutes",
-                material: "PLA (white for light diffusion)",
-                supports: "None",
-              },
-              {
-                name: "Motor Mount Assembly",
-                description: "Bracket for mounting servo motors with adjustable positioning",
-                printTime: "1 hour",
-                material: "PETG for strength",
-                supports: "Minimal",
-              },
-            ],
-          }
+          project_id: targetProjectId,
+          '3d_components': parsed,
         })
         .select()
         .single()
@@ -161,59 +196,54 @@ For each component, provide:
     }
 
     return NextResponse.json({
-      content: text,
-      reportId: reportData.id,
-      components: [
-        {
-          name: "Main Housing",
-          description: "Primary enclosure for electronics",
-          printTime: "2-3 hours",
-          material: "PLA",
-          supports: "Minimal",
-        },
-        {
-          name: "Sensor Mount",
-          description: "Adjustable mount for sensors",
-          printTime: "30 minutes",
-          material: "PLA",
-          supports: "None",
-        },
-        {
-          name: "Control Interface Panel",
-          description: "Face plate for control indicators and buttons",
-          printTime: "45 minutes",
-          material: "PLA (white for light diffusion)",
-          supports: "None",
-        },
-        {
-          name: "Motor Mount Assembly",
-          description: "Bracket for mounting servo motors with adjustable positioning",
-          printTime: "1 hour",
-          material: "PETG for strength",
-          supports: "Minimal",
-        },
-      ],
+      reportId: reportData?.id,
+      data: parsed,
     })
-  } catch (error: any) {
+  } catch (error: unknown) {
+    const err = error as { message?: string; stack?: string; cause?: unknown }
     console.error("[3D] Error generating 3D components:", {
-      error: error,
-      message: error.message,
-      stack: error.stack,
-      cause: error.cause
+      error,
+      message: err?.message,
+      stack: err?.stack,
+      cause: err?.cause,
     })
 
     const supabase = createSupabaseServerClient()
-    const { projectData } = await request.json()
 
     let errorMessage = "Unknown error occurred"
 
-    if (error.message?.includes('OpenAI API')) {
-      errorMessage = `OpenAI API error: ${error.message}`
-    } else if (error.message) {
-      errorMessage = error.message
+    if (err?.message?.includes('OpenAI API')) {
+      errorMessage = `OpenAI API error: ${err.message}`
+    } else if (err?.message) {
+      errorMessage = err.message
+    }
+
+    // If we don't have a project id, just return the error without attempting DB writes
+    if (!projectData?.id) {
+      return NextResponse.json({ error: errorMessage }, { status: 500 })
     }
 
     try {
+      // Resolve target project id again for error storage
+      const isUuid = (value: string | undefined): boolean => {
+        if (!value) return false
+        return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value)
+      }
+      let targetProjectId: string | null = null
+      if (isUuid(projectData?.id)) {
+        targetProjectId = projectData!.id
+      } else {
+        const { data: latestProject } = await supabase
+          .from('projects')
+          .select('id')
+          .order('created_at', { ascending: false })
+          .limit(1)
+          .single()
+        targetProjectId = latestProject?.id ?? null
+      }
+      if (!targetProjectId) {
+        return NextResponse.json({ error: errorMessage }, { status: 500 })
+      }
       // Check if a hardware report already exists for this project
       const { data: existingReport } = await supabase
         .from('hardware_reports')
@@ -221,47 +251,37 @@ For each component, provide:
         .eq('project_id', projectData.id)
         .single()
 
-      let reportData, reportError
+      // Store error using the same strict JSON shape to keep consumers consistent
+      const errorJson = {
+        project: (projectData as any).title || "",
+        description: "",
+        components: [],
+        generalNotes: `Error generating 3D components: ${errorMessage}`,
+      }
 
+      let reportData: { id: string } | null
       if (existingReport) {
-        // Update existing row
         const result = await supabase
           .from('hardware_reports')
-          .update({
-            '3d_components': {
-              content: `Error generating 3D components: ${errorMessage}`,
-              components: [],
-            }
-          })
-          .eq('project_id', projectData.id)
+          .update({ '3d_components': errorJson })
+          .eq('project_id', targetProjectId)
           .select()
           .single()
-
         reportData = result.data
-        reportError = result.error
       } else {
-        // Create new row
         const result = await supabase
           .from('hardware_reports')
-          .insert({
-            project_id: projectData.id,
-            '3d_components': {
-              content: `Error generating 3D components: ${errorMessage}`,
-              components: [],
-            }
-          })
+          .insert({ project_id: targetProjectId, '3d_components': errorJson })
           .select()
           .single()
-
         reportData = result.data
-        reportError = result.error
       }
 
       return NextResponse.json({
         error: errorMessage,
         reportId: reportData?.id,
       }, { status: 500 })
-    } catch (dbError: any) {
+    } catch (dbError: unknown) {
       console.error("[3D] Database error:", dbError)
       return NextResponse.json({
         error: `Generation failed and database error: ${errorMessage}`,

@@ -41,7 +41,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: "Failed to fetch reports" }, { status: 500 })
     }
 
-    // Transform reports into the expected format
+    // Transform reports into the expected format expected by the UI
     const transformedReports: any = {}
 
     if (reports && reports.length > 0) {
@@ -49,7 +49,41 @@ export async function GET(request: NextRequest) {
 
       // Extract different report sections
       if (latestReport['3d_components']) {
-        transformedReports['3d-components'] = latestReport['3d_components']
+        const raw3d = latestReport['3d_components'] as any
+        // If the stored data is in the new strict JSON shape, map it to the UI's expected structure
+        const looksLikeStrictJson = raw3d && typeof raw3d === 'object' && 'project' in raw3d && 'components' in raw3d
+        if (looksLikeStrictJson) {
+          try {
+            const descriptionText = typeof raw3d.description === 'string' ? raw3d.description : ''
+            const notesText = typeof raw3d.generalNotes === 'string' ? raw3d.generalNotes : ''
+            const content = [descriptionText, notesText].filter(Boolean).join('\n\n')
+
+            const mappedComponents = Array.isArray(raw3d.components)
+              ? raw3d.components.map((c: any) => ({
+                  // UI expects these keys
+                  name: c?.component ?? '',
+                  description: c?.description ?? '',
+                  printTime: c?.printTime ?? '',
+                  material: c?.material ?? '',
+                  supports: c?.supports ?? '',
+                  prompt: c?.promptFor3DGeneration ?? '',
+                  // Put extra details into notes for now
+                  notes: [c?.printSpecifications, c?.assemblyNotes].filter(Boolean).join('\n\n'),
+                }))
+              : []
+
+            transformedReports['3d-components'] = {
+              content,
+              components: mappedComponents,
+            }
+          } catch {
+            // If mapping fails for any reason, fall back to passing through the raw value
+            transformedReports['3d-components'] = raw3d
+          }
+        } else {
+          // Keep legacy shape as-is
+          transformedReports['3d-components'] = raw3d
+        }
       }
 
       if (latestReport.assembly_parts) {
