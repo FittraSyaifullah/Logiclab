@@ -31,9 +31,9 @@ export const metadata: Metadata = {
   title: "Buildables - AI-Powered Product Creation",
   description: "Build hardware or software prototypes, run business analysis, and generate 3D visualizations without coding.",
   icons: {
-    icon: "/Buildables Logo.png",
-    shortcut: "/Buildables Logo.png",
-    apple: "/Buildables Logo.png",
+    icon: "/images/Buildables-Logo.png",
+    shortcut: "/images/Buildables-Logo.png",
+    apple: "/images/Buildables-Logo.png",
   },
 };
 

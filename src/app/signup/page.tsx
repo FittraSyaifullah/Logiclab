@@ -129,8 +129,8 @@ export default function SignUpPage() {
               Back to home
             </Link>
             <div className="flex flex-col items-center">
-              <Image src="/images/overhaul-logo.png" alt="Overhaul" width={48} height={48} className="w-12 h-12 mb-2" />
-              <h1 className="text-2xl font-bold text-black">Join Overhaul</h1>
+              <Image src="/images/Buildables-Logo.png" alt="Buildables" width={48} height={48} className="w-12 h-12 mb-2" />
+              <h1 className="text-2xl font-bold text-black">Join Buildables</h1>
               <p className="text-gray-600">Start building the future today</p>
             </div>
           </div>

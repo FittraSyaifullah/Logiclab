@@ -165,8 +165,8 @@ function PersistentHeader({
           onMouseLeave={handleLogoMouseLeave}
         >
           <Image
-            src="/images/2025_Overhaul_Logo-transparent.png"
-            alt="Overhaul"
+            src="/images/Buildables-Logo.png"
+            alt="Buildables"
             width={32}
             height={32}
             className="w-8 h-8 transition-all duration-200 hover:brightness-110"
