@@ -28,9 +28,9 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: "Unauthorized - not project owner" }, { status: 403 })
     }
 
-    // Fetch hardware reports for this project
+    // Fetch hardware projects for this project
     const { data: reports, error: reportsError } = await supabase
-      .from('hardware_reports')
+      .from('hardware_projects')
       .select('*')
       .eq('project_id', projectId)
       .order('created_at', { ascending: false })
@@ -96,11 +96,12 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    console.log(`[HARDWARE] Retrieved ${reports?.length || 0} reports for project ${projectId}`)
+    console.log(`[HARDWARE] Retrieved ${reports?.length || 0} hardware projects for project ${projectId}`)
 
     return NextResponse.json({
       success: true,
       reports: transformedReports,
+      title: reports?.[0]?.title || null,
       count: reports?.length || 0,
     })
   } catch (error: any) {

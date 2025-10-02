@@ -48,7 +48,7 @@ Generate comprehensive assembly instructions and parts list for this hardware pr
       targetReportId = providedReportId
     } else {
       const { data: existingReport } = await supabase
-        .from('hardware_reports')
+        .from('hardware_projects')
         .select('id')
         .eq('project_id', projectData.id)
         .order('created_at', { ascending: false })
@@ -62,7 +62,7 @@ Generate comprehensive assembly instructions and parts list for this hardware pr
     if (targetReportId) {
       // Update existing row
       const result = await supabase
-        .from('hardware_reports')
+        .from('hardware_projects')
         .update({
           assembly_parts: {
             content: text,
@@ -80,9 +80,10 @@ Generate comprehensive assembly instructions and parts list for this hardware pr
     } else {
       // Create new row
       const result = await supabase
-        .from('hardware_reports')
+        .from('hardware_projects')
         .insert({
           project_id: projectData.id,
+          title: (projectData as any).title || 'Hardware Project',
           assembly_parts: {
             content: text,
             partsCount: 8,
@@ -129,19 +130,21 @@ Generate comprehensive assembly instructions and parts list for this hardware pr
     }
 
     try {
-      // Check if a hardware report already exists for this project
+      // Find latest existing hardware project row for this project
       const { data: existingReport } = await supabase
-        .from('hardware_reports')
+        .from('hardware_projects')
         .select('id')
         .eq('project_id', projectData.id)
-        .single()
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle()
 
       let reportData, reportError
 
       if (existingReport) {
         // Update existing row
         const result = await supabase
-          .from('hardware_reports')
+          .from('hardware_projects')
           .update({
             assembly_parts: {
               content: `Error generating assembly instructions: ${errorMessage}`,
@@ -150,7 +153,7 @@ Generate comprehensive assembly instructions and parts list for this hardware pr
               difficultyLevel: "Unknown",
             }
           })
-          .eq('project_id', projectData.id)
+          .eq('id', existingReport.id)
           .select()
           .single()
 
@@ -159,9 +162,10 @@ Generate comprehensive assembly instructions and parts list for this hardware pr
       } else {
         // Create new row
         const result = await supabase
-          .from('hardware_reports')
+          .from('hardware_projects')
           .insert({
             project_id: projectData.id,
+            title: (projectData as any).title || 'Hardware Project',
             assembly_parts: {
               content: `Error generating assembly instructions: ${errorMessage}`,
               partsCount: 0,

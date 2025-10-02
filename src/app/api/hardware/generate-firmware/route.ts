@@ -67,7 +67,7 @@ Generate complete firmware code for this hardware project.`,
       targetReportId = providedReportId
     } else {
       const { data: existingReport } = await supabase
-        .from('hardware_reports')
+        .from('hardware_projects')
         .select('id')
         .eq('project_id', projectData.id)
         .order('created_at', { ascending: false })
@@ -81,7 +81,7 @@ Generate complete firmware code for this hardware project.`,
     if (targetReportId) {
       // Update existing row
       const result = await supabase
-        .from('hardware_reports')
+        .from('hardware_projects')
         .update({
           firmware_code: {
             content: text,
@@ -100,9 +100,10 @@ Generate complete firmware code for this hardware project.`,
     } else {
       // Create new row
       const result = await supabase
-        .from('hardware_reports')
+        .from('hardware_projects')
         .insert({
           project_id: projectData.id,
+          title: (projectData as any).title || 'Hardware Project',
           firmware_code: {
             content: text,
             language,
@@ -151,19 +152,21 @@ Generate complete firmware code for this hardware project.`,
     }
 
     try {
-      // Check if a hardware report already exists for this project
+      // Find latest existing hardware project row for this project
       const { data: existingReport } = await supabase
-        .from('hardware_reports')
+        .from('hardware_projects')
         .select('id')
         .eq('project_id', projectData.id)
-        .single()
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle()
 
       let reportData, reportError
 
       if (existingReport) {
         // Update existing row
         const result = await supabase
-          .from('hardware_reports')
+          .from('hardware_projects')
           .update({
             firmware_code: {
               content: `Error generating firmware code: ${errorMessage}`,
@@ -173,7 +176,7 @@ Generate complete firmware code for this hardware project.`,
               codeLines: 0,
             }
           })
-          .eq('project_id', projectData.id)
+          .eq('id', existingReport.id)
           .select()
           .single()
 
@@ -182,9 +185,10 @@ Generate complete firmware code for this hardware project.`,
       } else {
         // Create new row
         const result = await supabase
-          .from('hardware_reports')
+          .from('hardware_projects')
           .insert({
             project_id: projectData.id,
+            title: (projectData as any).title || 'Hardware Project',
             firmware_code: {
               content: `Error generating firmware code: ${errorMessage}`,
               language: "Unknown",

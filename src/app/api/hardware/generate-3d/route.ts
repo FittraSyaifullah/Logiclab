@@ -155,27 +155,15 @@ Generate the JSON now. Output only the JSON object.`,
       return NextResponse.json({ error: "Valid project id not found" }, { status: 400 })
     }
 
-    // Resolve target report: prefer provided reportId, else latest by project
-    let targetReportId: string | null = null
-    if (providedReportId) {
-      targetReportId = providedReportId
-    } else {
-      const { data: existingReport } = await supabase
-        .from('hardware_reports')
-        .select('id')
-        .eq('project_id', targetProjectId)
-        .order('created_at', { ascending: false })
-        .limit(1)
-        .maybeSingle()
-      targetReportId = existingReport?.id ?? null
-    }
+    // Resolve target project row: prefer provided id, else create a new row
+    let targetReportId: string | null = providedReportId ?? null
 
     let reportData: { id: string } | null, reportError: unknown
 
     if (targetReportId) {
       // Update existing row with the generated JSON
       const result = await supabase
-        .from('hardware_reports')
+        .from('hardware_projects')
         .update({
           '3d_components': parsed,
         })
@@ -188,9 +176,10 @@ Generate the JSON now. Output only the JSON object.`,
     } else {
       // Create new row with the generated JSON
       const result = await supabase
-        .from('hardware_reports')
+        .from('hardware_projects')
         .insert({
           project_id: targetProjectId,
+          title: (projectData as any).title || parsed.project || 'Hardware Project',
           '3d_components': parsed,
         })
         .select()
@@ -256,10 +245,12 @@ Generate the JSON now. Output only the JSON object.`,
       }
       // Check if a hardware report already exists for this project
       const { data: existingReport } = await supabase
-        .from('hardware_reports')
+        .from('hardware_projects')
         .select('id')
         .eq('project_id', projectData.id)
-        .single()
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle()
 
       // Store error using the same strict JSON shape to keep consumers consistent
       const errorJson = {
@@ -272,16 +263,16 @@ Generate the JSON now. Output only the JSON object.`,
       let reportData: { id: string } | null
       if (existingReport) {
         const result = await supabase
-          .from('hardware_reports')
+          .from('hardware_projects')
           .update({ '3d_components': errorJson })
-          .eq('project_id', targetProjectId)
+          .eq('id', existingReport.id)
           .select()
           .single()
         reportData = result.data
       } else {
         const result = await supabase
-          .from('hardware_reports')
-          .insert({ project_id: targetProjectId, '3d_components': errorJson })
+          .from('hardware_projects')
+          .insert({ project_id: targetProjectId, title: (projectData as any).title || '', '3d_components': errorJson })
           .select()
           .single()
         reportData = result.data

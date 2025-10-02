@@ -1029,6 +1029,21 @@ function DashboardContent({ onLogout, initialSearchInput }: DashboardProps) {
               },
             })
           }
+          // Immediately add to hover-sidebar list if it's a newly inserted hardware project (primary 3d pass)
+          if (jobKind === '3d' && project?.id) {
+            const { reportsList, setReportsList } = useHardwareStore.getState()
+            if (!reportsList.some((i) => i.reportId === generationData.reportId)) {
+              setReportsList([
+                {
+                  reportId: generationData.reportId as string,
+                  projectId: project.id as string,
+                  title: latest?.title || currentCreation.title || 'Hardware Project',
+                  createdAt: new Date().toISOString(),
+                },
+                ...reportsList,
+              ])
+            }
+          }
         }
         console.log(`[HARDWARE] Successfully generated ${jobKind}:`, generationData)
 
@@ -1488,7 +1503,7 @@ function DashboardContent({ onLogout, initialSearchInput }: DashboardProps) {
               if (active && active.mode === 'hardware') {
                 updateCreation(active.id, { hardwareReports: data.reports || {} })
               } else {
-                const title = data?.reports?.["3d-components"]?.project || 'Hardware Project'
+                const title = data?.title || data?.reports?.["3d-components"]?.project || 'Hardware Project'
                 const newCreation: Creation = {
                   id: Date.now().toString(),
                   title,

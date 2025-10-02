@@ -45,18 +45,21 @@ CREATE TABLE public.hardware_models (
   scad_code text NOT NULL,
   parameters jsonb,
   scad_mime text DEFAULT 'application/x-openscad'::text,
+  hardware_report_id uuid,
   CONSTRAINT hardware_models_pkey PRIMARY KEY (id),
   CONSTRAINT hardware_models_project_id_fkey FOREIGN KEY (project_id) REFERENCES public.projects(id),
-  CONSTRAINT hardware_models_job_id_fkey FOREIGN KEY (job_id) REFERENCES public.jobs(id)
+  CONSTRAINT hardware_models_job_id_fkey FOREIGN KEY (job_id) REFERENCES public.jobs(id),
+  CONSTRAINT hardware_models_hardware_report_id_fkey FOREIGN KEY (hardware_report_id) REFERENCES public.hardware_projects(id)
 );
-CREATE TABLE public.hardware_reports (
+CREATE TABLE public.hardware_projects (
   id uuid NOT NULL DEFAULT gen_random_uuid(),
   created_at timestamp with time zone NOT NULL DEFAULT now(),
   project_id uuid DEFAULT gen_random_uuid(),
   3d_components jsonb,
   assembly_parts jsonb,
   firmware_code jsonb,
-  CONSTRAINT hardware_reports_pkey PRIMARY KEY (id),
+  title text,
+  CONSTRAINT hardware_projects_pkey PRIMARY KEY (id),
   CONSTRAINT hardware_reports_project_id_fkey FOREIGN KEY (project_id) REFERENCES public.projects(id)
 );
 CREATE TABLE public.jobs (

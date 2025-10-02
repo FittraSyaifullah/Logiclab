@@ -5,7 +5,7 @@ import type { HardwareComponentModel, HardwareReports } from '@/lib/types'
 type HardwareReportListItem = {
   reportId: string
   projectId: string
-  projectName?: string
+  title?: string
   createdAt: string
 }
 

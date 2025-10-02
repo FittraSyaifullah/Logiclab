@@ -166,7 +166,7 @@ export function LogoHoverSidebar({
                   )}
                 >
                   <div className="flex flex-col items-start w-full">
-                    <div className="font-medium text-sm truncate w-full">{item.projectName || 'Hardware Project'}</div>
+                    <div className="font-medium text-sm truncate w-full">{item.title || 'Hardware Project'}</div>
                     <div className="text-xs text-slate-500 dark:text-slate-400 truncate w-full">
                       {new Date(item.createdAt).toLocaleDateString()}
                     </div>
