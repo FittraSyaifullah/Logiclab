@@ -1,6 +1,6 @@
-# LogicLab - AI-Powered Product Creation Platform
+# Buildables - AI-Powered Product Creation Platform
 
-LogicLab is an AI-powered product creation platform that allows non-technical users to build hardware or software prototypes, run business analysis, and generate 3D visualizations or working demo apps without coding.
+Buildables is an AI-powered product creation platform that allows non-technical users to build hardware or software prototypes, run business analysis, and generate 3D visualizations or working demo apps without coding.
 
 ## Features
 
@@ -26,7 +26,7 @@ LogicLab is an AI-powered product creation platform that allows non-technical us
 ## Project Structure
 
 ```
-logiclab/
+Buildables/
 ├── src/
 │   ├── app/
 │   │   ├── page.tsx              # Landing page
@@ -54,7 +54,7 @@ logiclab/
 1. Clone the repository:
 ```bash
 git clone <repository-url>
-cd logiclab
+cd Buildables
 ```
 
 2. Install dependencies:

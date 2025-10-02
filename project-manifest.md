@@ -1,7 +1,7 @@
-# Project Manifest: LogicLab (Overhaul)
+# Project Manifest: Buildables (Overhaul)
 
 ## Project Overview
-LogicLab is an AI-powered product creation platform that allows non-technical users to build hardware or software prototypes, run business analysis, and generate 3D visualizations or working demo apps without coding. The platform integrates multiple APIs including adamcad for 3D modeling, Perplexity/SONAR for business analysis, v0 for software generation, Stripe for payments, and Supabase for authentication and data persistence.
+Buildables is an AI-powered product creation platform that allows non-technical users to build hardware or software prototypes, run business analysis, and generate 3D visualizations or working demo apps without coding. The platform integrates multiple APIs including adamcad for 3D modeling, Perplexity/SONAR for business analysis, v0 for software generation, Stripe for payments, and Supabase for authentication and data persistence.
 
 ## Architecture
 - **Frontend**: Next.js 15.5.3 with TypeScript, Tailwind CSS, and shadcn/ui components
