@@ -31,7 +31,7 @@ import {
   CreditCard,
   RotateCcw,
 } from "lucide-react"
-import type { Creation } from "@/lib/types"
+import type { Creation, HardwareReports } from "@/lib/types"
 import { useCreationStore } from "@/hooks/use-creation-store"
 import { useUserStore } from "@/hooks/use-user-store"
 import { cn } from "@/lib/utils"
@@ -1022,16 +1022,29 @@ function DashboardContent({ onLogout, initialSearchInput }: DashboardProps) {
         if (typeof generationData?.reportId === 'string') {
           const latest = useCreationStore.getState().creations.find((c) => c.id === creationId)
           if (latest) {
+            const existingReports = latest.hardwareReports ?? {}
+            const updatedReports: HardwareReports = { ...existingReports }
+
+            if (jobKind === '3d') {
+              updatedReports['3d-components'] = {
+                ...(existingReports['3d-components'] ?? {}),
+                reportId: generationData.reportId,
+              }
+            } else if (jobKind === 'assembly') {
+              updatedReports['assembly-parts'] = {
+                ...(existingReports['assembly-parts'] ?? {}),
+                reportId: generationData.reportId,
+              }
+            } else {
+              updatedReports['firmware-code'] = {
+                ...(existingReports['firmware-code'] ?? {}),
+                reportId: generationData.reportId,
+              }
+            }
+
             updateCreation(creationId, {
               ...latest,
-              hardwareReports: {
-                ...((latest.hardwareReports as any) || {}),
-                [jobKind === '3d' ? '3d-components' : jobKind === 'assembly' ? 'assembly-parts' : 'firmware-code']:
-                  {
-                    ...(((latest.hardwareReports as any)?.[jobKind === '3d' ? '3d-components' : jobKind === 'assembly' ? 'assembly-parts' : 'firmware-code']) || {}),
-                    reportId: generationData.reportId,
-                  },
-              },
+              hardwareReports: updatedReports,
             })
           }
           // Immediately add to hover-sidebar list if it's a newly inserted hardware project (primary 3d pass)
@@ -1086,25 +1099,26 @@ function DashboardContent({ onLogout, initialSearchInput }: DashboardProps) {
           console.log(`[HARDWARE] Job record created successfully for ${jobKind}`)
         }
 
-      } catch (error: any) {
+      } catch (error: unknown) {
+        const errObj = error as { message?: string; stack?: string; cause?: unknown }
         console.error(`[HARDWARE] Failed to generate ${jobKind}:`, {
-          error: error,
-          message: error.message,
-          stack: error.stack,
-          cause: error.cause
+          error,
+          message: errObj?.message,
+          stack: errObj?.stack,
+          cause: errObj?.cause
         })
 
         // Check if it's an OpenAI API error
-        if (error.message?.includes('OpenAI API')) {
+        if (typeof errObj?.message === 'string' && errObj.message.includes('OpenAI API')) {
           toast({
             title: `OpenAI API Error for ${jobKind === '3d' ? '3D components' : jobKind === 'assembly' ? 'assembly' : 'firmware'}`,
-            description: error.message,
+            description: errObj.message,
             variant: "destructive",
           })
         } else {
           toast({
             title: `Failed to generate ${jobKind === '3d' ? '3D components' : jobKind === 'assembly' ? 'assembly' : 'firmware'}`,
-            description: error.message || "Unknown error occurred",
+            description: errObj?.message || "Unknown error occurred",
             variant: "destructive",
           })
         }

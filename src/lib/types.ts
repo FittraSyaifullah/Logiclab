@@ -102,14 +102,14 @@ export interface HardwareData {
 
 export interface HardwareReports {
   "3d-components"?: {
-    content: string
-    components: Array<{
+    content?: string
+    components?: Array<{
       id: string
       name: string
-      description: string
-      printTime: string
-      material: string
-      supports: string
+      description?: string
+      printTime?: string
+      material?: string
+      supports?: string
       prompt?: string
       notes?: string
       model?: HardwareComponentModel
@@ -117,18 +117,18 @@ export interface HardwareReports {
     reportId?: string
   }
   "assembly-parts"?: {
-    content: string
-    partsCount: number
-    estimatedTime: string
-    difficultyLevel: string
+    content?: string
+    partsCount?: number
+    estimatedTime?: string
+    difficultyLevel?: string
     reportId?: string
   }
   "firmware-code"?: {
-    content: string
-    language: string
-    platform: string
-    libraries: string[]
-    codeLines: number
+    content?: string
+    language?: string
+    platform?: string
+    libraries?: string[]
+    codeLines?: number
     reportId?: string
   }
 }

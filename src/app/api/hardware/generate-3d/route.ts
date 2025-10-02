@@ -274,7 +274,7 @@ Generate the JSON now. Output only the JSON object.`,
       } else {
         const result = await supabase
           .from('hardware_projects')
-          .insert({ project_id: targetProjectId, title: (projectData as any).title || '', '3d_components': errorJson })
+          .insert({ project_id: targetProjectId, title: (projectData as unknown as { title?: string }).title || '', '3d_components': errorJson })
           .select()
           .single()
         reportData = result.data
