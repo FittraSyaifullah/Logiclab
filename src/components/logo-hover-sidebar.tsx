@@ -77,7 +77,7 @@ export function LogoHoverSidebar({
   return (
     <div
       className={cn(
-        "fixed left-0 top-16 h-[calc(100vh-4rem)] w-64 bg-white/95 dark:bg-slate-900/95 backdrop-blur-xl border-r border-slate-200/30 dark:border-slate-700/30 shadow-xl transition-transform duration-300 ease-out z-40",
+        "fixed left-0 top-16 h-[calc(100vh-4rem)] w-64 sm:w-72 md:w-80 bg-white/95 dark:bg-slate-900/95 backdrop-blur-xl border-r border-slate-200/30 dark:border-slate-700/30 shadow-xl transition-transform duration-300 ease-out z-40",
         isVisible ? "translate-x-0" : "-translate-x-full",
       )}
       onMouseEnter={onMouseEnter}
@@ -85,7 +85,7 @@ export function LogoHoverSidebar({
     >
       <div className="flex flex-col h-full p-4">
         {/* Quick Actions */}
-        <div className="space-y-3 mb-6">
+        <div className="space-y-3 mb-4 sm:mb-6">
           <Button
             onClick={onNewCreation}
             className="w-full justify-start bg-orange-500 hover:bg-orange-600 text-white shadow-md"
@@ -104,13 +104,13 @@ export function LogoHoverSidebar({
           </Button>
         </div>
 
-        <div className="flex-1 overflow-hidden">
+        <div className="flex-1 overflow-hidden min-h-0">
           {/* Software Chats */}
           <div className="text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-3">
             Software Chats
           </div>
 
-          <div className="space-y-1 overflow-y-auto max-h-[calc(50vh-8rem)]">
+          <div className="space-y-1 overflow-y-auto max-h-[calc(50vh-8rem)] pr-1">
             {loading ? (
               <div className="text-sm text-slate-500 dark:text-slate-400 text-center py-4">
                 Loading chats...
@@ -151,7 +151,7 @@ export function LogoHoverSidebar({
             Hardware Projects
           </div>
 
-          <div className="space-y-1 overflow-y-auto max-h-[calc(50vh-8rem)]">
+          <div className="space-y-1 overflow-y-auto max-h-[calc(50vh-8rem)] pr-1">
             {reportsList && reportsList.length > 0 ? (
         reportsList.map((item) => (
           <Button

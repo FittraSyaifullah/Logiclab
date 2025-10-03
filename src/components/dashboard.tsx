@@ -157,8 +157,8 @@ function PersistentHeader({
   }
 
   return (
-    <div className="fixed top-0 left-0 right-0 h-16 border-b border-slate-200/30 dark:border-slate-700/30 bg-white/95 dark:bg-slate-900/95 backdrop-blur-xl shadow-sm px-6 flex items-center justify-between z-50">
-      <div className="flex items-center gap-4">
+    <div className="fixed top-0 left-0 right-0 h-16 border-b border-slate-200/30 dark:border-slate-700/30 bg-white/95 dark:bg-slate-900/95 backdrop-blur-xl shadow-sm px-3 sm:px-4 md:px-6 flex items-center justify-between z-50">
+      <div className="flex items-center gap-3 sm:gap-4 min-w-0">
         <div
           className="relative cursor-pointer transition-all duration-200 hover:scale-110 hover:drop-shadow-lg"
           onMouseEnter={handleLogoMouseEnter}
@@ -215,7 +215,7 @@ function PersistentHeader({
         )}
       </div>
 
-      <div className="flex-1 max-w-md mx-6">
+      <div className="hidden md:block flex-1 max-w-md mx-4 md:mx-6">
         <div className="relative">
           <Link className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-slate-400" />
           <Input
@@ -227,12 +227,12 @@ function PersistentHeader({
         </div>
       </div>
 
-      <div className="flex items-center gap-3">
+      <div className="flex items-center gap-2 sm:gap-3">
         <Button
           variant="outline"
           size="sm"
           onClick={() => setShowGrowthMarketing(true)}
-          className="border-emerald-300 hover:border-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-950/50 font-medium px-4 py-2 rounded-lg"
+          className="hidden sm:inline-flex border-emerald-300 hover:border-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-950/50 font-medium px-3 sm:px-4 py-2 rounded-lg"
         >
           <TrendingUp className="mr-2 h-4 w-4 text-emerald-600" />
           Growth Marketing
@@ -242,7 +242,7 @@ function PersistentHeader({
           variant="outline"
           size="sm"
           onClick={() => setShowIntegrations(true)}
-          className="border-blue-300 hover:border-blue-400 hover:bg-blue-50 dark:hover:bg-blue-950/50 font-medium px-4 py-2 rounded-lg"
+          className="hidden sm:inline-flex border-blue-300 hover:border-blue-400 hover:bg-blue-50 dark:hover:bg-blue-950/50 font-medium px-3 sm:px-4 py-2 rounded-lg"
         >
           <Database className="mr-2 h-4 w-4 text-blue-600" />
           Integration
@@ -253,7 +253,7 @@ function PersistentHeader({
             <Button
               variant="outline"
               size="sm"
-              className="border-amber-300 hover:border-amber-400 hover:bg-amber-50 dark:hover:bg-amber-950/50 font-medium px-4 py-2 rounded-lg bg-transparent"
+              className="border-amber-300 hover:border-amber-400 hover:bg-amber-50 dark:hover:bg-amber-950/50 font-medium px-3 sm:px-4 py-2 rounded-lg bg-transparent"
             >
               <Share className="mr-2 h-4 w-4 text-amber-600" />
               Share
@@ -294,11 +294,11 @@ function PersistentHeader({
 
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <Button variant="ghost" className="flex items-center gap-2 px-3 py-2 h-auto">
+            <Button variant="ghost" className="flex items-center gap-2 px-2 sm:px-3 py-2 h-auto">
               <div className="w-8 h-8 bg-orange-500 rounded-full flex items-center justify-center text-white font-medium text-sm">
                 {getUserInitials()}
               </div>
-              <div className="text-left hidden sm:block">
+              <div className="text-left hidden md:block">
                 <div className="text-sm font-medium text-slate-900 dark:text-slate-100">{getDisplayName()}</div>
                 <div className="text-xs text-slate-500 dark:text-slate-400">Free plan</div>
               </div>
