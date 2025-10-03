@@ -85,7 +85,7 @@ export default function LoginPage() {
       </div>
 
       <div className="relative z-10 flex items-center justify-center min-h-screen p-4">
-        <div className="w-full max-w-md space-y-6">
+        <div className="w-full max-w-md space-y-4 sm:space-y-6">
           <div className="text-center space-y-4">
             <Link
               href="/"
@@ -105,7 +105,7 @@ export default function LoginPage() {
             <CardHeader>
               <CardTitle className="text-center text-xl text-gray-900">Sign In</CardTitle>
             </CardHeader>
-            <CardContent className="space-y-4">
+            <CardContent className="space-y-3 sm:space-y-4">
               {error && (
                 <div className="p-3 text-sm text-red-600 bg-red-50 border border-red-200 rounded-md">{error}</div>
               )}
@@ -117,7 +117,7 @@ export default function LoginPage() {
                     placeholder="Email address"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
-                    className="w-full transition-all duration-300 hover:scale-105 focus:scale-105 focus:shadow-lg focus:shadow-orange-200"
+                    className="w-full"
                     required
                   />
                 </div>
@@ -127,13 +127,13 @@ export default function LoginPage() {
                     placeholder="Password"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
-                    className="w-full transition-all duration-300 hover:scale-105 focus:scale-105 focus:shadow-lg focus:shadow-orange-200"
+                    className="w-full"
                     required
                   />
                 </div>
                 <Button
                   type="submit"
-                  className="w-full bg-gradient-to-r from-orange-500 to-red-500 hover:from-orange-600 hover:to-red-600 text-white transition-all duration-300 hover:scale-105 hover:shadow-lg hover:shadow-orange-300"
+                  className="w-full bg-gradient-to-r from-orange-500 to-red-500 hover:from-orange-600 hover:to-red-600 text-white"
                   disabled={isLoading}
                 >
                   {isLoading ? (
