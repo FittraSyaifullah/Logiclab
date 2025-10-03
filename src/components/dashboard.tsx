@@ -282,7 +282,7 @@ function PersistentHeader({
           </DropdownMenuContent>
         </DropdownMenu>
 
-        <Button
+        {/*<Button
           variant="outline"
           size="sm"
           onClick={handleDeploy}
@@ -290,7 +290,7 @@ function PersistentHeader({
         >
           <Rocket className="mr-2 h-4 w-4 text-green-600" />
           Deploy
-        </Button>
+        </Button>*/}
 
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
