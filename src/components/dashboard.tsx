@@ -347,7 +347,7 @@ function PersistentHeader({
 }
 
 function DashboardContent({ onLogout, initialSearchInput }: DashboardProps) {
-  const { creations, activeCreationId, setActiveCreationId, addCreation, updateCreation } = useCreationStore()
+  const { creations, activeCreationId, setActiveCreationId, addCreation, updateCreation, deleteCreation } = useCreationStore()
   const { user, project } = useUserStore()
   const activeCreation = (creations ?? []).find((c) => c.id === activeCreationId)
   const { toast } = useToast()
@@ -900,13 +900,46 @@ function DashboardContent({ onLogout, initialSearchInput }: DashboardProps) {
                     }
                     updateCreation(creationId, updatedCreation)
 
-                // Set selected chat so UI knows which software is active for messages
-                setSelectedChat({
-                  id: statusData.software.id,
-                  title: latest?.title || currentCreation.title,
-                  software_id: statusData.software.chatId,
-                  demo_url: statusData.software.demoUrl,
-                })
+                    // Create a dedicated software creation aligned to DB software ID and focus it
+                    const softwareCreation: Creation = {
+                      id: statusData.software.id,
+                      title: latest?.title || currentCreation.title || 'Software',
+                      prompt: (messagesData.messages?.[0]?.content as string | undefined) ?? currentCreation.prompt ?? 'Software project',
+                      mode: 'software',
+                      chatHistory: (messagesData.messages as Array<{ id: string; role: 'user' | 'assistant'; content: string; created_at: string }> | undefined)?.map((msg) => ({
+                        id: msg.id,
+                        role: msg.role,
+                        content: msg.content,
+                        createdAt: new Date(msg.created_at)
+                      })) || [],
+                      components: [],
+                      customParams: [],
+                      softwareData: {
+                        chatId: statusData.software.chatId,
+                        demoUrl: statusData.software.demoUrl,
+                        isGenerating: false,
+                      },
+                    }
+                    // Add if not present
+                    const exists = useCreationStore.getState().creations.some(c => c.id === softwareCreation.id)
+                    if (!exists) {
+                      addCreation(softwareCreation)
+                    } else {
+                      updateCreation(softwareCreation.id, softwareCreation)
+                    }
+                    // Optionally remove the temporary pre-generation creation
+                    if (creationId !== softwareCreation.id) {
+                      deleteCreation(creationId)
+                    }
+                    setActiveCreationId(softwareCreation.id)
+
+                    // Set selected chat so UI knows which software is active for messages
+                    setSelectedChat({
+                      id: statusData.software.id,
+                      title: softwareCreation.title,
+                      software_id: statusData.software.chatId,
+                      demo_url: statusData.software.demoUrl,
+                    })
                   }
                 } catch (error) {
                   console.error(`[DASHBOARD] Failed to load chat messages:`, error)
