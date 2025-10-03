@@ -33,7 +33,7 @@ export default function SettingsPage() {
             <h1 className="text-2xl sm:text-3xl font-semibold text-slate-900 dark:text-slate-100 mb-4 sm:mb-6">Billing</h1>
 
             {/* Current Plan */}
-            <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-sm mb-6">
+            {/*<div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-sm mb-6">
               <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4 p-4 sm:p-6">
                 <div className="min-w-0">
                   <div className="text-sm text-slate-500 dark:text-slate-400 mb-1">Current Plan</div>
@@ -48,14 +48,14 @@ export default function SettingsPage() {
                   <Button variant="outline" className="w-full xs:w-auto">Cancel Plan</Button>
                 </div>
               </div>
-            </div>
+            </div> */}
 
             {/* Credit Balance */}
             <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-sm">
               <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 p-4 sm:p-6">
                 <div className="min-w-0">
                   <div className="text-slate-900 dark:text-slate-100 font-medium">Credit Balance</div>
-                  <div className="text-sm text-slate-500 dark:text-slate-400">Your monthly credits reset in <span className="font-medium text-slate-700 dark:text-slate-300">7 days</span>. Credits are used in the following order: gifted, monthly, purchased.</div>
+                  <div className="text-sm text-slate-500 dark:text-slate-400">Your daily credits reset at <span className="font-medium text-slate-700 dark:text-slate-300">12:00 UTC</span>. If you run out of credits, you can pay-as-you-go.</div>
                 </div>
                 <div className="shrink-0"><Button>Buy Credits</Button></div>
               </div>
