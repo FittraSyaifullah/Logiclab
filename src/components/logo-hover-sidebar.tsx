@@ -22,7 +22,7 @@ interface LogoHoverSidebarProps {
   onMouseLeave?: () => void
   onChatSelect?: (software: SoftwareItem) => void
   softwareList?: SoftwareItem[]
-  onHardwareProjectSelect?: (projectId: string) => void
+  onHardwareProjectSelect?: (args: { projectId: string; reportId: string }) => void
 }
 
 export function LogoHoverSidebar({
@@ -153,16 +153,24 @@ export function LogoHoverSidebar({
 
           <div className="space-y-1 overflow-y-auto max-h-[calc(50vh-8rem)]">
             {reportsList && reportsList.length > 0 ? (
-              reportsList.map((item) => (
-                <Button
-                  key={`${item.projectId}:${item.reportId}`}
-                  variant="ghost"
-                  onClick={() => onHardwareProjectSelect?.(item.projectId)}
-                  className={cn(
-                    "w-full justify-start text-left p-3 h-auto",
-                    "text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800",
-                  )}
-                >
+        reportsList.map((item) => (
+          <Button
+            key={`${item.projectId}:${item.reportId}`}
+            variant="ghost"
+            onClick={() => {
+              console.log(`[SIDEBAR] Hardware project clicked:`, {
+                projectId: item.projectId,
+                reportId: item.reportId,
+                title: item.title,
+                createdAt: item.createdAt
+              })
+              onHardwareProjectSelect?.({ projectId: item.projectId, reportId: item.reportId })
+            }}
+            className={cn(
+              "w-full justify-start text-left p-3 h-auto",
+              "text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800",
+            )}
+          >
                   <div className="flex flex-col items-start w-full">
                     <div className="font-medium text-sm truncate w-full">{item.title || 'Hardware Project'}</div>
                     <div className="text-xs text-slate-500 dark:text-slate-400 truncate w-full">
