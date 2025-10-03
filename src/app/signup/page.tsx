@@ -18,6 +18,7 @@ export default function SignUpPage() {
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState('')
   const [success, setSuccess] = useState(false)
+  const [successMessage, setSuccessMessage] = useState<string | null>(null)
   const router = useRouter()
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -62,13 +63,18 @@ export default function SignUpPage() {
         if (data.project) {
           const { setUserAndProject } = useUserStore.getState()
           setUserAndProject(data.user, data.project)
+        } else {
+          const { setUser } = useUserStore.getState()
+          setUser(data.user)
         }
         
         setSuccess(true)
+        setSuccessMessage(null)
         setTimeout(() => {
           router.push('/dashboard')
         }, 2000)
       } else {
+        // If API returns a soft success message without session
         setError(data.error || 'Signup failed')
       }
     } catch (error) {
@@ -91,8 +97,13 @@ export default function SignUpPage() {
                 </svg>
               </div>
               <h2 className="text-xl font-semibold mb-2">Account Created!</h2>
-              <p className="text-gray-600 mb-4">Please check your email to verify your account.</p>
-              <p className="text-sm text-gray-500">Redirecting to dashboard...</p>
+              {successMessage ? (
+                <>
+                  <p className="text-gray-600 mb-4">{successMessage}</p>
+                </>
+              ) : (
+                <p className="text-sm text-gray-500">Redirecting to dashboard...</p>
+              )}
             </CardContent>
           </Card>
         </div>

@@ -13,25 +13,25 @@ interface ProtectedRouteProps {
 export function ProtectedRoute({ children, redirectTo = '/login' }: ProtectedRouteProps) {
   const [isAuthenticated, setIsAuthenticated] = useState<boolean | null>(null)
   const router = useRouter()
-  const { user, clearUser } = useUserStore()
+  const { user, setUser, clearUser } = useUserStore()
 
   useEffect(() => {
     const checkAuth = async () => {
       const session = await getSession()
-      const isAuth = !!session && !!user
+      // If we have a session but the user store is empty, hydrate it minimally
+      if (session && !user) {
+        setUser({ id: session.userId, email: session.email, display_name: session.displayName })
+      }
+      const isAuth = !!session
       setIsAuthenticated(isAuth)
-      
-      if (!session || !user) {
-        // Clear user state if no session
-        if (session && !user) {
-          clearUser()
-        }
+      if (!session) {
+        clearUser()
         router.push(redirectTo)
       }
     }
 
     checkAuth()
-  }, [router, redirectTo, user, clearUser])
+  }, [router, redirectTo, user, setUser, clearUser])
 
   if (isAuthenticated === null) {
     return (

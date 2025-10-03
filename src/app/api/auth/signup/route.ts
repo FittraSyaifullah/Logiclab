@@ -108,6 +108,20 @@ export async function POST(request: NextRequest) {
         console.error(`[AUTH] V0 project creation failed:`, v0Error)
       }
 
+      // Return project if created so client can hydrate store immediately
+      // Fetch project just created
+      let projectRecord: { id: string; name: string; description: string; v0_id: string | null } | null = null
+      try {
+        const { data: proj } = await supabase
+          .from('projects')
+          .select('id, name, description, v0_id')
+          .eq('owner_id', authData.user.id)
+          .order('created_at', { ascending: false })
+          .limit(1)
+          .single()
+        projectRecord = proj as typeof projectRecord
+      } catch {}
+
       return NextResponse.json({
         success: true,
         user: {
@@ -117,6 +131,7 @@ export async function POST(request: NextRequest) {
           metadata: authData.user.user_metadata,
           created_at: authData.user.created_at,
         },
+        project: projectRecord,
       })
     } else {
       // User needs to confirm email, but we can still update their profile
@@ -133,8 +148,9 @@ export async function POST(request: NextRequest) {
         }
       }
 
+      // Email confirmation flow not enabled here; return a generic success without session
       return NextResponse.json(
-        { error: "Please check your email and click the confirmation link to complete signup." },
+        { error: "Signup created without session. Please sign in to continue." },
         { status: 200 },
       )
     }

@@ -2,6 +2,7 @@
 
 import { createContext, useContext, useEffect, useState } from 'react'
 import { getSession, destroySession } from '@/lib/auth-service'
+import { useUserStore } from '@/hooks/use-user-store'
 
 interface User {
   id: string
@@ -24,6 +25,7 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined)
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null)
   const [loading, setLoading] = useState(true)
+  const { setUser: setStoreUser, clearUser: clearStoreUser } = useUserStore()
 
   useEffect(() => {
     // Get initial session from custom session management
@@ -35,8 +37,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           email: session.email,
           display_name: session.displayName,
         })
+        // Hydrate user store as well
+        setStoreUser({ id: session.userId, email: session.email, display_name: session.displayName })
       } else {
         setUser(null)
+        clearStoreUser()
       }
       setLoading(false)
     }

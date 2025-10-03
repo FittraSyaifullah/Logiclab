@@ -6,12 +6,14 @@ import { Dashboard } from "@/components/dashboard"
 import { SidebarProvider } from "@/components/ui/sidebar"
 import { ProtectedRoute } from "@/components/ProtectedRoute"
 import { useUserStore } from "@/hooks/use-user-store"
+import { useAuth } from "@/contexts/AuthContext"
 
 function DashboardContent() {
   const [isClient, setIsClient] = useState(false)
   const [initialSearchInput, setInitialSearchInput] = useState("")
   const searchParams = useSearchParams()
   const { clearUser } = useUserStore()
+  const { signOut } = useAuth()
 
   useEffect(() => {
     setIsClient(true)
@@ -29,6 +31,10 @@ function DashboardContent() {
       clearUser()
       console.log(`[DASHBOARD] Cleared user store`)
       
+      // Clear AuthProvider user and remove session in client
+      await signOut()
+      console.log(`[DASHBOARD] AuthProvider.signOut completed`)
+
       const response = await fetch("/api/auth/signout", {
         method: "POST",
         credentials: "include",
