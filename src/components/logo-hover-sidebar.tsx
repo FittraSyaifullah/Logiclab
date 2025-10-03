@@ -157,15 +157,7 @@ export function LogoHoverSidebar({
           <Button
             key={`${item.projectId}:${item.reportId}`}
             variant="ghost"
-            onClick={() => {
-              console.log(`[SIDEBAR] Hardware project clicked:`, {
-                projectId: item.projectId,
-                reportId: item.reportId,
-                title: item.title,
-                createdAt: item.createdAt
-              })
-              onHardwareProjectSelect?.({ projectId: item.projectId, reportId: item.reportId })
-            }}
+            onClick={() => onHardwareProjectSelect?.({ projectId: item.projectId, reportId: item.reportId })}
             className={cn(
               "w-full justify-start text-left p-3 h-auto",
               "text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800",

@@ -1583,33 +1583,14 @@ function DashboardContent({ onLogout, initialSearchInput }: DashboardProps) {
         onChatSelect={handleChatSelect}
         softwareList={softwareList}
          onHardwareProjectSelect={async ({ projectId: selectedProjectId, reportId: selectedReportId }) => {
-           console.log(`[DASHBOARD] ===== HARDWARE PROJECT SELECT START =====`)
-           console.log(`[DASHBOARD] Selected projectId: ${selectedProjectId}, reportId: ${selectedReportId}`)
-           
            const currentUser = useUserStore.getState().user
-           if (!currentUser?.id) {
-             console.log(`[DASHBOARD] No user found, aborting hardware project selection`)
-             return
-           }
+           if (!currentUser?.id) return
            
            try {
              // Fetch reports for selected project
-             const reportsUrl = `/api/hardware/reports?projectId=${selectedProjectId}&userId=${currentUser.id}&reportId=${selectedReportId}`
-             console.log(`[DASHBOARD] Fetching reports from: ${reportsUrl}`)
-             
-             const reportsResp = await fetch(reportsUrl, { cache: 'no-store' })
-             console.log(`[DASHBOARD] Reports response status: ${reportsResp.status}`)
-             
+             const reportsResp = await fetch(`/api/hardware/reports?projectId=${selectedProjectId}&userId=${currentUser.id}&reportId=${selectedReportId}`, { cache: 'no-store' })
              if (reportsResp.ok) {
                const data = await reportsResp.json()
-               console.log(`[DASHBOARD] Reports data received:`, {
-                 success: data.success,
-                 title: data.title,
-                 count: data.count,
-                 reportsKeys: Object.keys(data.reports || {}),
-                 reports: data.reports
-               })
-               
                const { setReportsForProject } = useHardwareStore.getState()
                setReportsForProject(selectedProjectId, data.reports || {})
 
@@ -1621,21 +1602,9 @@ function DashboardContent({ onLogout, initialSearchInput }: DashboardProps) {
                const selectedReport = selectedKey ? reports[selectedKey] : undefined
                const title = data?.title || selectedReport?.project || 'Hardware Project'
 
-               console.log(`[DASHBOARD] Selection logic:`, {
-                 selectedReportId,
-                 selectedKey,
-                 selectedReport,
-                 title,
-                 reportsKeys: Object.keys(reports)
-               })
-
                // Use reportId as stable creation id
                const creationId = selectedKey || `${selectedProjectId}-latest`
-               console.log(`[DASHBOARD] Using creationId: ${creationId}`)
-               
                const existing = useCreationStore.getState().creations.find(c => c.id === creationId)
-               console.log(`[DASHBOARD] Existing creation found: ${!!existing}`)
-               
                const creationPayload: Creation = {
                  id: creationId,
                  title,
@@ -1650,35 +1619,18 @@ function DashboardContent({ onLogout, initialSearchInput }: DashboardProps) {
                }
                
                if (existing) {
-                 console.log(`[DASHBOARD] Updating existing creation: ${creationId}`)
                  updateCreation(creationId, creationPayload)
                } else {
-                 console.log(`[DASHBOARD] Adding new creation: ${creationId}`)
                  addCreation(creationPayload)
                }
                
-               console.log(`[DASHBOARD] Setting active creation: ${creationId}`)
                setActiveCreationId(creationId)
-               console.log(`[DASHBOARD] ===== HARDWARE PROJECT SELECT SUCCESS =====`)
-             } else {
-               console.error(`[DASHBOARD] Reports fetch failed: ${reportsResp.status}`)
-               const errorData = await reportsResp.json().catch(() => ({}))
-               console.error(`[DASHBOARD] Error data:`, errorData)
              }
 
             // Fetch component models for selected project
-            console.log(`[DASHBOARD] Fetching models for project: ${selectedProjectId}`)
             const modelsResp = await fetch(`/api/hardware/models/list?projectId=${selectedProjectId}&userId=${currentUser.id}`, { cache: 'no-store' })
-            console.log(`[DASHBOARD] Models response status: ${modelsResp.status}`)
-            
             if (modelsResp.ok) {
               const modelsData = await modelsResp.json()
-              console.log(`[DASHBOARD] Models data received:`, {
-                success: modelsData.success,
-                modelsKeys: Object.keys(modelsData.models || {}),
-                models: modelsData.models
-              })
-              
               const { setModelsForProject } = useHardwareStore.getState()
               setModelsForProject(selectedProjectId, modelsData.models || {})
 
@@ -1687,17 +1639,13 @@ function DashboardContent({ onLogout, initialSearchInput }: DashboardProps) {
               if (activeId) {
                 const curr = useCreationStore.getState().creations.find(c => c.id === activeId)
                 if (curr && curr.mode === 'hardware') {
-                  console.log(`[DASHBOARD] Merging models into active creation: ${activeId}`)
                   updateCreation(activeId, { hardwareModels: { ...(curr.hardwareModels ?? {}), ...(modelsData.models || {}) } })
                 }
               }
-            } else {
-              console.error(`[DASHBOARD] Models fetch failed: ${modelsResp.status}`)
             }
           } catch (e) {
             console.error('[DASHBOARD] Failed to lazy-load hardware project', e)
           } finally {
-            console.log(`[DASHBOARD] Closing sidebar`)
             setShowLogoSidebar(false)
           }
         }}
