@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
@@ -8,6 +8,7 @@ import { Label } from "@/components/ui/label"
 import { Switch } from "@/components/ui/switch"
 import { HardDrive, Monitor, Sparkles } from "lucide-react"
 import type { Creation } from "@/lib/types"
+import { useLandingStore } from "@/hooks/use-landing-store"
 
 interface InitialPromptFormProps {
   onSubmit: (creationData: Omit<Creation, "id" | "chatHistory" | "modelParams" | "generatedCode" | "viewMode">) => void
@@ -18,6 +19,16 @@ export function InitialPromptForm({ onSubmit }: InitialPromptFormProps) {
   const [title, setTitle] = useState("")
   const [prompt, setPrompt] = useState("")
   const [isSubmitting, setIsSubmitting] = useState(false)
+
+  // Consume and prefill prompt from landing store once
+  useEffect(() => {
+    const value = useLandingStore.getState().consumePendingPrompt()
+    if (value && !prompt) {
+      setPrompt(value)
+      // Heuristic: default to software mode if prompt looks like app request
+      setMode("software")
+    }
+  }, [])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()

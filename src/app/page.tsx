@@ -11,6 +11,7 @@ import { Badge } from '@/components/ui/badge'
 import { useAuth } from '@/contexts/AuthContext'
 import { useUserStore } from '@/hooks/use-user-store'
 import { useToast } from '@/hooks/use-toast'
+import { useLandingStore } from '@/hooks/use-landing-store'
 import { ModelGenerationSection } from '@/components/ModelGenerationSection'
 
 export default function LandingPage() {
@@ -19,7 +20,6 @@ export default function LandingPage() {
   const router = useRouter()
   const [email, setEmail] = useState("")
   const [firstName, setFirstName] = useState("")
-  const [showWaitlist, setShowWaitlist] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [searchInput, setSearchInput] = useState("")
   const { toast } = useToast()
@@ -88,12 +88,13 @@ export default function LandingPage() {
   }
 
   const handleSearchClick = () => {
-    if (searchInput.trim()) {
-      // For now, just show waitlist since we don't have the dashboard integration
-      setShowWaitlist(true)
-    } else {
-      setShowWaitlist(true)
+    const value = searchInput.trim()
+    if (!value) {
+      toast({ title: "Please enter a prompt", variant: "destructive" })
+      return
     }
+    useLandingStore.getState().setPendingPrompt(value)
+    window.location.href = "/signup"
   }
 
   const handleSearchInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -102,6 +103,7 @@ export default function LandingPage() {
 
   const handleSearchKeyPress = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === "Enter") {
+      e.preventDefault()
       handleSearchClick()
     }
   }
@@ -141,90 +143,7 @@ export default function LandingPage() {
     { top: "50%", left: "48%" },
   ]
 
-  if (showWaitlist) {
-    return (
-      <div className="min-h-screen bg-white flex items-center justify-center p-4 animate-in fade-in duration-500">
-        <div className="max-w-md w-full text-center space-y-6 animate-in slide-in-from-bottom-4 duration-700 delay-150">
-          <img
-            src="/images/Buildables-Logo.png"
-            alt="Buildables"
-            className="w-16 h-16 mx-auto animate-in zoom-in duration-500 delay-300"
-          />
-
-          <div className="space-y-4 animate-in slide-in-from-left duration-600 delay-500">
-            <h1 className="text-3xl font-bold text-gray-900">Build the future of hardware with natural language</h1>
-            <p className="text-black">
-              Be some of the first 10,000 users to bring their product dreams to life when we launch
-            </p>
-          </div>
-
-          <form
-            onSubmit={handleWaitlistSubmit}
-            className="space-y-4 animate-in slide-in-from-right duration-600 delay-700"
-          >
-            <div className="grid grid-cols-2 gap-3">
-              <Input
-                type="text"
-                placeholder="First Name"
-                value={firstName}
-                onChange={(e) => setFirstName(e.target.value)}
-                className="rounded-lg transition-all duration-300 hover:scale-105 focus:scale-105 focus:shadow-lg focus:shadow-orange-200"
-                disabled={isSubmitting}
-              />
-              <Input
-                type="email"
-                placeholder="Email Address"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                className="rounded-lg transition-all duration-300 hover:scale-105 focus:scale-105 focus:shadow-lg focus:shadow-orange-200"
-                disabled={isSubmitting}
-              />
-            </div>
-            <Button
-              type="submit"
-              className="w-full bg-orange-500 hover:bg-orange-600 text-white rounded-lg py-3 transition-all duration-300 hover:scale-105 hover:shadow-lg hover:shadow-orange-300 active:scale-95"
-              disabled={isSubmitting}
-            >
-              {isSubmitting ? (
-                <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Joining...
-                </>
-              ) : (
-                <>
-                  <span className="animate-pulse">Join the waitlist</span>
-                </>
-              )}
-            </Button>
-          </form>
-
-          <div className="space-y-2 text-sm">
-            <div className="flex items-center justify-center gap-2 text-green-600 animate-in slide-in-from-bottom duration-500 delay-1000">
-              <Check className="h-4 w-4 animate-in zoom-in duration-300 delay-1100" />
-              <span>No CAD required</span>
-            </div>
-            <div className="flex items-center justify-center gap-2 text-green-600 animate-in slide-in-from-bottom duration-500 delay-1200">
-              <Check className="h-4 w-4 animate-in zoom-in duration-300 delay-1300" />
-              <span>Get a ready-to-print file in 5 minutes</span>
-            </div>
-            <div className="flex items-center justify-center gap-2 text-green-600 animate-in slide-in-from-bottom duration-500 delay-1400">
-              <Check className="h-4 w-4 animate-in zoom-in duration-300 delay-1500" />
-              <span>Built for startup builders and product hackers</span>
-            </div>
-          </div>
-          <Button
-            variant="ghost"
-            className="mt-4 text-gray-900 hover:bg-gray-100 transition-all duration-300 hover:scale-105 animate-in fade-in duration-500 delay-1600"
-            onClick={() => setShowWaitlist(false)}
-            disabled={isSubmitting}
-          >
-            <ArrowLeft className="h-4 w-4 mr-2 transition-transform duration-300 group-hover:-translate-x-1" />
-            Back to Landing Page
-          </Button>
-        </div>
-      </div>
-    )
-  }
+  // Removed waitlist UI
   return (
     <div className="min-h-screen bg-white relative overflow-hidden grid-background">
       {/* Innovation Icons (positioned absolutely in the background) */}
