@@ -894,7 +894,7 @@ function DashboardContent({ onLogout, initialSearchInput }: DashboardProps) {
               if (statusData.software.id) {
                 console.log(`[DASHBOARD] Loading chat messages for software: ${statusData.software.id}`)
                 try {
-                  const messagesResponse = await fetch(`/api/software/messages?softwareId=${statusData.software.id}&userId=${user?.id}`)
+                  const messagesResponse = await fetch(`/api/software/messages?softwareId=${statusData.software.id}&userId=${user?.id}`, { cache: "no-store" })
                   if (messagesResponse.ok) {
                     const messagesData = await messagesResponse.json()
                     console.log(`[DASHBOARD] Loaded ${messagesData.messages?.length || 0} messages`)
@@ -1397,7 +1397,7 @@ function DashboardContent({ onLogout, initialSearchInput }: DashboardProps) {
     
     // Load messages for this chat
     try {
-      const response = await fetch(`/api/software/messages?softwareId=${software.id}&userId=${user.id}`)
+      const response = await fetch(`/api/software/messages?softwareId=${software.id}&userId=${user.id}`, { cache: "no-store" })
       if (response.ok) {
         const data = await response.json()
         setChatMessages(data.messages || [])
