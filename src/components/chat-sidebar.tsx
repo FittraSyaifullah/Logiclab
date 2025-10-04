@@ -1,17 +1,18 @@
 "use client"
 
 import type React from "react"
-import { useState } from "react"
+import { useMemo, useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-import { Send, User, Loader2, Wrench, Monitor, ChevronLeft, ChevronRight } from "lucide-react"
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
+import { Send, User, Loader2, Wrench, Monitor, ChevronLeft, ChevronRight, Box, FileText, Code, ChevronDown } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { useCreationStore } from "@/hooks/use-creation-store"
 import { useToast } from "@/hooks/use-toast"
-import type { Creation } from "@/lib/types"
+import type { Creation, HardwareReports } from "@/lib/types"
 
 interface ChatSidebarProps {
   onLogout: () => void
@@ -25,6 +26,7 @@ export function ChatSidebar({ onLogout, onSendMessage }: ChatSidebarProps) {
 
   const [fallbackInput, setFallbackInput] = useState("")
   const [isLoadingFallback, setIsLoadingFallback] = useState(false)
+  const [selectedScope, setSelectedScope] = useState<string>("3D Components")
   
   // Use chat history from creation store directly
   const fallbackMessages = activeCreation?.chatHistory || []
@@ -59,6 +61,7 @@ export function ChatSidebar({ onLogout, onSendMessage }: ChatSidebarProps) {
       creationId: safeCreation.id || "",
       creationTitle: safeCreation.title || "Untitled Project",
       creationPrompt: safeCreation.prompt || "",
+      scope: selectedScope,
       microcontroller: safeCreation.microcontroller || "arduino",
       components: Array.isArray(safeCreation.components)
         ? safeCreation.components.map((comp) => ({
@@ -263,7 +266,7 @@ export function ChatSidebar({ onLogout, onSendMessage }: ChatSidebarProps) {
   return (
     <div
       className={cn(
-        "flex flex-col h-full bg-white/95 dark:bg-slate-900/95 backdrop-blur-xl border-r border-slate-200/40 dark:border-slate-700/40 transition-all duration-300",
+        "flex flex-col h-full shrink-0 bg-white/95 dark:bg-slate-900/95 backdrop-blur-xl border-r border-slate-200/40 dark:border-slate-700/40 transition-all duration-300",
         isCollapsed ? "w-16" : "w-80",
       )}
     >
@@ -377,23 +380,72 @@ export function ChatSidebar({ onLogout, onSendMessage }: ChatSidebarProps) {
                   boxShadow: '0 -8px 16px -4px rgba(0, 0, 0, 0.1), 0 -4px 6px -2px rgba(0, 0, 0, 0.05)'
                 }}
               >
-                <form onSubmit={handleFallbackSubmit} className="flex gap-2">
-                  <Input
-                    value={fallbackInput}
-                    onChange={(e) => setFallbackInput(e.target.value)}
-                    placeholder="Ask about your project..."
-                    disabled={isLoadingFallback}
-                    className="flex-1 shadow-sm border-neutral-300 dark:border-neutral-600 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all duration-200 text-sm"
-                  />
-                  <Button
-                    type="submit"
-                    size="sm"
-                    disabled={isLoadingFallback || !fallbackInput.trim()}
-                    className="bg-indigo-500 hover:bg-indigo-600 shadow-md transition-all duration-200 hover:shadow-lg hover:scale-105 px-2 sm:px-3"
-                  >
-                    {isLoadingFallback ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
-                  </Button>
-                </form>
+                <div className="flex flex-col gap-2">
+                  {mode === "hardware" && (
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <button
+                          type="button"
+                          className="w-full h-9 px-3 rounded-md border border-neutral-300 dark:border-neutral-600 bg-white dark:bg-neutral-900 text-sm text-neutral-700 dark:text-neutral-200 inline-flex items-center justify-between gap-2 hover:bg-neutral-50 dark:hover:bg-neutral-800 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                          aria-label="Select chat scope"
+                        >
+                          <span className="inline-flex items-center gap-2">
+                            {selectedScope === "3D Components" && <Box className="h-4 w-4 text-indigo-500" />}
+                            {selectedScope === "Assembly & Parts" && <FileText className="h-4 w-4 text-indigo-500" />}
+                            {selectedScope === "Firmware & Code" && <Code className="h-4 w-4 text-indigo-500" />}
+                            <span className="max-w-[12rem] truncate text-left">{selectedScope}</span>
+                          </span>
+                          <ChevronDown className="h-4 w-4 opacity-70" />
+                        </button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="start" className="w-[18rem]">
+                        <DropdownMenuLabel className="text-xs text-neutral-500">Scope</DropdownMenuLabel>
+                        {(["3D Components","Assembly & Parts","Firmware & Code"] as const).map((label) => (
+                          <DropdownMenuItem key={label} onClick={() => setSelectedScope(label)} className="flex items-center gap-2">
+                            {label === "3D Components" && <Box className="h-4 w-4 text-indigo-500" />}
+                            {label === "Assembly & Parts" && <FileText className="h-4 w-4 text-indigo-500" />}
+                            {label === "Firmware & Code" && <Code className="h-4 w-4 text-indigo-500" />}
+                            <span>{label}</span>
+                          </DropdownMenuItem>
+                        ))}
+                        {(() => {
+                          const reports = (activeCreation?.hardwareReports as HardwareReports | undefined)
+                          const comps = reports?.["3d-components"]?.components ?? []
+                          const names = comps.map((c: any) => c?.name).filter(Boolean)
+                          const unique = Array.from(new Set(names)) as string[]
+                          return unique.length ? (
+                            <>
+                              <DropdownMenuSeparator />
+                              <DropdownMenuLabel className="text-xs text-neutral-500">Components</DropdownMenuLabel>
+                              {unique.map((name) => (
+                                <DropdownMenuItem key={name} onClick={() => setSelectedScope(name)}>
+                                  {name}
+                                </DropdownMenuItem>
+                              ))}
+                            </>
+                          ) : null
+                        })()}
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  )}
+                  <form onSubmit={handleFallbackSubmit} className="flex gap-2 items-center">
+                    <Input
+                      value={fallbackInput}
+                      onChange={(e) => setFallbackInput(e.target.value)}
+                      placeholder="Ask about your project..."
+                      disabled={isLoadingFallback}
+                      className="flex-1 shadow-sm border-neutral-300 dark:border-neutral-600 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all duration-200 text-sm"
+                    />
+                    <Button
+                      type="submit"
+                      size="sm"
+                      disabled={isLoadingFallback || !fallbackInput.trim()}
+                      className="bg-indigo-500 hover:bg-indigo-600 shadow-md transition-all duration-200 hover:shadow-lg hover:scale-105 px-2 sm:px-3"
+                    >
+                      {isLoadingFallback ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+                    </Button>
+                  </form>
+                </div>
               </div>
             </CardContent>
           </Card>

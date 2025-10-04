@@ -189,7 +189,7 @@ function PersistentHeader({
             >
               <Layers className="mr-2 h-4 w-4" /> 3D View
             </Button>
-            <Button
+            {/*<Button
               variant={hardwareTab === "code" ? "default" : "outline"}
               size="sm"
               onClick={() => setHardwareTab("code")}
@@ -201,7 +201,7 @@ function PersistentHeader({
               )}
             >
               <Code className="mr-2 h-4 w-4" /> Code
-            </Button>
+            </Button>*/}
           </div>
         )}
         {activeCreation && creationMode === "software" && (
@@ -238,7 +238,7 @@ function PersistentHeader({
           Growth Marketing
         </Button>
 
-        <Button
+        {/*<Button
           variant="outline"
           size="sm"
           onClick={() => setShowIntegrations(true)}
@@ -246,7 +246,7 @@ function PersistentHeader({
         >
           <Database className="mr-2 h-4 w-4 text-blue-600" />
           Integration
-        </Button>
+        </Button>*/}
 
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
