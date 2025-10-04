@@ -121,7 +121,7 @@ export async function createV0Chat(data: V0ChatData): Promise<V0ChatResult> {
         // request synchronous response when supported
         responseMode: 'sync',
       }),
-      110000
+      55000
     )
 
     console.log(`[V0] Chat created successfully:`, result)
@@ -261,7 +261,7 @@ export async function sendV0Message(data: V0MessageData): Promise<V0MessageResul
         chatId: data.chatId,
         message: data.message,
       }),
-      110000 // 110 seconds timeout (just under 2 minutes)
+      55000
     )
     
     console.log(`[V0] ===== V0 API CALL COMPLETED =====`)

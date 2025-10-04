@@ -834,7 +834,17 @@ function DashboardContent({ onLogout, initialSearchInput }: DashboardProps) {
         body: JSON.stringify(requestPayload),
       })
 
-      const responseData = await response.json()
+      let responseData: { success?: boolean; jobId?: string; error?: string }
+      try {
+        const text = await response.text()
+        if (response.headers.get("content-type")?.includes("application/json")) {
+          responseData = JSON.parse(text)
+        } else {
+          throw new Error(`Server returned non-JSON response: ${text.substring(0, 200)}...`)
+        }
+      } catch (parseErr) {
+        throw new Error(`Failed to parse server response: ${parseErr instanceof Error ? parseErr.message : 'Unknown error'}`)
+      }
 
       if (!response.ok) {
         throw new Error(responseData.error || `HTTP ${response.status}: Server error`)

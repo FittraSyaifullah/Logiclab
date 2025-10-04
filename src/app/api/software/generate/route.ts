@@ -67,18 +67,16 @@ export async function POST(request: NextRequest) {
 
     console.log(`[SOFTWARE] Job record created - ID: ${job.id}`)
 
-    // Trigger Supabase Edge Function (v0-processor) to process asynchronously
-    try {
-      const functionUrl = process.env.SUPABASE_SOFTWARE_FUNCTION_URL
-      const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY
-      if (!functionUrl) {
-        throw new Error('SUPABASE_SOFTWARE_FUNCTION_URL not configured')
-      }
-      if (!serviceRoleKey) {
-        throw new Error('SUPABASE_SERVICE_ROLE_KEY not configured')
-      }
-
-      await fetch(functionUrl, {
+    // Trigger Supabase Edge Function (v0-processor) to process asynchronously (fire-and-forget)
+    const functionUrl = process.env.SUPABASE_SOFTWARE_FUNCTION_URL
+    const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY
+    if (!functionUrl || !serviceRoleKey) {
+      console.error('[SOFTWARE] Missing function configuration: ', {
+        hasFunctionUrl: !!functionUrl,
+        hasServiceRoleKey: !!serviceRoleKey,
+      })
+    } else {
+      void fetch(functionUrl, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -91,10 +89,12 @@ export async function POST(request: NextRequest) {
           title,
           userId,
         }),
+      }).then(() => {
+        console.log('[SOFTWARE] v0-processor invoked')
+      }).catch((invokeError) => {
+        console.error('[SOFTWARE] Failed to invoke v0-processor:', invokeError)
+        // Keep job as pending; external processor can be triggered later
       })
-    } catch (invokeError) {
-      console.error('[SOFTWARE] Failed to invoke v0-processor:', invokeError)
-      // Keep job as pending; external processor can be triggered later
     }
 
     console.log(`[SOFTWARE] Job enqueued for processing: ${job.id}`)
