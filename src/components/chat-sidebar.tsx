@@ -410,8 +410,8 @@ export function ChatSidebar({ onLogout, onSendMessage }: ChatSidebarProps) {
                         ))}
                         {(() => {
                           const reports = (activeCreation?.hardwareReports as HardwareReports | undefined)
-                          const comps = reports?.["3d-components"]?.components ?? []
-                          const names = comps.map((c: any) => c?.name).filter(Boolean)
+                          const comps = (reports?.["3d-components"]?.components ?? []) as Array<{ name?: string }>
+                          const names = comps.map((c) => c.name).filter(Boolean)
                           const unique = Array.from(new Set(names)) as string[]
                           return unique.length ? (
                             <>
