@@ -76,7 +76,6 @@ export default function LandingPage() {
       setEmail("")
       setFirstName("")
     } catch (error) {
-      console.error("Waitlist submission error:", error)
       toast({
         title: "Network error",
         description: "Could not connect to the server. Please check your internet connection.",

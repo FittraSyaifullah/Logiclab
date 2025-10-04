@@ -53,7 +53,7 @@ export function LogoHoverSidebar({
         setSoftware(data.software || [])
       }
     } catch (error) {
-      console.error('Failed to load user software:', error)
+      
     } finally {
       setLoading(false)
     }

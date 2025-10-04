@@ -42,8 +42,7 @@ export function ChatSidebar({ onLogout, onSendMessage }: ChatSidebarProps) {
   const mode = activeCreation?.mode || (activeCreation?.softwareData ? "software" : "hardware")
   const apiEndpoint = mode === "hardware" ? "/api/chat/hardware" : "/api/chat/software"
   
-  console.log(`[CHAT_SIDEBAR] Rendered - activeCreationId: ${activeCreationId}, mode: ${mode}, onSendMessage: ${!!onSendMessage}`)
-  console.log(`[CHAT_SIDEBAR] activeCreation:`, activeCreation)
+  
 
   const prepareChatBody = () => {
     const safeCreation = activeCreation || {} as Partial<Creation>
@@ -89,7 +88,6 @@ export function ChatSidebar({ onLogout, onSendMessage }: ChatSidebarProps) {
 
   const handleFallbackSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    console.log(`[CHAT_SIDEBAR] handleFallbackSubmit called with input: "${fallbackInput}"`)
     if (!fallbackInput.trim()) return
 
     const messageToSend = fallbackInput.trim()
@@ -97,10 +95,8 @@ export function ChatSidebar({ onLogout, onSendMessage }: ChatSidebarProps) {
     setIsLoadingFallback(true)
 
     // For software mode, use the onSendMessage prop if available
-    console.log(`[CHAT_SIDEBAR] Mode: ${mode}, onSendMessage available: ${!!onSendMessage}`)
     if (mode === "software" && onSendMessage) {
       try {
-        console.log(`[CHAT_SIDEBAR] Calling onSendMessage with: "${messageToSend}"`)
         await onSendMessage(messageToSend)
         setIsLoadingFallback(false)
         return
@@ -112,7 +108,6 @@ export function ChatSidebar({ onLogout, onSendMessage }: ChatSidebarProps) {
     }
 
     // For hardware mode or when onSendMessage is not available, use the API endpoint
-    console.log(`[CHAT_SIDEBAR] Using API endpoint: ${apiEndpoint}`)
 
     try {
       const requestBody = {

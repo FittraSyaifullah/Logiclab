@@ -80,14 +80,6 @@ function PersistentHeader({
   const { user } = useUserStore()
 
   useEffect(() => {
-    console.log("[v0] PersistentHeader - User store debug:", {
-      user,
-      hasUser: !!user,
-      displayName: user?.display_name,
-      email: user?.email,
-      userKeys: user ? Object.keys(user) : [],
-      fullUserStore: useUserStore.getState(),
-    })
   }, [user])
 
   const getUserInitials = () => {
@@ -107,12 +99,6 @@ function PersistentHeader({
 
   const getDisplayName = () => {
     const displayName = user?.display_name || user?.email?.split("@")[0] || "User"
-    console.log("[v0] getDisplayName calculation:", {
-      userDisplayName: user?.display_name,
-      userEmail: user?.email,
-      emailPrefix: user?.email?.split("@")[0],
-      finalDisplayName: displayName,
-    })
     return displayName
   }
 
@@ -482,7 +468,6 @@ function DashboardContent({ onLogout, initialSearchInput }: DashboardProps) {
         setTimeout(() => pollHardwareModelJobOnce({ creationId, componentId, jobId, attempt: attempt + 1 }), 5000)
       }
     } catch (error) {
-      console.error("[HARDWARE] Failed to poll model job:", error)
 
       const nextCreation = useCreationStore.getState().creations.find((c) => c.id === creationId)
       if (!nextCreation) return
@@ -541,13 +526,9 @@ function DashboardContent({ onLogout, initialSearchInput }: DashboardProps) {
               const { setReportsList } = useHardwareStore.getState()
               setReportsList(listData.items || [])
             }
-          } catch (e) {
-            console.error('[DASHBOARD] Failed to load hardware reports list', e)
-          }
+          } catch (e) {}
         }
-      } catch (e) {
-        console.error('[DASHBOARD] Failed to load projects after login', e)
-      }
+      } catch (e) {}
     }
     loadAllProjects()
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -585,7 +566,6 @@ function DashboardContent({ onLogout, initialSearchInput }: DashboardProps) {
     const currentCreation = useCreationStore.getState().creations.find((c) => c.id === creationId)
 
     if (!currentCreation) {
-      console.error(`Creation ${creationId} not found – cannot generate 3D model`)
       return
     }
 
@@ -712,7 +692,6 @@ function DashboardContent({ onLogout, initialSearchInput }: DashboardProps) {
       return
     }
 
-    console.log(`Starting PartCrafter 3D generation for project: ${currentCreation.title}`)
 
     updateCreation(creationId, {
       ...currentCreation,
@@ -742,7 +721,6 @@ function DashboardContent({ onLogout, initialSearchInput }: DashboardProps) {
       const { modelUrl } = responseData
       if (!modelUrl) throw new Error("No 3D model URL received from PartCrafter")
 
-      console.log(`PartCrafter success for project ${currentCreation.title}: ${modelUrl}`)
 
       const latest = useCreationStore.getState().creations.find((c) => c.id === creationId)
       if (latest) {
@@ -759,7 +737,6 @@ function DashboardContent({ onLogout, initialSearchInput }: DashboardProps) {
         description: "PartCrafter has created your 3D model from the image",
       })
     } catch (error) {
-      console.error(`PartCrafter generation error:`, error)
       const failed = useCreationStore.getState().creations.find((c) => c.id === creationId)
       if (failed) {
         updateCreation(creationId, {
@@ -781,22 +758,13 @@ function DashboardContent({ onLogout, initialSearchInput }: DashboardProps) {
     const currentCreation = useCreationStore.getState().creations.find((c) => c.id === creationId)
     const { user, project } = useUserStore.getState()
 
-    console.log("[v0] generateSoftware - Debug info:", {
-      creationId,
-      hasCurrentCreation: !!currentCreation,
-      hasUser: !!user,
-      hasProject: !!project,
-      projectId: project?.id,
-      userStoreState: { user, project },
-    })
+    
 
     if (!currentCreation) {
-      console.error(`Creation ${creationId} not found – cannot generate software`)
       return
     }
 
     if (!project?.id) {
-      console.error("[v0] Project ID missing - user store state:", { user, project })
       toast({
         title: "Project ID missing",
         description: "Failed to generate software since project id is missing",
@@ -805,7 +773,6 @@ function DashboardContent({ onLogout, initialSearchInput }: DashboardProps) {
       return
     }
 
-    console.log(`Starting async v0 software generation for project: ${currentCreation.title}`)
 
     updateCreation(creationId, {
       ...currentCreation,
@@ -824,9 +791,7 @@ function DashboardContent({ onLogout, initialSearchInput }: DashboardProps) {
         projectId: project.id,
         userId: user?.id,
       }
-      console.log("[v0] generateSoftware - API request payload:", requestPayload)
-      console.log("[v0] generateSoftware - User data:", user)
-      console.log("[v0] generateSoftware - Project data:", project)
+      
 
       const response = await fetch("/api/software/generate", {
         method: "POST",
@@ -855,7 +820,6 @@ function DashboardContent({ onLogout, initialSearchInput }: DashboardProps) {
       }
 
       const jobId = responseData.jobId
-      console.log(`[DASHBOARD] Job enqueued successfully: ${jobId}`)
 
       // Start polling for job completion
       toast({
@@ -869,13 +833,10 @@ function DashboardContent({ onLogout, initialSearchInput }: DashboardProps) {
           const statusResponse = await fetch(`/api/jobs/${jobId}`)
           const statusData = await statusResponse.json()
 
-          console.log(`[DASHBOARD] Job status check:`, statusData)
-
           if (statusData.completed) {
             clearInterval(pollInterval)
 
             if (statusData.software) {
-              console.log(`[DASHBOARD] Job completed successfully`)
 
               const latest = useCreationStore.getState().creations.find((c) => c.id === creationId)
               if (latest) {
@@ -892,12 +853,10 @@ function DashboardContent({ onLogout, initialSearchInput }: DashboardProps) {
 
               // Load the chat messages to update the UI
               if (statusData.software.id) {
-                console.log(`[DASHBOARD] Loading chat messages for software: ${statusData.software.id}`)
                 try {
                   const messagesResponse = await fetch(`/api/software/messages?softwareId=${statusData.software.id}&userId=${user?.id}`, { cache: "no-store" })
                   if (messagesResponse.ok) {
                     const messagesData = await messagesResponse.json()
-                    console.log(`[DASHBOARD] Loaded ${messagesData.messages?.length || 0} messages`)
 
                     // Update creation store with chat messages
                     const updatedCreation = {
@@ -952,7 +911,6 @@ function DashboardContent({ onLogout, initialSearchInput }: DashboardProps) {
                     })
                   }
                 } catch (error) {
-                  console.error(`[DASHBOARD] Failed to load chat messages:`, error)
                 }
               }
 
@@ -989,7 +947,6 @@ function DashboardContent({ onLogout, initialSearchInput }: DashboardProps) {
           }
           // Continue polling if still processing
         } catch (pollError) {
-          console.error(`[DASHBOARD] Job status polling error:`, pollError)
           // Don't clear interval on polling error, keep trying
         }
       }, 5000) // Poll every 5 seconds
@@ -1019,7 +976,7 @@ function DashboardContent({ onLogout, initialSearchInput }: DashboardProps) {
         variant: "destructive",
       })
 
-      console.error(`[DASHBOARD] generateSoftware failed:`, error)
+      
     }
   }
 
@@ -1027,22 +984,13 @@ function DashboardContent({ onLogout, initialSearchInput }: DashboardProps) {
     const currentCreation = useCreationStore.getState().creations.find((c) => c.id === creationId)
     const { user, project } = useUserStore.getState()
 
-    console.log("[HARDWARE] generateHardware - Debug info:", {
-      creationId,
-      hasCurrentCreation: !!currentCreation,
-      hasUser: !!user,
-      hasProject: !!project,
-      projectId: project?.id,
-      userStoreState: { user, project },
-    })
+    
 
     if (!currentCreation) {
-      console.error(`Creation ${creationId} not found – cannot generate hardware`)
       return
     }
 
     if (!project?.id) {
-      console.error("[HARDWARE] Project ID missing - user store state:", { user, project })
       toast({
         title: "Project ID missing",
         description: "Failed to generate hardware since project id is missing",
@@ -1051,7 +999,7 @@ function DashboardContent({ onLogout, initialSearchInput }: DashboardProps) {
       return
     }
 
-    console.log(`Starting async hardware generation for project: ${currentCreation.title}`)
+    
 
     // Create project data for hardware generation
     const projectData = {
@@ -1067,7 +1015,6 @@ function DashboardContent({ onLogout, initialSearchInput }: DashboardProps) {
 
     for (const jobKind of jobKinds) {
       try {
-        console.log(`[HARDWARE] Generating: ${jobKind}`)
 
         // Call the generation endpoint directly
         const endpoint = `/api/hardware/generate-${jobKind}`
@@ -1128,7 +1075,6 @@ function DashboardContent({ onLogout, initialSearchInput }: DashboardProps) {
             }
           }
         }
-        console.log(`[HARDWARE] Successfully generated ${jobKind}:`, generationData)
 
         // Create a job record for tracking
         if (!user || !user.id) {
@@ -1158,20 +1104,11 @@ function DashboardContent({ onLogout, initialSearchInput }: DashboardProps) {
           })
 
         if (jobError) {
-          console.error(`[HARDWARE] Failed to create job record for ${jobKind}:`, jobError)
           // Don't throw here - continue with the process
-        } else {
-          console.log(`[HARDWARE] Job record created successfully for ${jobKind}`)
         }
 
       } catch (error: unknown) {
         const errObj = error as { message?: string; stack?: string; cause?: unknown }
-        console.error(`[HARDWARE] Failed to generate ${jobKind}:`, {
-          error,
-          message: errObj?.message,
-          stack: errObj?.stack,
-          cause: errObj?.cause
-        })
 
         // Check if it's an OpenAI API error
         if (typeof errObj?.message === 'string' && errObj.message.includes('OpenAI API')) {
@@ -1229,7 +1166,6 @@ function DashboardContent({ onLogout, initialSearchInput }: DashboardProps) {
     const { user, project } = useUserStore.getState()
 
     if (!user?.id || !project?.id) {
-      console.error("[HARDWARE] Cannot load reports - missing user or project data")
       return
     }
 
@@ -1238,7 +1174,6 @@ function DashboardContent({ onLogout, initialSearchInput }: DashboardProps) {
 
       if (response.ok) {
         const reportsData = await response.json()
-        console.log("[HARDWARE] Loaded reports:", reportsData)
         // Update creation with loaded reports
         const currentCreation = useCreationStore.getState().creations.find((c) => c.id === creationId)
         if (currentCreation) {
@@ -1253,7 +1188,6 @@ function DashboardContent({ onLogout, initialSearchInput }: DashboardProps) {
         }
       }
     } catch (error) {
-      console.error("[HARDWARE] Failed to load reports:", error)
     }
   }
 
@@ -1388,7 +1322,6 @@ function DashboardContent({ onLogout, initialSearchInput }: DashboardProps) {
 
   const handleChatSelect = async (software: { id: string; title?: string; software_id?: string; demo_url?: string }) => {
     if (!user?.id) {
-      console.error('User ID not available for chat selection')
       return
     }
     
@@ -1433,7 +1366,6 @@ function DashboardContent({ onLogout, initialSearchInput }: DashboardProps) {
         setActiveCreationId(software.id)
       }
     } catch (error) {
-      console.error('Failed to load chat messages:', error)
       toast({
         title: "Error",
         description: "Failed to load chat messages",
@@ -1443,35 +1375,25 @@ function DashboardContent({ onLogout, initialSearchInput }: DashboardProps) {
   }
 
   const handleSendMessage = async (message: string) => {
-    console.log(`[DASHBOARD] ===== HANDLE SEND MESSAGE START =====`)
-    console.log(`[DASHBOARD] handleSendMessage - Message: ${message.substring(0, 100)}`)
+    
     
     if (!user?.id) {
-      console.log(`[DASHBOARD] handleSendMessage - Missing required data: user.id=${!!user?.id}`)
       return
     }
     // Fallback: if selectedChat is not set, try to use activeCreation when in software mode
     const effectiveSoftwareId = selectedChat?.id || (creationMode === 'software' ? activeCreation?.id : undefined)
     if (!effectiveSoftwareId) {
-      console.log(`[DASHBOARD] handleSendMessage - No software selected (selectedChat and activeCreation missing)`)
       return
     }
     
-    console.log(`[DASHBOARD] handleSendMessage - Sending message to software: ${effectiveSoftwareId}`)
-    console.log(`[DASHBOARD] Selected chat data:`, {
-      id: selectedChat?.id,
-      software_id: selectedChat?.software_id,
-      title: selectedChat?.title
-    })
+    
     
     try {
-      console.log(`[DASHBOARD] ===== MAKING API REQUEST =====`)
       const requestBody = {
         softwareId: effectiveSoftwareId,
         message: message,
         userId: user.id
       }
-      console.log(`[DASHBOARD] Request body:`, requestBody)
       
       const response = await fetch('/api/software/chat', {
         method: 'POST',
@@ -1481,12 +1403,9 @@ function DashboardContent({ onLogout, initialSearchInput }: DashboardProps) {
         body: JSON.stringify(requestBody)
       })
       
-      console.log(`[DASHBOARD] handleSendMessage response status: ${response.status}`)
-      
       let responseData
       try {
         const responseText = await response.text()
-        console.log(`[DASHBOARD] handleSendMessage response text: ${responseText.substring(0, 500)}...`)
         
         if (response.headers.get("content-type")?.includes("application/json")) {
           responseData = JSON.parse(responseText)
@@ -1494,17 +1413,13 @@ function DashboardContent({ onLogout, initialSearchInput }: DashboardProps) {
           throw new Error(`Server returned non-JSON response: ${responseText.substring(0, 200)}...`)
         }
       } catch (parseError) {
-        console.error(`[DASHBOARD] Failed to parse handleSendMessage response:`, parseError)
         throw new Error(`Failed to parse server response: ${parseError instanceof Error ? parseError.message : 'Unknown error'}`)
       }
       
       if (response.ok) {
-        console.log(`[DASHBOARD] ===== API REQUEST SUCCESS =====`)
-        console.log(`[DASHBOARD] handleSendMessage successful:`, responseData)
         
         // Update the software creation with new demo URL
         if (responseData.demoUrl && effectiveSoftwareId) {
-          console.log(`[DASHBOARD] Updating demo URL: ${responseData.demoUrl}`)
           updateCreation(effectiveSoftwareId, {
             softwareData: {
               chatId: selectedChat?.software_id ?? activeCreation?.softwareData?.chatId ?? "",
@@ -1515,11 +1430,9 @@ function DashboardContent({ onLogout, initialSearchInput }: DashboardProps) {
         }
         
         // Reload messages to get the updated conversation
-        console.log(`[DASHBOARD] Reloading messages for software: ${effectiveSoftwareId}`)
         const messagesResponse = await fetch(`/api/software/messages?softwareId=${effectiveSoftwareId}&userId=${user.id}`)
         if (messagesResponse.ok) {
           const messagesData = await messagesResponse.json()
-          console.log(`[DASHBOARD] Messages reloaded: ${messagesData.messages?.length || 0} messages`)
           setChatMessages(messagesData.messages || [])
           
           // Update creation store with new messages
@@ -1532,19 +1445,13 @@ function DashboardContent({ onLogout, initialSearchInput }: DashboardProps) {
             })) || []
           }
           updateCreation(effectiveSoftwareId, updatedCreation)
-          console.log(`[DASHBOARD] ===== HANDLE SEND MESSAGE SUCCESS =====`)
         } else {
-          console.error(`[DASHBOARD] Failed to reload messages: ${messagesResponse.status}`)
         }
       } else {
-        console.error(`[DASHBOARD] ===== API REQUEST ERROR =====`)
         const errorMessage = responseData?.error || `HTTP ${response.status}: Server error`
-        console.error(`[DASHBOARD] handleSendMessage failed:`, errorMessage)
         throw new Error(errorMessage)
       }
     } catch (error) {
-      console.error(`[DASHBOARD] ===== HANDLE SEND MESSAGE ERROR =====`)
-      console.error(`[DASHBOARD] handleSendMessage error:`, error)
       toast({
         title: "Error",
         description: error instanceof Error ? error.message : "Failed to send message",
@@ -1654,7 +1561,6 @@ function DashboardContent({ onLogout, initialSearchInput }: DashboardProps) {
               }
             }
           } catch (e) {
-            console.error('[DASHBOARD] Failed to lazy-load hardware project', e)
           } finally {
             setShowLogoSidebar(false)
           }

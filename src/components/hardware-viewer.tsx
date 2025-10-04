@@ -529,15 +529,14 @@ export function HardwareViewer({ creation, onRegenerate, onGenerateComponentMode
         }),
       })
 
-      if (response.ok) {
+        if (response.ok) {
         const result = await response.json()
-        console.log(`Regenerated ${tabId}:`, result)
         window.location.reload()
       } else {
-        console.error(`Failed to regenerate ${tabId}`)
+        
       }
     } catch (error) {
-      console.error("Failed to regenerate tab:", error)
+      
     } finally {
       setTimeout(() => {
         setRegeneratingTabs((prev) => prev.filter((id) => id !== tabId))
@@ -551,7 +550,7 @@ export function HardwareViewer({ creation, onRegenerate, onGenerateComponentMode
     try {
       await navigator.clipboard.writeText(text)
     } catch (err) {
-      console.error("Failed to copy text: ", err)
+      
     }
   }
 

@@ -47,8 +47,6 @@ export function AppSidebar({ onLogout }: AppSidebarProps) {
 
     if (creationToDelete?.softwareData?.chatId) {
       try {
-        console.log(`🗑️ Deleting v0 chat: ${creationToDelete.softwareData.chatId}`)
-
         const response = await fetch("/api/delete-chat", {
           method: "DELETE",
           headers: {
@@ -60,9 +58,9 @@ export function AppSidebar({ onLogout }: AppSidebarProps) {
         })
 
         if (!response.ok) {
-          console.warn("Failed to delete v0 chat, but continuing with local deletion")
+          
         } else {
-          console.log("✅ Successfully deleted v0 chat")
+          
         }
       } catch (error) {
         console.error("Error deleting v0 chat:", error)

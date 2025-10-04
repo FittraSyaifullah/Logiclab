@@ -25,15 +25,12 @@ function DashboardContent() {
 
   const handleLogout = async () => {
     try {
-      console.log(`[DASHBOARD] Starting logout process`)
       
       // Clear Zustand store first
       clearUser()
-      console.log(`[DASHBOARD] Cleared user store`)
       
       // Clear AuthProvider user and remove session in client
       await signOut()
-      console.log(`[DASHBOARD] AuthProvider.signOut completed`)
 
       const response = await fetch("/api/auth/signout", {
         method: "POST",
@@ -41,11 +38,9 @@ function DashboardContent() {
       })
 
       if (response.ok) {
-        console.log(`[DASHBOARD] Logout API call successful`)
         // Clear any local storage and redirect
         localStorage.clear()
         sessionStorage.clear()
-        console.log(`[DASHBOARD] Cleared localStorage and sessionStorage`)
         // Force a hard redirect to ensure clean state
         window.location.replace("/")
       } else {

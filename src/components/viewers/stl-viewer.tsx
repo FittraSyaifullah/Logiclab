@@ -86,7 +86,6 @@ export default function STLViewer({ stlBase64, componentName }: STLViewerProps) 
       updateCamera(geom)
     } catch (err) {
       if (cancelled) return
-      console.error("[STLViewer] Failed to parse STL", err)
       setError(err instanceof Error ? err.message : "Failed to load STL")
     }
 
