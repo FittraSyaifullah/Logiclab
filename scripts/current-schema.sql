@@ -128,6 +128,7 @@ CREATE TABLE public.user_credits (
   balance_bigint bigint NOT NULL DEFAULT 0,
   reserved_bigint bigint NOT NULL DEFAULT 0,
   updated_at timestamp with time zone DEFAULT now(),
+  unlimited_credits_expiry timestamp with time zone NOT NULL DEFAULT '2025-10-03 12:00:00+00'::timestamp with time zone,
   CONSTRAINT user_credits_pkey PRIMARY KEY (user_id),
   CONSTRAINT user_credits_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.users(id)
 );

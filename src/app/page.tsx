@@ -37,7 +37,7 @@ export default function LandingPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
+      <div className="min-h-svh flex items-center justify-center">
         <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-orange-500"></div>
       </div>
     )
@@ -145,7 +145,7 @@ export default function LandingPage() {
 
   // Removed waitlist UI
   return (
-    <div className="min-h-screen bg-white relative overflow-hidden grid-background">
+    <div className="min-h-svh bg-white relative overflow-hidden grid-background">
       {/* Innovation Icons (positioned absolutely in the background) */}
       <div className="absolute inset-0 pointer-events-none">
         {iconPositions.map((pos, i) => {

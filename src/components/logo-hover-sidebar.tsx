@@ -77,7 +77,7 @@ export function LogoHoverSidebar({
   return (
     <div
       className={cn(
-        "fixed left-0 top-16 h-[calc(100vh-4rem)] w-64 sm:w-72 md:w-80 bg-white/95 dark:bg-slate-900/95 backdrop-blur-xl border-r border-slate-200/30 dark:border-slate-700/30 shadow-xl transition-transform duration-300 ease-out z-40",
+        "fixed left-0 top-16 h-[calc(100dvh-4rem)] w-[min(85vw,16rem)] sm:w-72 md:w-80 bg-white/95 dark:bg-slate-900/95 backdrop-blur-xl border-r border-slate-200/30 dark:border-slate-700/30 shadow-xl transition-transform duration-300 ease-out z-40",
         isVisible ? "translate-x-0" : "-translate-x-full",
       )}
       onMouseEnter={onMouseEnter}

@@ -1566,7 +1566,7 @@ function DashboardContent({ onLogout, initialSearchInput }: DashboardProps) {
   }, [])
 
   return (
-    <div className="flex h-screen w-full overflow-hidden bg-gradient-to-br from-slate-50 via-blue-50/30 to-indigo-100/40 dark:from-slate-950 dark:via-slate-900 dark:to-indigo-950/20 pt-16">
+    <div className="flex min-h-svh w-full overflow-hidden bg-gradient-to-br from-slate-50 via-blue-50/30 to-indigo-100/40 dark:from-slate-950 dark:via-slate-900 dark:to-indigo-950/20 pt-16">
       <LogoHoverSidebar
         isVisible={showLogoSidebar}
         onNewCreation={() => {

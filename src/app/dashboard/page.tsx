@@ -62,7 +62,7 @@ function DashboardContent() {
 
   if (!isClient) {
     return (
-      <div className="bg-neutral-50 dark:bg-neutral-900 min-h-screen flex items-center justify-center">
+      <div className="bg-neutral-50 dark:bg-neutral-900 min-h-svh flex items-center justify-center">
         <div className="text-center">
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-orange-500 mx-auto mb-4"></div>
           <p className="text-gray-600">Loading...</p>
@@ -73,7 +73,7 @@ function DashboardContent() {
 
   return (
     <ProtectedRoute>
-      <div className="bg-neutral-50 dark:bg-neutral-900 min-h-screen">
+      <div className="bg-neutral-50 dark:bg-neutral-900 min-h-svh">
         <SidebarProvider defaultOpen>
           <Dashboard onLogout={handleLogout} initialSearchInput={initialSearchInput} />
         </SidebarProvider>
@@ -85,7 +85,7 @@ function DashboardContent() {
 export default function DashboardPage() {
   return (
     <Suspense fallback={
-      <div className="bg-neutral-50 dark:bg-neutral-900 min-h-screen flex items-center justify-center">
+      <div className="bg-neutral-50 dark:bg-neutral-900 min-h-svh flex items-center justify-center">
         <div className="text-center">
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-orange-500 mx-auto mb-4"></div>
           <p className="text-gray-600">Loading...</p>

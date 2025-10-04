@@ -3,7 +3,7 @@ import { Button } from "@/components/ui/button"
 
 export default function SettingsPage() {
   return (
-    <div className="min-h-screen w-full bg-white dark:bg-slate-950">
+    <div className="min-h-svh w-full bg-white dark:bg-slate-950">
       <div className="mx-auto max-w-6xl px-4 sm:px-6 py-6 sm:py-8">
         <div className="grid grid-cols-12 gap-6 sm:gap-8">
           {/* Left sidebar */}

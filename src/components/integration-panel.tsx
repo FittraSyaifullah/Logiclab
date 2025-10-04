@@ -96,7 +96,7 @@ export function IntegrationPanel({ isOpen, onClose }: IntegrationPanelProps) {
   if (!isOpen) return null
 
   return (
-    <div className="fixed inset-y-0 right-0 w-96 bg-white dark:bg-neutral-800 border-l border-neutral-200 dark:border-neutral-700 shadow-lg z-50">
+    <div className="fixed inset-y-0 right-0 w-[min(90vw,24rem)] max-w-[100vw] bg-white dark:bg-neutral-800 border-l border-neutral-200 dark:border-neutral-700 shadow-lg z-50">
       <div className="flex flex-col h-full">
         <div className="p-4 border-b border-neutral-200 dark:border-neutral-700">
           <div className="flex items-center justify-between">

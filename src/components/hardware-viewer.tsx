@@ -484,7 +484,7 @@ export function HardwareViewer({ creation, onRegenerate, onGenerateComponentMode
 
     return (
       <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/70 backdrop-blur">
-        <div className="relative w-full max-w-5xl h-[70vh] overflow-hidden rounded-xl border border-neutral-800 bg-neutral-950">
+        <div className="relative w-full max-w-5xl h-[70dvh] overflow-hidden rounded-xl border border-neutral-800 bg-neutral-950">
           <div className="pointer-events-none absolute left-6 top-4 z-20 text-sm font-semibold text-neutral-200">
             {model.name || "Component"}
           </div>
@@ -839,7 +839,7 @@ const renderComponentActions = (
           </div>
         </div>
 
-        <ScrollArea className="flex-1" style={{ height: "calc(100vh - 300px)" }}>
+        <ScrollArea className="flex-1" style={{ height: "calc(100dvh - 300px)" }}>
           <TabsContent value="3d-components" className="h-full">
             <Card className="h-full">
               <CardHeader>

@@ -303,7 +303,7 @@ export function ChatSidebar({ onLogout, onSendMessage }: ChatSidebarProps) {
             </CardHeader>
 
             <CardContent className="flex-1 flex flex-col p-0">
-              <ScrollArea className="flex-1 px-3" style={{ maxHeight: "calc(100vh - 200px)" }}>
+              <ScrollArea className="flex-1 px-3" style={{ maxHeight: "calc(100dvh - 200px)" }}>
                 <div className="space-y-3 py-2">
                   {fallbackMessages && fallbackMessages.length > 0 ? (
                     [...fallbackMessages].reverse().map((message) => (
@@ -372,7 +372,7 @@ export function ChatSidebar({ onLogout, onSendMessage }: ChatSidebarProps) {
 
               {/* Sticky input form at the bottom - positioned outside ScrollArea */}
               <div
-                className="sticky bottom-0 p-2 sm:p-3 bg-white dark:bg-slate-900 border-t border-neutral-200 dark:border-neutral-700 z-10"
+                className="sticky bottom-0 p-2 sm:p-3 pb-[max(0.5rem,env(safe-area-inset-bottom))] bg-white dark:bg-slate-900 border-t border-neutral-200 dark:border-neutral-700 z-10"
                 style={{
                   boxShadow: '0 -8px 16px -4px rgba(0, 0, 0, 0.1), 0 -4px 6px -2px rgba(0, 0, 0, 0.05)'
                 }}

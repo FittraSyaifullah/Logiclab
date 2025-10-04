@@ -87,8 +87,8 @@ export default function SignUpPage() {
 
   if (success) {
     return (
-      <div className="min-h-screen bg-white relative overflow-hidden">
-        <div className="relative z-10 flex items-center justify-center min-h-screen p-4">
+      <div className="min-h-svh bg-white relative overflow-hidden">
+        <div className="relative z-10 flex items-center justify-center min-h-svh p-4">
           <Card className="w-full max-w-md text-center">
             <CardContent className="pt-6">
               <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
@@ -112,7 +112,7 @@ export default function SignUpPage() {
   }
 
   return (
-    <div className="min-h-screen bg-white relative overflow-hidden">
+    <div className="min-h-svh bg-white relative overflow-hidden">
       <div className="absolute inset-0 opacity-5">
         <div className="absolute top-10 left-10 w-8 h-8 bg-orange-500 rounded-full animate-pulse"></div>
         <div
@@ -129,7 +129,7 @@ export default function SignUpPage() {
         ></div>
       </div>
 
-      <div className="relative z-10 flex items-center justify-center min-h-screen p-4">
+      <div className="relative z-10 flex items-center justify-center min-h-svh p-4">
         <div className="w-full max-w-md space-y-4 sm:space-y-6">
           <div className="text-center space-y-4">
             <Link
