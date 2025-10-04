@@ -63,7 +63,6 @@ export function AppSidebar({ onLogout }: AppSidebarProps) {
           
         }
       } catch (error) {
-        console.error("Error deleting v0 chat:", error)
       }
     }
 

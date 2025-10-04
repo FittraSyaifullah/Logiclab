@@ -380,7 +380,6 @@ export function HardwareViewer({ creation, onRegenerate, onGenerateComponentMode
         setConversionStatus((prev) => ({ ...prev, [component.id]: "idle" }))
       } catch (error) {
         const message = error instanceof Error ? error.message : "Unknown conversion error"
-        console.error(`[HARDWARE] Auto compile failed for ${component.id}`, error)
         setConversionErrors((prev) => ({ ...prev, [`${component.id}:__auto__`]: message }))
         setConversionStatus((prev) => ({ ...prev, [component.id]: "error" }))
       } finally {

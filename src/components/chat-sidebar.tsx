@@ -101,7 +101,6 @@ export function ChatSidebar({ onLogout, onSendMessage }: ChatSidebarProps) {
         setIsLoadingFallback(false)
         return
       } catch (error) {
-        console.error('Failed to send message:', error)
         setIsLoadingFallback(false)
         return
       }
@@ -130,7 +129,6 @@ export function ChatSidebar({ onLogout, onSendMessage }: ChatSidebarProps) {
 
       if (!response.ok) {
         const errorText = await response.text()
-        console.error("Chat API error:", errorText)
         let errorData
         try {
           errorData = JSON.parse(errorText)
@@ -215,7 +213,6 @@ export function ChatSidebar({ onLogout, onSendMessage }: ChatSidebarProps) {
                     // Messages will be updated via creation store
                   }
                 } catch (parseError) {
-                  console.warn("Failed to parse streaming chunk:", parseError)
                 }
               }
             }
@@ -231,7 +228,6 @@ export function ChatSidebar({ onLogout, onSendMessage }: ChatSidebarProps) {
         // Messages already updated via creation store
       }
     } catch (error) {
-      console.error("Chat error:", error)
 
       let errorMessage = "Failed to send message. Please try again."
       if (error instanceof Error) {

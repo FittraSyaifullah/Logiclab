@@ -653,7 +653,6 @@ function DashboardContent({ onLogout, initialSearchInput }: DashboardProps) {
           description: "Hang tight while we create the STL and SCAD files.",
         })
       } catch (error) {
-        console.error("[HARDWARE] Failed to enqueue component model job:", error)
 
         const nextCreation = useCreationStore.getState().creations.find((c) => c.id === creationId)
         if (nextCreation) {

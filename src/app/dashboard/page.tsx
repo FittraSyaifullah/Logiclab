@@ -44,12 +44,10 @@ function DashboardContent() {
         // Force a hard redirect to ensure clean state
         window.location.replace("/")
       } else {
-        console.error("Logout failed:", response.status)
         // Still redirect even if API fails
         window.location.replace("/")
       }
     } catch (error) {
-      console.error("Logout error:", error)
       // Still redirect even if there's an error
       window.location.replace("/")
     }
