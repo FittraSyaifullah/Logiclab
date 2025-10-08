@@ -45,6 +45,7 @@ interface HardwareViewerProps {
     componentName: string
     prompt?: string
   }) => void
+  creditGate?: () => boolean
 }
 
 type ComponentParameter = {
@@ -174,7 +175,7 @@ const renderDetailedBreakdown = (content?: string) => {
   )
 }
 
-export function HardwareViewer({ creation, onRegenerate, onGenerateComponentModel }: HardwareViewerProps) {
+export function HardwareViewer({ creation, onRegenerate, onGenerateComponentModel, creditGate }: HardwareViewerProps) {
   const { toast } = useToast()
   const [activeTab, setActiveTab] = useState("3d-components")
   const [regeneratingTabs, setRegeneratingTabs] = useState<string[]>([])
@@ -502,6 +503,7 @@ export function HardwareViewer({ creation, onRegenerate, onGenerateComponentMode
   }
 
   const handleRegenerate = async (tabId: string) => {
+    if (creditGate && !creditGate()) return
     setRegeneratingTabs((prev) => [...prev, tabId])
 
     try {

@@ -1642,6 +1642,7 @@ function DashboardContent({ onLogout, initialSearchInput }: DashboardProps) {
                 <HardwareViewer
                   creation={activeCreation}
                   onRegenerate={handleRegenerate}
+                  creditGate={ensureCredits}
                   onGenerateComponentModel={({ componentId, componentName, prompt }) =>
                     generate3DModel(activeCreation.id, {
                       componentId,
