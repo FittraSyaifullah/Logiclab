@@ -12,6 +12,7 @@ import { InitialPromptForm } from "@/components/initial-prompt-form"
 import { IntegrationPanel } from "@/components/integration-panel"
 import { GrowthMarketingPanel } from "@/components/growth-marketing-panel"
 import { Button } from "@/components/ui/button"
+import CreditLimitModal from "@/components/credit-limit-modal"
 import { Input } from "@/components/ui/input"
 import { LogoHoverSidebar, type SoftwareItem } from "@/components/logo-hover-sidebar"
 import { useHardwareStore } from "@/hooks/use-hardware-store"
@@ -354,6 +355,7 @@ function DashboardContent({ onLogout, initialSearchInput }: DashboardProps) {
   const [showIntegrations, setShowIntegrations] = useState(false)
   const [showGrowthMarketing, setShowGrowthMarketing] = useState(false)
   const [showLogoSidebar, setShowLogoSidebar] = useState(false)
+  const [showCreditModal, setShowCreditModal] = useState(false)
   const [selectedChat, setSelectedChat] = useState<{ id: string; title?: string; software_id?: string; demo_url?: string } | null>(null)
   const [chatMessages, setChatMessages] = useState<Array<{ id: string; role: string; content: string; created_at?: string }>>([])
   const [softwareList, setSoftwareList] = useState<SoftwareItem[]>([])
@@ -380,6 +382,13 @@ function DashboardContent({ onLogout, initialSearchInput }: DashboardProps) {
     // after login/user changes, load credits
     void refreshCredits()
   }, [user?.id])
+
+  // Auto-open when unpaid users have zero credits
+  useEffect(() => {
+    if (!credits.paid && Number(credits.balance) <= 0) {
+      setShowCreditModal(true)
+    }
+  }, [credits.balance, credits.paid])
 
   // Removed dev-only OpenSCAD test compile button
 
@@ -595,6 +604,11 @@ function DashboardContent({ onLogout, initialSearchInput }: DashboardProps) {
       mode?: "component" | "full"
     }
   ) => {
+    // Gate by credits for unpaid users
+    if (!credits.paid && Number(credits.balance) <= 0) {
+      setShowCreditModal(true)
+      return
+    }
     const currentCreation = useCreationStore.getState().creations.find((c) => c.id === creationId)
 
     if (!currentCreation) {
@@ -786,6 +800,11 @@ function DashboardContent({ onLogout, initialSearchInput }: DashboardProps) {
   }
 
   const generateSoftware = async (creationId: string) => {
+    // Gate by credits for unpaid users
+    if (!credits.paid && Number(credits.balance) <= 0) {
+      setShowCreditModal(true)
+      return
+    }
     const currentCreation = useCreationStore.getState().creations.find((c) => c.id === creationId)
     const { user, project } = useUserStore.getState()
 
@@ -1014,6 +1033,11 @@ function DashboardContent({ onLogout, initialSearchInput }: DashboardProps) {
   }
 
   const generateHardware = async (creationId: string) => {
+    // Gate by credits for unpaid users
+    if (!credits.paid && Number(credits.balance) <= 0) {
+      setShowCreditModal(true)
+      return
+    }
     const currentCreation = useCreationStore.getState().creations.find((c) => c.id === creationId)
     const { user, project } = useUserStore.getState()
 
@@ -1653,6 +1677,7 @@ function DashboardContent({ onLogout, initialSearchInput }: DashboardProps) {
         {showGrowthMarketing && (
           <GrowthMarketingPanel isOpen={showGrowthMarketing} onClose={() => setShowGrowthMarketing(false)} />
         )}
+        <CreditLimitModal open={showCreditModal} onClose={() => setShowCreditModal(false)} />
         {/* Dev test compile button removed */}
       </div>
     </div>
