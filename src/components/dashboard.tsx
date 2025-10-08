@@ -62,6 +62,8 @@ function PersistentHeader({
   showLogoSidebar,
   setShowLogoSidebar,
   hoverTimeoutRef,
+  creditsBalance,
+  isPaid,
 }: {
   activeCreation: Creation | undefined
   creationMode: string
@@ -74,6 +76,8 @@ function PersistentHeader({
   showLogoSidebar: boolean
   setShowLogoSidebar: (show: boolean) => void
   hoverTimeoutRef: React.MutableRefObject<NodeJS.Timeout | null>
+  creditsBalance: number
+  isPaid: boolean
 }) {
   const { toast } = useToast()
   const [urlInput, setUrlInput] = useState("")
@@ -294,11 +298,18 @@ function PersistentHeader({
           <DropdownMenuContent align="end" className="w-56">
             <div className="px-3 py-2 border-b">
               <div className="font-medium">{getDisplayName()}</div>
-              <div className="text-sm text-muted-foreground">Credits: 5 left</div>
-              <div className="w-full bg-blue-200 rounded-full h-2 mt-1">
-                <div className="bg-blue-600 h-2 rounded-full" style={{ width: "20%" }}></div>
-              </div>
-              <div className="text-xs text-muted-foreground mt-1">Daily credits reset at midnight UTC</div>
+              {isPaid ? (
+                <div className="text-sm text-muted-foreground">Paid plan — Unlimited credits</div>
+              ) : (
+                <>
+                  <div className="text-sm text-muted-foreground">Credits: {Math.max(0, Number(creditsBalance) || 0)} left</div>
+                  <div className="w-full bg-blue-200 rounded-full h-2 mt-1">
+                    {/* Assume daily cap 50 for UI meter only */}
+                    <div className="bg-blue-600 h-2 rounded-full" style={{ width: `${Math.max(0, Math.min(100, ((Number(creditsBalance) || 0) / 50) * 100))}%` }}></div>
+                  </div>
+                  <div className="text-xs text-muted-foreground mt-1">Daily credits reset at midnight UTC</div>
+                </>
+              )}
             </div>
             <DropdownMenuItem>
               <CreditCard className="mr-2 h-4 w-4" />
@@ -346,10 +357,29 @@ function DashboardContent({ onLogout, initialSearchInput }: DashboardProps) {
   const [selectedChat, setSelectedChat] = useState<{ id: string; title?: string; software_id?: string; demo_url?: string } | null>(null)
   const [chatMessages, setChatMessages] = useState<Array<{ id: string; role: string; content: string; created_at?: string }>>([])
   const [softwareList, setSoftwareList] = useState<SoftwareItem[]>([])
+  const [credits, setCredits] = useState<{ balance: number; paid: boolean }>({ balance: 0, paid: false })
 
   const hoverTimeoutRef = useRef<NodeJS.Timeout | null>(null)
 
   const creationMode = activeCreation?.mode || (activeCreation?.softwareData ? "software" : "hardware")
+  // Fetch credits for current user
+  const refreshCredits = async () => {
+    try {
+      const uid = useUserStore.getState().user?.id
+      if (!uid) return
+      const resp = await fetch(`/api/credits?userId=${encodeURIComponent(uid)}`, { cache: 'no-store' })
+      if (!resp.ok) return
+      const data = await resp.json() as { balance?: number; paid?: boolean }
+      setCredits({ balance: Number(data.balance) || 0, paid: !!data.paid })
+    } catch {
+      // noop
+    }
+  }
+
+  useEffect(() => {
+    // after login/user changes, load credits
+    void refreshCredits()
+  }, [user?.id])
 
   // Removed dev-only OpenSCAD test compile button
 
@@ -433,6 +463,8 @@ function DashboardContent({ onLogout, initialSearchInput }: DashboardProps) {
         }
 
         await loadHardwareReports(creationId)
+        // refresh credits after successful hardware generation (post-deduction)
+        void refreshCredits()
         return
       }
 
@@ -919,6 +951,8 @@ function DashboardContent({ onLogout, initialSearchInput }: DashboardProps) {
                   ? `Successfully created "${currentCreation.title}"`
                   : `v0 has asked a question. Check the chat to respond and continue building.`,
               })
+          // refresh credits after successful software generation (post-deduction)
+          void refreshCredits()
             } else {
               throw new Error(statusData.error || "Job completed but no software data")
             }
@@ -1581,6 +1615,8 @@ function DashboardContent({ onLogout, initialSearchInput }: DashboardProps) {
           showLogoSidebar={showLogoSidebar}
           setShowLogoSidebar={setShowLogoSidebar}
           hoverTimeoutRef={hoverTimeoutRef}
+          creditsBalance={credits.balance}
+          isPaid={credits.paid}
         />
 
         <div className="flex-1 overflow-hidden">
