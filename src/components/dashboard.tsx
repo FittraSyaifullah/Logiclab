@@ -383,12 +383,14 @@ function DashboardContent({ onLogout, initialSearchInput }: DashboardProps) {
     void refreshCredits()
   }, [user?.id])
 
-  // Auto-open when unpaid users have zero credits
-  useEffect(() => {
+  // Centralized credit gate: only show modal on action attempts
+  const ensureCredits = () => {
     if (!credits.paid && Number(credits.balance) <= 0) {
       setShowCreditModal(true)
+      return false
     }
-  }, [credits.balance, credits.paid])
+    return true
+  }
 
   // Removed dev-only OpenSCAD test compile button
 
@@ -604,11 +606,7 @@ function DashboardContent({ onLogout, initialSearchInput }: DashboardProps) {
       mode?: "component" | "full"
     }
   ) => {
-    // Gate by credits for unpaid users
-    if (!credits.paid && Number(credits.balance) <= 0) {
-      setShowCreditModal(true)
-      return
-    }
+    if (!ensureCredits()) return
     const currentCreation = useCreationStore.getState().creations.find((c) => c.id === creationId)
 
     if (!currentCreation) {
@@ -800,11 +798,7 @@ function DashboardContent({ onLogout, initialSearchInput }: DashboardProps) {
   }
 
   const generateSoftware = async (creationId: string) => {
-    // Gate by credits for unpaid users
-    if (!credits.paid && Number(credits.balance) <= 0) {
-      setShowCreditModal(true)
-      return
-    }
+    if (!ensureCredits()) return
     const currentCreation = useCreationStore.getState().creations.find((c) => c.id === creationId)
     const { user, project } = useUserStore.getState()
 
@@ -1033,11 +1027,7 @@ function DashboardContent({ onLogout, initialSearchInput }: DashboardProps) {
   }
 
   const generateHardware = async (creationId: string) => {
-    // Gate by credits for unpaid users
-    if (!credits.paid && Number(credits.balance) <= 0) {
-      setShowCreditModal(true)
-      return
-    }
+    if (!ensureCredits()) return
     const currentCreation = useCreationStore.getState().creations.find((c) => c.id === creationId)
     const { user, project } = useUserStore.getState()
 
@@ -1675,7 +1665,7 @@ function DashboardContent({ onLogout, initialSearchInput }: DashboardProps) {
         {showIntegrations && <IntegrationPanel isOpen={showIntegrations} onClose={() => setShowIntegrations(false)} />}
 
         {showGrowthMarketing && (
-          <GrowthMarketingPanel isOpen={showGrowthMarketing} onClose={() => setShowGrowthMarketing(false)} />
+          <GrowthMarketingPanel creditGate={ensureCredits} isOpen={showGrowthMarketing} onClose={() => setShowGrowthMarketing(false)} />
         )}
         <CreditLimitModal open={showCreditModal} onClose={() => setShowCreditModal(false)} />
         {/* Dev test compile button removed */}

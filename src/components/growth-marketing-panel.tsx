@@ -29,6 +29,7 @@ import jsPDF from "jspdf"
 interface GrowthMarketingPanelProps {
   isOpen: boolean
   onClose: () => void
+  creditGate?: () => boolean
 }
 
 interface MarketAnalysis {
@@ -73,7 +74,7 @@ interface MarketAnalysis {
   }>
 }
 
-export function GrowthMarketingPanel({ isOpen, onClose }: GrowthMarketingPanelProps) {
+export function GrowthMarketingPanel({ isOpen, onClose, creditGate }: GrowthMarketingPanelProps) {
   const [projectDescription, setProjectDescription] = useState("")
   const [projectPurpose, setProjectPurpose] = useState("")
   const [isAnalyzing, setIsAnalyzing] = useState(false)
@@ -200,6 +201,7 @@ export function GrowthMarketingPanel({ isOpen, onClose }: GrowthMarketingPanelPr
   }
 
   const handleAnalyze = async () => {
+    if (creditGate && !creditGate()) return
     if (!projectDescription.trim() || !projectPurpose.trim()) {
       toast({
         title: "Missing Information",
