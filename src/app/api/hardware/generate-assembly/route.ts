@@ -12,7 +12,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Project data is required" }, { status: 400 })
     }
 
-    const supabase = createSupabaseServerClient()
+    // const supabase = createSupabaseServerClient()
 
     const endpoint = process.env.SUPABASE_HARDWARE_GENERATE_ASSEMBLY_URL
     const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY
@@ -31,13 +31,7 @@ export async function POST(request: NextRequest) {
 
     const text = efJson.content as string
     const targetReportId = efJson.reportId as string | null
-    let reportData: { id: string } | null = targetReportId ? { id: targetReportId } : null
-    let reportError: unknown = null
-
-    if (reportError) {
-      console.error("Failed to store assembly report:", reportError)
-      return NextResponse.json({ error: "Failed to store report" }, { status: 500 })
-    }
+    const reportData: { id: string } | null = targetReportId ? { id: targetReportId } : null
 
     if (!reportData) {
       console.error("Assembly report upsert returned no data")

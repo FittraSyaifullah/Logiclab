@@ -1,7 +1,7 @@
 import { type NextRequest, NextResponse } from "next/server"
 import { destroySession } from "@/lib/auth-service"
 
-export async function POST(request: NextRequest) {
+export async function POST(_: NextRequest) {
   try {
     console.log(`[AUTH] Signout request received`)
     await destroySession()
