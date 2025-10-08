@@ -290,7 +290,7 @@ function PersistentHeader({
               </div>
               <div className="text-left hidden md:block">
                 <div className="text-sm font-medium text-slate-900 dark:text-slate-100">{getDisplayName()}</div>
-                <div className="text-xs text-slate-500 dark:text-slate-400">Free plan</div>
+                <div className="text-xs text-slate-500 dark:text-slate-400">{isPaid ? "Paid plan" : "Free plan"}</div>
               </div>
               <ChevronDown className="h-4 w-4 text-slate-400" />
             </Button>
