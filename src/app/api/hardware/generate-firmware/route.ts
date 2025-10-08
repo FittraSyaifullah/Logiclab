@@ -1,5 +1,4 @@
 import { type NextRequest, NextResponse } from "next/server"
-import { generateText, aiModel } from "@/lib/openai"
 import { createSupabaseServerClient } from "@/lib/supabase/server"
 
 export async function POST(request: NextRequest) {
@@ -15,113 +14,25 @@ export async function POST(request: NextRequest) {
 
     const supabase = createSupabaseServerClient()
 
-    const microcontroller = projectData.microcontroller || "arduino"
-    let language = "C++"
-    let platform = "Arduino IDE"
-
-    if (microcontroller.toLowerCase().includes("raspberry")) {
-      language = "Python"
-      platform = "Raspberry Pi"
-    } else if (microcontroller.toLowerCase().includes("esp")) {
-      language = "C++"
-      platform = "Arduino IDE / PlatformIO"
+    const endpoint = process.env.SUPABASE_HARDWARE_GENERATE_FIRMWARE_URL
+    const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY
+    if (!endpoint || !serviceRoleKey) {
+      return NextResponse.json({ error: 'Function not configured' }, { status: 500 })
+    }
+    const efResp = await fetch(endpoint, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${serviceRoleKey}` },
+      body: JSON.stringify({ projectData, reportId: providedReportId }),
+    })
+    const efJson = await efResp.json()
+    if (!efResp.ok) {
+      return NextResponse.json({ error: efJson?.error || 'Generation failed' }, { status: efResp.status })
     }
 
-    const generateWithFallback = async () => {
-      try {
-        const { text } = await generateText({
-          model: aiModel,
-          system: `You are an AI engineer providing firmware code for hardware projects.
-
-Your role is to:
-1. Generate complete, working code for the specified microcontroller
-2. Include detailed comments explaining each section
-3. Specify the programming language and development environment
-4. Provide setup instructions and library requirements
-5. Include error handling and safety features
-6. Explain specific functions and their purposes
-
-Always specify the programming language at the top of your response. Different microcontrollers use different languages:
-- Arduino/ESP32/ESP8266: C++ (Arduino IDE)
-- Raspberry Pi: Python
-- STM32: C/C++
-- PIC: C
-
-Focus on clean, well-documented code that beginners can understand and modify.`,
-          prompt: `Project: ${projectData.description}
-Microcontroller: ${microcontroller}
-
-Generate complete firmware code for this hardware project.`,
-          temperature: 0.7,
-          maxTokens: 2000,
-        })
-        return text
-      } catch (error: unknown) {
-        console.log("Using fallback content due to API limitation")
-        throw error
-      }
-    }
-
-    const text = await generateWithFallback()
-
-    // Resolve target report: prefer provided reportId, else latest by project
-    let targetReportId: string | null = null
-    if (providedReportId) {
-      targetReportId = providedReportId
-    } else {
-      const { data: existingReport } = await supabase
-        .from('hardware_projects')
-        .select('id')
-        .eq('project_id', projectData.id)
-        .order('created_at', { ascending: false })
-        .limit(1)
-        .maybeSingle()
-      targetReportId = existingReport?.id ?? null
-    }
-
-    let reportData: { id: string } | null = null
+    const text = efJson.content as string
+    const targetReportId = efJson.reportId as string | null
+    let reportData: { id: string } | null = targetReportId ? { id: targetReportId } : null
     let reportError: unknown = null
-
-    if (targetReportId) {
-      // Update existing row
-      const result = await supabase
-        .from('hardware_projects')
-        .update({
-          firmware_code: {
-            content: text,
-            language,
-            platform,
-            libraries: ["Servo.h", "NewPing.h"],
-            codeLines: 85,
-          }
-        })
-        .eq('id', targetReportId)
-        .select()
-        .single()
-
-      reportData = result.data
-      reportError = result.error
-    } else {
-      // Create new row
-      const result = await supabase
-        .from('hardware_projects')
-        .insert({
-          project_id: projectData.id,
-          title: typeof projectData.title === 'string' ? projectData.title : 'Hardware Project',
-          firmware_code: {
-            content: text,
-            language,
-            platform,
-            libraries: ["Servo.h", "NewPing.h"],
-            codeLines: 85,
-          }
-        })
-        .select()
-        .single()
-
-      reportData = result.data
-      reportError = result.error
-    }
 
     if (reportError) {
       console.error("Failed to store firmware report:", reportError)
@@ -136,10 +47,10 @@ Generate complete firmware code for this hardware project.`,
     return NextResponse.json({
       content: text,
       reportId: reportData.id,
-      language,
-      platform,
-      libraries: ["Servo.h", "NewPing.h"],
-      codeLines: 85,
+      language: efJson.language,
+      platform: efJson.platform,
+      libraries: efJson.libraries ?? [],
+      codeLines: efJson.codeLines ?? 0,
     })
   } catch (error: unknown) {
     const errObj = error as { message?: string; stack?: string; cause?: unknown }

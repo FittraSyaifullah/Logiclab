@@ -14,64 +14,6 @@ interface JobPayload {
   title: string
 }
 
-// Credit model constants
-const CREDIT_COST_V0_SOFTWARE_GENERATION = 10
-
-type SupabaseClient = ReturnType<typeof createClient>
-
-interface UserCreditsRow {
-  user_id: string
-  balance_bigint: number
-  reserved_bigint?: number
-  paid_or_unpaid: boolean
-}
-
-async function getUserCredits(supabase: SupabaseClient, userId: string): Promise<UserCreditsRow | null> {
-  const { data } = await supabase
-    .from('user_credits')
-    .select('user_id, balance_bigint, reserved_bigint, paid_or_unpaid')
-    .eq('user_id', userId)
-    .single()
-  return (data as unknown as UserCreditsRow | null) ?? null
-}
-
-async function debitCreditsIfUnpaid(
-  supabase: SupabaseClient,
-  userId: string,
-  cost: number,
-  reason: string,
-  refId: string,
-): Promise<{ ok: true; balanceAfter: number } | { ok: false; error: string }> {
-  // Fetch latest balance, then attempt a guarded update
-  const current = await getUserCredits(supabase, userId)
-  if (!current) return { ok: false, error: 'User credits not found' }
-  if (current.paid_or_unpaid) {
-    return { ok: true, balanceAfter: current.balance_bigint }
-  }
-  if (Number(current.balance_bigint) < cost) {
-    return { ok: false, error: 'Insufficient credits' }
-  }
-
-  const newBalance = Number(current.balance_bigint) - cost
-  const { error: updateError } = await supabase
-    .from('user_credits')
-    .update({ balance_bigint: newBalance })
-    .eq('user_id', userId)
-  if (updateError) return { ok: false, error: updateError.message }
-
-  // Log transaction (best-effort)
-  await supabase.from('credit_transactions').insert({
-    user_id: userId,
-    change_bigint: -cost,
-    balance_after_bigint: newBalance,
-    type: 'debit',
-    reason,
-    ref_id: refId,
-  })
-
-  return { ok: true, balanceAfter: newBalance }
-}
-
 serve(async (req) => {
   // Handle CORS
   if (req.method === 'OPTIONS') {
@@ -84,19 +26,33 @@ serve(async (req) => {
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
     const supabase = createClient(supabaseUrl, supabaseServiceKey)
 
-    // Get job details from the payload (includes userId for authorization)
-    const parsed = await req.json() as JobPayload & { userId?: string }
-    const { jobId, projectId, prompt, title } = parsed
-    const userId = parsed.userId
+    // Get the authorization header token
+    const authHeader = req.headers.get('Authorization')!
+    const token = authHeader.replace('Bearer ', '')
 
-    if (!jobId || !projectId || !prompt || !userId) {
+    // Verify the user
+    const { data: { user } } = await supabase.auth.getUser(token)
+
+    if (!user) {
+      return new Response(
+        JSON.stringify({ error: 'Unauthorized' }),
+        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      )
+    }
+
+    console.log(`[EDGE] Processing v0 job for user: ${user.id}`)
+
+    // Get job details from the payload
+    const { jobId, projectId, prompt, title } = await req.json() as JobPayload
+
+    if (!jobId || !projectId || !prompt) {
       return new Response(
         JSON.stringify({ error: 'Missing required job parameters' }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       )
     }
 
-    console.log(`[EDGE] Job details: ${jobId}, ${projectId}, ${title}, user: ${userId}`)
+    console.log(`[EDGE] Job details: ${jobId}, ${projectId}, ${title}`)
 
     // Update job status to processing
     await supabase
@@ -109,52 +65,12 @@ serve(async (req) => {
 
     console.log(`[EDGE] Job status updated to processing`)
 
-    // Server-side credit gate (paid_or_unpaid takes precedence)
-    try {
-      const credits = await getUserCredits(supabase, userId)
-      if (!credits) {
-        console.error('[EDGE] No user_credits row found')
-        await supabase
-          .from('jobs')
-          .update({ status: 'failed', error: 'INSUFFICIENT_CREDITS: No credits record', finished_at: new Date().toISOString() })
-          .eq('id', jobId)
-        return new Response(
-          JSON.stringify({ error: 'INSUFFICIENT_CREDITS', message: 'No credits record found for user' }),
-          { status: 402, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-        )
-      }
-
-      if (!credits.paid_or_unpaid) {
-        if (Number(credits.balance_bigint) < CREDIT_COST_V0_SOFTWARE_GENERATION) {
-          console.error('[EDGE] Insufficient credits for v0 generation')
-          await supabase
-            .from('jobs')
-            .update({ status: 'failed', error: 'INSUFFICIENT_CREDITS: Need 10 credits for software generation', finished_at: new Date().toISOString() })
-            .eq('id', jobId)
-          return new Response(
-            JSON.stringify({ error: 'INSUFFICIENT_CREDITS', message: 'You do not have enough credits for software generation (10 required).' }),
-            { status: 402, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-          )
-        }
-      }
-    } catch (creditGateErr) {
-      console.error('[EDGE] Credit gate error', creditGateErr)
-      await supabase
-        .from('jobs')
-        .update({ status: 'failed', error: 'Credit check failed', finished_at: new Date().toISOString() })
-        .eq('id', jobId)
-      return new Response(
-        JSON.stringify({ error: 'CREDIT_CHECK_FAILED', message: 'Could not verify credits' }),
-        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      )
-    }
-
     // Get user's project to verify ownership and get v0_id
     const { data: project } = await supabase
       .from('projects')
       .select('v0_id')
       .eq('id', projectId)
-      .eq('owner_id', userId)
+      .eq('owner_id', user.id)
       .single()
 
     if (!project?.v0_id) {
@@ -237,8 +153,7 @@ serve(async (req) => {
 
         if (demoUrl) {
           // Extract assistant message
-          const messages = completedChat.messages as Array<{ role?: string; content?: string }> | undefined
-          assistantMessage = messages?.find((msg) => msg.role === 'assistant')?.content
+          assistantMessage = completedChat.messages?.find((msg: any) => msg.role === 'assistant')?.content
           console.log(`[EDGE] Demo URL found: ${demoUrl}`)
           break
         }
@@ -348,21 +263,6 @@ serve(async (req) => {
       .eq('id', jobId)
 
     console.log(`[EDGE] Job completed successfully: ${jobId}`)
-
-    // Post-success debit for unpaid users (do NOT deduct on earlier failures)
-    const creditsAfter = await getUserCredits(supabase, userId)
-    if (creditsAfter && !creditsAfter.paid_or_unpaid) {
-      const debit = await debitCreditsIfUnpaid(
-        supabase,
-        userId,
-        CREDIT_COST_V0_SOFTWARE_GENERATION,
-        'v0_software_generation',
-        jobId,
-      )
-      if (!debit.ok) {
-        console.warn('[EDGE] Post-success debit failed:', debit.error)
-      }
-    }
 
     return new Response(
       JSON.stringify({
