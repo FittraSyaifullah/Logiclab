@@ -11,6 +11,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel,
 import { Send, User, Loader2, Wrench, Monitor, ChevronLeft, ChevronRight, Box, FileText, Code, ChevronDown } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { useCreationStore } from "@/hooks/use-creation-store"
+import { useUserStore } from "@/hooks/use-user-store"
 import { useToast } from "@/hooks/use-toast"
 import type { Creation, HardwareReports } from "@/lib/types"
 
@@ -22,6 +23,7 @@ interface ChatSidebarProps {
 export function ChatSidebar({ onLogout, onSendMessage }: ChatSidebarProps) {
   const [isCollapsed, setIsCollapsed] = useState(false)
   const { creations, activeCreationId, updateCreation } = useCreationStore()
+  const { user, project } = useUserStore()
   const activeCreation = (creations ?? []).find((c) => c.id === activeCreationId)
 
   const [fallbackInput, setFallbackInput] = useState("")
@@ -40,7 +42,7 @@ export function ChatSidebar({ onLogout, onSendMessage }: ChatSidebarProps) {
   }
 
   const mode = activeCreation?.mode || (activeCreation?.softwareData ? "software" : "hardware")
-  const apiEndpoint = mode === "hardware" ? "/api/chat/hardware" : "/api/chat/software"
+  const apiEndpoint = mode === "hardware" ? "/api/hardware/chat" : "/api/chat/software"
   
   
 
@@ -109,13 +111,83 @@ export function ChatSidebar({ onLogout, onSendMessage }: ChatSidebarProps) {
     // For hardware mode or when onSendMessage is not available, use the API endpoint
 
     try {
+      const prepared = prepareChatBody() as any
+
+      if (mode === "hardware") {
+        // Map selectedScope into a routing target
+        const threeDLabels = ["3D Components", "Assembly & Parts", "Firmware & Code"] as const
+        const isPredefined = threeDLabels.includes(selectedScope as any)
+        const target = isPredefined
+          ? selectedScope === "3D Components"
+            ? { type: "3d-components" as const }
+            : selectedScope === "Assembly & Parts"
+            ? { type: "assembly-parts" as const }
+            : { type: "firmware-code" as const }
+          : { type: "3d-component" as const, componentId: prepared.components?.find((c: any) => c?.name === selectedScope)?.id, componentName: selectedScope }
+
+        const requestBody = {
+          projectId: project?.id || "",
+          creationId: activeCreation?.id || "",
+          userId: user?.id || "",
+          message: messageToSend,
+          target,
+          context: {
+            microcontroller: prepared.microcontroller,
+            components: (prepared.components || []).map((c: any) => ({ id: c.id, name: c.name })),
+            params: Object.fromEntries((prepared.customParams || []).map((p: any) => [p.key, p.value])),
+            creationTitle: prepared.creationTitle,
+            creationPrompt: prepared.creationPrompt,
+          },
+        }
+
+        const response = await fetch(apiEndpoint, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Accept: "application/json",
+          },
+          body: JSON.stringify(requestBody),
+        })
+
+        if (!response.ok) {
+          const errorText = await response.text()
+          let errorData
+          try {
+            errorData = JSON.parse(errorText)
+          } catch {
+            errorData = { error: errorText || "Unknown error" }
+          }
+          throw new Error(`HTTP ${response.status}: ${errorData.error || response.statusText}`)
+        }
+
+        const result = (await response.json()) as { [k: string]: unknown }
+        const aiResponse = (result["AI response"] as string) || "Changes applied."
+
+        const assistantMessage = {
+          id: (Date.now() + 1).toString(),
+          role: "assistant" as const,
+          content: aiResponse,
+        }
+        const finalMessages = [...fallbackMessages, assistantMessage]
+        if (activeCreation?.id) {
+          updateCreation(activeCreation.id, { ...activeCreation, chatHistory: finalMessages })
+        }
+
+        // Simple approach: reload to pick up DB-updated reports/models
+        if (typeof window !== "undefined") {
+          setTimeout(() => window.location.reload(), 500)
+        }
+        return
+      }
+
+      // default software branch below
       const requestBody = {
         messages: fallbackMessages.map((msg) => ({
           id: msg?.id || Date.now().toString(),
           role: msg?.role || "user",
           content: msg?.content || "",
         })),
-        ...prepareChatBody(),
+        ...prepared,
       }
 
       const response = await fetch(apiEndpoint, {
