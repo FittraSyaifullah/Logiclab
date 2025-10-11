@@ -1,18 +1,6 @@
 -- WARNING: This schema is for context only and is not meant to be run.
 -- Table order and constraints may not be valid for execution.
 
-CREATE TABLE public.api_keys (
-  id uuid NOT NULL DEFAULT gen_random_uuid(),
-  user_id uuid NOT NULL,
-  name text NOT NULL,
-  token_hash text NOT NULL,
-  scopes ARRAY DEFAULT '{}'::text[],
-  revoked boolean DEFAULT false,
-  created_at timestamp with time zone DEFAULT now(),
-  expires_at timestamp with time zone,
-  CONSTRAINT api_keys_pkey PRIMARY KEY (id),
-  CONSTRAINT api_keys_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.users(id)
-);
 CREATE TABLE public.business_reports (
   report_id uuid NOT NULL DEFAULT gen_random_uuid(),
   user_id uuid,
@@ -32,6 +20,16 @@ CREATE TABLE public.credit_transactions (
   created_at timestamp with time zone DEFAULT now(),
   CONSTRAINT credit_transactions_pkey PRIMARY KEY (id),
   CONSTRAINT credit_transactions_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.users(id)
+);
+CREATE TABLE public.hardware_messages (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  hardware_id uuid NOT NULL,
+  role text NOT NULL CHECK (role = ANY (ARRAY['user'::text, 'assistant'::text, 'system'::text])),
+  content text NOT NULL,
+  timestamp timestamp with time zone DEFAULT now(),
+  created_at timestamp with time zone DEFAULT now(),
+  CONSTRAINT hardware_messages_pkey PRIMARY KEY (id),
+  CONSTRAINT hardware_messages_hardware_id_fkey FOREIGN KEY (hardware_id) REFERENCES public.hardware_projects(id)
 );
 CREATE TABLE public.hardware_models (
   id uuid NOT NULL DEFAULT gen_random_uuid(),
