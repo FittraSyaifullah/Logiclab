@@ -1076,8 +1076,28 @@ function DashboardContent({ onLogout, initialSearchInput }: DashboardProps) {
           if (statusData.completed) {
             clearInterval(pollInterval)
 
-            // Refresh reports for current project
-            await loadHardwareReports(creationId)
+            // If a specific reportId is returned, fetch just that report to avoid stale selection
+            if (statusData.reportId) {
+              const { user, project } = useUserStore.getState()
+              if (user?.id && project?.id) {
+                // Clear stale reports before fetch to avoid flashing previous content
+                const current = useCreationStore.getState().creations.find((c) => c.id === creationId)
+                if (current) {
+                  updateCreation(creationId, { ...current, hardwareReports: {} })
+                }
+                const reportsResp = await fetch(`/api/hardware/reports?projectId=${project.id}&userId=${user.id}&reportId=${statusData.reportId}`, { cache: 'no-store' })
+                if (reportsResp.ok) {
+                  const fresh = await reportsResp.json()
+                  const latest = useCreationStore.getState().creations.find((c) => c.id === creationId)
+                  if (latest) {
+                    updateCreation(creationId, { ...latest, hardwareReports: fresh.reports })
+                  }
+                }
+              }
+            } else {
+              // Fallback: Refresh latest reports for current project
+              await loadHardwareReports(creationId)
+            }
 
             updateCreation(creationId, {
               ...currentCreation,

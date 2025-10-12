@@ -50,6 +50,7 @@ export async function GET(request: NextRequest) {
         .select('*')
         .eq('project_id', projectId)
         .order('created_at', { ascending: false })
+        .order('id', { ascending: false })
         .limit(10)
       if (reportsError) {
         console.error('[HARDWARE] Failed to fetch reports:', reportsError)

@@ -26,6 +26,7 @@ export async function GET(request: NextRequest, context: { params: Promise<{ job
     if (job.status === "completed") {
       const softwareData = job.result?.software
       const hardwareResult = job.kind === "hardware-model-component" ? job.result ?? {} : null
+      const hardwareInitialReportId = job.kind === 'hardware_initial_generation' ? job.result?.reportId : undefined
 
       return NextResponse.json({
         ...basePayload,
@@ -47,6 +48,7 @@ export async function GET(request: NextRequest, context: { params: Promise<{ job
               parameters: hardwareResult.parameters,
             }
           : null,
+        reportId: hardwareInitialReportId ?? null,
       })
     }
 
