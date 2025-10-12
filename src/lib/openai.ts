@@ -1,7 +1,7 @@
 // OpenAI integration utilities for LogicLab
 // This calls the actual OpenAI API
 
-export const aiModel = "gpt-4o-mini"
+export const aiModel = "gpt-4"
 
 export async function generateText({
   model,
@@ -58,7 +58,7 @@ export async function generateStructuredJson({
   system,
   prompt,
   schema,
-  model = "gpt-4o-mini",
+  model = "gpt-4.1",
   temperature = 0.3,
   maxOutputTokens = 4000,
 }: {
