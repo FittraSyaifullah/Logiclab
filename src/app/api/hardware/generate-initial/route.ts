@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from "next/server"
 import { createSupabaseServerClient } from "@/lib/supabase/server"
-
-const HARDWARE_FUNCTION_ENDPOINT = process.env.SUPABASE_HARDWARE_FUNCTION_URL
-const SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY
+import { generateStructuredJson } from "@/lib/openai"
+import { readFileSync } from "node:fs"
+import { resolve } from "node:path"
 
 export const maxDuration = 60
 
@@ -34,49 +34,139 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Project not found' }, { status: 404 })
     }
 
-    // Create job (pending)
-    const { data: job, error: jobError } = await supabase
-      .from('jobs')
+    // Synchronous mode: no job creation
+
+    // Load master system prompt and derive JSON Schema from example shape
+    const systemPromptPath = resolve(process.cwd(), 'reference', 'master system prompt', 'master system prompt.md')
+    const schemaPath = resolve(process.cwd(), 'reference', 'master json schema', 'ai_output.json')
+    const systemPrompt = readFileSync(systemPromptPath, 'utf8')
+    const exampleJson = JSON.parse(readFileSync(schemaPath, 'utf8')) as Record<string, unknown>
+
+    // Convert example (with "string" placeholders) into a strict JSON Schema
+    const exampleToSchema = (value: unknown): Record<string, unknown> => {
+      if (typeof value === 'string') {
+        return { type: 'string' }
+      }
+      if (Array.isArray(value)) {
+        const first = value.length > 0 ? value[0] : {}
+        return { type: 'array', items: exampleToSchema(first) }
+      }
+      if (value && typeof value === 'object') {
+        const props: Record<string, unknown> = {}
+        const required: string[] = []
+        for (const [k, v] of Object.entries(value as Record<string, unknown>)) {
+          props[k] = exampleToSchema(v)
+          required.push(k)
+        }
+        return { type: 'object', properties: props, required, additionalProperties: false }
+      }
+      return { type: 'string' }
+    }
+
+    const strictSchema = exampleToSchema(exampleJson)
+
+    // Generate and store synchronously
+    const { json } = await generateStructuredJson({
+      system: systemPrompt,
+      prompt: `Project Title: ${title}\n\nUser Description: ${prompt}\n\nReturn the required hardware output JSON strictly following the provided schema.`,
+      schema: strictSchema,
+    })
+
+    const resultObj = json as {
+      project?: string
+      description?: string
+      reports?: {
+        '3DComponents'?: { components?: unknown[]; generalNotes?: string }
+        'AssemblyAndParts'?: Record<string, unknown>
+        'FirmwareAndCode'?: Record<string, unknown>
+      }
+    }
+
+    const threeD = resultObj?.reports?.['3DComponents']
+    const assembly = resultObj?.reports?.['AssemblyAndParts']
+    const firmware = resultObj?.reports?.['FirmwareAndCode']
+
+    const assemblyContent = assembly ? [
+      (assembly as { overview?: string }).overview || '',
+      (assembly as { assemblyInstructions?: string }).assemblyInstructions || '',
+      (assembly as { safetyChecklist?: string }).safetyChecklist || ''
+    ].filter(Boolean).join('\n\n') : ''
+
+    const firmwareContent = firmware ? [
+      (firmware as { explanation?: string }).explanation || '',
+      (firmware as { code?: string }).code || '',
+      (firmware as { improvementSuggestions?: string }).improvementSuggestions || ''
+    ].filter(Boolean).join('\n\n') : ''
+
+    const { data: reportRow, error: insertErr } = await supabase
+      .from('hardware_projects')
       .insert({
-        user_id: userId,
         project_id: projectId,
-        kind: 'hardware_initial_generation',
-        status: 'pending',
-        input: { title, prompt, projectId },
+        title: title || resultObj?.project || 'Hardware Project',
+        '3d_components': threeD ? {
+          project: resultObj?.project || title,
+          description: resultObj?.description || prompt,
+          components: Array.isArray((threeD as { components?: unknown[] }).components) ? (threeD as { components: unknown[] }).components : [],
+          generalNotes: typeof (threeD as { generalNotes?: unknown }).generalNotes === 'string' ? (threeD as { generalNotes?: string }).generalNotes : '',
+        } : null,
+        assembly_parts: assembly ? {
+          content: assemblyContent,
+          partsCount: Array.isArray((assembly as { partsList?: unknown }).partsList) ? (assembly as { partsList: unknown[] }).partsList.length : 0,
+          estimatedTime: "2-3 hours",
+          difficultyLevel: "Beginner",
+        } : null,
+        firmware_code: firmware ? {
+          content: firmwareContent,
+          language: (firmware as { language?: string }).language || 'C++',
+          platform: (firmware as { microcontroller?: string }).microcontroller || 'Arduino IDE',
+          libraries: [],
+          codeLines: firmwareContent.split('\n').length,
+        } : null,
       })
       .select()
       .single()
 
-    if (jobError || !job) {
-      return NextResponse.json({ error: 'Failed to create job' }, { status: 500 })
+    if (insertErr || !reportRow) {
+      return NextResponse.json({ error: 'Failed to store report' }, { status: 500 })
     }
 
-    // Trigger Supabase Edge Function to process asynchronously (fire-and-forget)
-    if (HARDWARE_FUNCTION_ENDPOINT && SERVICE_ROLE_KEY) {
-      try {
-        console.log(`[HARDWARE] Triggering hardware-processor function at ${HARDWARE_FUNCTION_ENDPOINT}`)
-        const functionResponse = await fetch(HARDWARE_FUNCTION_ENDPOINT, {
-          method: "POST",
-          headers: {
-            Authorization: `Bearer ${SERVICE_ROLE_KEY}`,
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({}),
-        })
-        if (functionResponse.ok) {
-          const result = await functionResponse.json().catch(() => ({}))
-          console.log(`[HARDWARE] Successfully triggered hardware-processor:`, result)
-        } else {
-          console.error(`[HARDWARE] Hardware-processor function returned ${functionResponse.status}:`, await functionResponse.text())
-        }
-      } catch (functionError) {
-        console.error("[HARDWARE] Failed to trigger hardware-processor function", functionError)
+    const uiReports: Record<string, unknown> = {}
+    if (threeD) {
+      uiReports['3d-components'] = {
+        content: [resultObj?.description || '', typeof (threeD as { generalNotes?: string })?.generalNotes === 'string' ? (threeD as { generalNotes?: string })?.generalNotes : ''].filter(Boolean).join('\n\n'),
+        components: Array.isArray((threeD as { components?: unknown[] }).components) ? (threeD as { components: Array<Record<string, unknown>> }).components.map((c) => ({
+          name: (c?.component as string) || '',
+          description: (c?.description as string) || '',
+          printTime: (c?.printTime as string) || '',
+          material: (c?.material as string) || '',
+          supports: (c?.supports as string) || '',
+          prompt: (c?.promptFor3DGeneration as string) || '',
+          notes: [c?.printSpecifications as string, c?.assemblyNotes as string].filter(Boolean).join('\n\n'),
+        })) : [],
+        reportId: reportRow.id,
       }
-    } else {
-      console.warn("[HARDWARE] Missing SUPABASE_HARDWARE_FUNCTION_URL or SUPABASE_SERVICE_ROLE_KEY - function not triggered")
+    }
+    if (assembly) {
+      uiReports['assembly-parts'] = {
+        content: assemblyContent,
+        partsCount: Array.isArray((assembly as { partsList?: unknown }).partsList) ? (assembly as { partsList: unknown[] }).partsList.length : 0,
+        estimatedTime: '2-3 hours',
+        difficultyLevel: 'Beginner',
+        reportId: reportRow.id,
+      }
+    }
+    if (firmware) {
+      uiReports['firmware-code'] = {
+        content: firmwareContent,
+        language: (firmware as { language?: string }).language || 'C++',
+        platform: (firmware as { microcontroller?: string }).microcontroller || 'Arduino IDE',
+        libraries: [],
+        codeLines: firmwareContent.split('\n').length,
+        reportId: reportRow.id,
+      }
     }
 
-    return NextResponse.json({ success: true, jobId: job.id })
+    return NextResponse.json({ success: true, reportId: reportRow.id, reports: uiReports }, { headers: { 'Cache-Control': 'no-store' } })
   } catch (error: unknown) {
     console.error('[HARDWARE INITIAL] Error:', error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })

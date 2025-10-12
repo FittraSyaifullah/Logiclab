@@ -1061,62 +1061,22 @@ function DashboardContent({ onLogout, initialSearchInput }: DashboardProps) {
         }),
       })
 
-      const payload = await response.json().catch(() => ({})) as { success?: boolean; jobId?: string; error?: string }
-      if (!response.ok || !payload?.success || !payload?.jobId) {
-        throw new Error(payload?.error || `Failed to enqueue hardware generation`)
+      const payload = await response.json().catch(() => ({})) as { success?: boolean; reportId?: string; reports?: HardwareReports; error?: string }
+      if (!response.ok || !payload?.success || !payload?.reports) {
+        throw new Error(payload?.error || `Failed to generate hardware report`)
       }
 
-      const jobId = payload.jobId
+      // Clear and set new reports immediately (no polling)
+      const latest = useCreationStore.getState().creations.find((c) => c.id === creationId)
+      if (latest) {
+        updateCreation(creationId, {
+          ...latest,
+          hardwareData: { isGenerating: false, reportsGenerated: true },
+          hardwareReports: payload.reports as HardwareReports,
+        })
+      }
 
-      // Start polling for job completion similar to software flow
-      const pollInterval = setInterval(async () => {
-        try {
-          const statusResponse = await fetch(`/api/jobs/${jobId}`)
-          const statusData = await statusResponse.json()
-          if (statusData.completed) {
-            clearInterval(pollInterval)
-
-            // If a specific reportId is returned, fetch just that report to avoid stale selection
-            if (statusData.reportId) {
-              const { user, project } = useUserStore.getState()
-              if (user?.id && project?.id) {
-                // Clear stale reports before fetch to avoid flashing previous content
-                const current = useCreationStore.getState().creations.find((c) => c.id === creationId)
-                if (current) {
-                  updateCreation(creationId, { ...current, hardwareReports: {} })
-                }
-                const reportsResp = await fetch(`/api/hardware/reports?projectId=${project.id}&userId=${user.id}&reportId=${statusData.reportId}`, { cache: 'no-store' })
-                if (reportsResp.ok) {
-                  const fresh = await reportsResp.json()
-                  const latest = useCreationStore.getState().creations.find((c) => c.id === creationId)
-                  if (latest) {
-                    updateCreation(creationId, { ...latest, hardwareReports: fresh.reports })
-                  }
-                }
-              }
-            } else {
-              // Fallback: Refresh latest reports for current project
-              await loadHardwareReports(creationId)
-            }
-
-            updateCreation(creationId, {
-              ...currentCreation,
-              hardwareData: { isGenerating: false, reportsGenerated: true },
-            })
-
-            toast({ title: 'Hardware Generation Complete', description: 'Your reports are ready.' })
-          } else if (statusData.status === 'failed') {
-            clearInterval(pollInterval)
-            updateCreation(creationId, {
-              ...currentCreation,
-              hardwareData: { isGenerating: false, reportsGenerated: false },
-            })
-            toast({ title: 'Hardware Generation Failed', description: statusData.error || 'Job failed', variant: 'destructive' })
-          }
-        } catch {
-          // keep polling
-        }
-      }, 5000)
+      toast({ title: 'Hardware Generation Complete', description: 'Your reports are ready.' })
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Unknown error'
       toast({ title: 'Failed to start hardware generation', description: message, variant: 'destructive' })
@@ -1141,25 +1101,7 @@ function DashboardContent({ onLogout, initialSearchInput }: DashboardProps) {
       },
     })
 
-    // Wait for all generations to complete
-    setTimeout(async () => {
-      // Update creation with hardware data
-      updateCreation(creationId, {
-        ...currentCreation,
-        hardwareData: {
-          isGenerating: false,
-          reportsGenerated: true,
-        },
-      })
-
-      toast({
-        title: "Hardware Generation Complete",
-        description: "Your 3D components, assembly instructions, and firmware code are ready!",
-      })
-
-      // Load hardware reports
-      await loadHardwareReports(creationId)
-    }, 10000) // Wait 10 seconds for generation to complete
+    // No timeout/polling needed in sync mode
   }
 
   const loadHardwareReports = async (creationId: string) => {
