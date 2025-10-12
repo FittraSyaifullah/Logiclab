@@ -52,3 +52,76 @@ export async function generateText({
     throw new Error(`OpenAI API error: ${message}`)
   }
 }
+
+export async function generateStructuredJson({
+  system,
+  prompt,
+  schema,
+  model = "gpt-4.1-mini",
+  temperature = 0.3,
+  maxOutputTokens = 4000,
+}: {
+  system: string
+  prompt: string
+  schema: Record<string, unknown>
+  model?: string
+  temperature?: number
+  maxOutputTokens?: number
+}) {
+  try {
+    console.log(`[OPENAI] Calling Responses API with structured output model: ${model}`)
+
+    const response = await fetch('https://api.openai.com/v1/responses', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${process.env.OPENAI_API_KEY}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        model,
+        temperature,
+        max_output_tokens: maxOutputTokens,
+        input: [
+          { role: 'system', content: [{ type: 'text', text: system }] },
+          { role: 'user', content: [{ type: 'text', text: prompt }] },
+        ],
+        text: {
+          format: {
+            type: 'json_schema',
+            json_schema: {
+              name: 'HardwareOutput',
+              schema,
+              strict: true,
+            },
+          },
+        },
+      }),
+    })
+
+    if (!response.ok) {
+      const errorText = await response.text()
+      console.error(`[OPENAI] Responses API error: ${response.status} - ${errorText}`)
+      throw new Error(`OpenAI API error: ${response.status} - ${errorText}`)
+    }
+
+    const data = await response.json()
+    const outputText: string | undefined = data?.output?.[0]?.content?.[0]?.text || data?.output_text
+    if (!outputText) {
+      throw new Error('Structured output missing text payload')
+    }
+
+    let parsed: unknown
+    try {
+      parsed = JSON.parse(outputText)
+    } catch (e) {
+      console.error('[OPENAI] Failed to parse structured JSON:', e, outputText?.slice(0, 200))
+      throw new Error('Failed to parse structured JSON output')
+    }
+
+    return { json: parsed }
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : String(error)
+    console.error('[OPENAI] Error calling structured Responses API:', error)
+    throw new Error(`OpenAI API error: ${message}`)
+  }
+}

@@ -1048,130 +1048,63 @@ function DashboardContent({ onLogout, initialSearchInput }: DashboardProps) {
 
     
 
-    // Create project data for hardware generation
-    const projectData = {
-      id: project.id,
-      title: currentCreation.title,
-      description: currentCreation.prompt,
-      userId: user?.id,
-      v0_id: project.v0_id,
-    }
+    // Enqueue a single initial hardware generation job
+    try {
+      const response = await fetch('/api/hardware/generate-initial', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          title: currentCreation.title,
+          prompt: currentCreation.prompt,
+          projectId: project.id,
+          userId: user?.id,
+        }),
+      })
 
-    // Generate hardware specifications directly
-    const jobKinds = ['3d', 'assembly', 'firmware']
+      const payload = await response.json().catch(() => ({})) as { success?: boolean; jobId?: string; error?: string }
+      if (!response.ok || !payload?.success || !payload?.jobId) {
+        throw new Error(payload?.error || `Failed to enqueue hardware generation`)
+      }
 
-    for (const jobKind of jobKinds) {
-      try {
+      const jobId = payload.jobId
 
-        // Call the generation endpoint directly
-        const endpoint = `/api/hardware/generate-${jobKind}`
-        const generationResponse = await fetch(endpoint, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ projectData }),
-        })
+      // Start polling for job completion similar to software flow
+      const pollInterval = setInterval(async () => {
+        try {
+          const statusResponse = await fetch(`/api/jobs/${jobId}`)
+          const statusData = await statusResponse.json()
+          if (statusData.completed) {
+            clearInterval(pollInterval)
 
-        if (!generationResponse.ok) {
-          const errorData = await generationResponse.json().catch(() => ({ error: "Unknown error" }))
-          throw new Error(errorData.error || `HTTP ${generationResponse.status}: Generation failed`)
-        }
-
-        const generationData = await generationResponse.json()
-        // Persist latest reportId in creation for reuse
-        if (typeof generationData?.reportId === 'string') {
-          const latest = useCreationStore.getState().creations.find((c) => c.id === creationId)
-          if (latest) {
-            const existingReports = latest.hardwareReports ?? {}
-            const updatedReports: HardwareReports = { ...existingReports }
-
-            if (jobKind === '3d') {
-              updatedReports['3d-components'] = {
-                ...(existingReports['3d-components'] ?? {}),
-                reportId: generationData.reportId,
-              }
-            } else if (jobKind === 'assembly') {
-              updatedReports['assembly-parts'] = {
-                ...(existingReports['assembly-parts'] ?? {}),
-                reportId: generationData.reportId,
-              }
-            } else {
-              updatedReports['firmware-code'] = {
-                ...(existingReports['firmware-code'] ?? {}),
-                reportId: generationData.reportId,
-              }
-            }
+            // Refresh reports for current project
+            await loadHardwareReports(creationId)
 
             updateCreation(creationId, {
-              ...latest,
-              hardwareReports: updatedReports,
+              ...currentCreation,
+              hardwareData: { isGenerating: false, reportsGenerated: true },
             })
+
+            toast({ title: 'Hardware Generation Complete', description: 'Your reports are ready.' })
+          } else if (statusData.status === 'failed') {
+            clearInterval(pollInterval)
+            updateCreation(creationId, {
+              ...currentCreation,
+              hardwareData: { isGenerating: false, reportsGenerated: false },
+            })
+            toast({ title: 'Hardware Generation Failed', description: statusData.error || 'Job failed', variant: 'destructive' })
           }
-          // Immediately add to hover-sidebar list if it's a newly inserted hardware project (primary 3d pass)
-          if (jobKind === '3d' && project?.id) {
-            const { reportsList, setReportsList } = useHardwareStore.getState()
-            if (!reportsList.some((i) => i.reportId === generationData.reportId)) {
-              setReportsList([
-                {
-                  reportId: generationData.reportId as string,
-                  projectId: project.id as string,
-                  title: latest?.title || currentCreation.title || 'Hardware Project',
-                  createdAt: new Date().toISOString(),
-                },
-                ...reportsList,
-              ])
-            }
-          }
+        } catch {
+          // keep polling
         }
-
-        // Create a job record for tracking
-        if (!user || !user.id) {
-          throw new Error('Missing user for job insert')
-        }
-        const supabase = createSupabaseClient()
-        const { error: jobError } = await supabase
-          .from('jobs')
-          .insert({
-            user_id: user.id,
-            project_id: project.id,
-            kind: `${jobKind}-components`,
-            status: 'completed',
-            priority: 50,
-            input: {
-              projectData,
-              generationType: 'hardware',
-              timestamp: new Date().toISOString(),
-            },
-            result: {
-              success: true,
-              reportId: generationData.reportId,
-              content: generationData.content,
-              timestamp: new Date().toISOString(),
-            },
-            finished_at: new Date().toISOString(),
-          })
-
-        if (jobError) {
-          // Don't throw here - continue with the process
-        }
-
-      } catch (error: unknown) {
-        const errObj = error as { message?: string; stack?: string; cause?: unknown }
-
-        // Check if it's an OpenAI API error
-        if (typeof errObj?.message === 'string' && errObj.message.includes('OpenAI API')) {
-          toast({
-            title: `OpenAI API Error for ${jobKind === '3d' ? '3D components' : jobKind === 'assembly' ? 'assembly' : 'firmware'}`,
-            description: errObj.message,
-            variant: "destructive",
-          })
-        } else {
-          toast({
-            title: `Failed to generate ${jobKind === '3d' ? '3D components' : jobKind === 'assembly' ? 'assembly' : 'firmware'}`,
-            description: errObj?.message || "Unknown error occurred",
-            variant: "destructive",
-          })
-        }
-      }
+      }, 5000)
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Unknown error'
+      toast({ title: 'Failed to start hardware generation', description: message, variant: 'destructive' })
+      updateCreation(creationId, {
+        ...currentCreation,
+        hardwareData: { isGenerating: false, reportsGenerated: false },
+      })
+      return
     }
 
     // Show initial toast
