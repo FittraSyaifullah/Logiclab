@@ -1,12 +1,11 @@
 "use client"
 
 import type React from "react"
-import { useMemo, useState } from "react"
+import { useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Badge } from "@/components/ui/badge"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { Send, User, Loader2, Wrench, Monitor, ChevronLeft, ChevronRight, Box, FileText, Code, ChevronDown } from "lucide-react"
 import { cn } from "@/lib/utils"
@@ -14,6 +13,36 @@ import { useCreationStore } from "@/hooks/use-creation-store"
 import { useUserStore } from "@/hooks/use-user-store"
 import { useToast } from "@/hooks/use-toast"
 import type { Creation, HardwareReports } from "@/lib/types"
+
+// Types for prepared request bodies
+type ThreeDLabel = "3D Components" | "Assembly & Parts" | "Firmware & Code"
+
+interface SoftwarePreparedBody {
+  creationId: string
+  creationTitle: string
+  creationPrompt: string
+  chatId: string
+}
+
+interface HardwarePreparedBody {
+  creationId: string
+  creationTitle: string
+  creationPrompt: string
+  scope: string
+  microcontroller: string
+  components: Array<{ id: string; name: string; prompt: string; description: string }>
+  customParams: Array<{
+    key: string
+    label: string
+    type: "number" | "string" | "boolean"
+    value: number | string | boolean
+    min: number
+    max: number
+    step: number
+  }>
+}
+
+type PreparedBody = SoftwarePreparedBody | HardwarePreparedBody
 
 interface ChatSidebarProps {
   onLogout: () => void
@@ -46,7 +75,7 @@ export function ChatSidebar({ onLogout, onSendMessage }: ChatSidebarProps) {
   
   
 
-  const prepareChatBody = () => {
+  const prepareChatBody = (): PreparedBody => {
     const safeCreation = activeCreation || {} as Partial<Creation>
 
     if (mode === "software") {
@@ -58,7 +87,7 @@ export function ChatSidebar({ onLogout, onSendMessage }: ChatSidebarProps) {
       }
     }
 
-    const bodyData = {
+    const bodyData: HardwarePreparedBody = {
       creationId: safeCreation.id || "",
       creationTitle: safeCreation.title || "Untitled Project",
       creationPrompt: safeCreation.prompt || "",
@@ -111,19 +140,26 @@ export function ChatSidebar({ onLogout, onSendMessage }: ChatSidebarProps) {
     // For hardware mode or when onSendMessage is not available, use the API endpoint
 
     try {
-      const prepared = prepareChatBody() as any
+      const prepared = prepareChatBody()
 
       if (mode === "hardware") {
         // Map selectedScope into a routing target
         const threeDLabels = ["3D Components", "Assembly & Parts", "Firmware & Code"] as const
-        const isPredefined = threeDLabels.includes(selectedScope as any)
+        const isPredefined = (threeDLabels as readonly string[]).includes(selectedScope)
         const target = isPredefined
           ? selectedScope === "3D Components"
             ? { type: "3d-components" as const }
             : selectedScope === "Assembly & Parts"
             ? { type: "assembly-parts" as const }
             : { type: "firmware-code" as const }
-          : { type: "3d-component" as const, componentId: prepared.components?.find((c: any) => c?.name === selectedScope)?.id, componentName: selectedScope }
+          : {
+              type: "3d-component" as const,
+              componentId:
+                "components" in prepared
+                  ? prepared.components.find((c) => c.name === selectedScope)?.id
+                  : undefined,
+              componentName: selectedScope,
+            }
 
         const requestBody = {
           projectId: project?.id || "",
@@ -132,9 +168,19 @@ export function ChatSidebar({ onLogout, onSendMessage }: ChatSidebarProps) {
           message: messageToSend,
           target,
           context: {
-            microcontroller: prepared.microcontroller,
-            components: (prepared.components || []).map((c: any) => ({ id: c.id, name: c.name })),
-            params: Object.fromEntries((prepared.customParams || []).map((p: any) => [p.key, p.value])),
+            microcontroller: ("microcontroller" in prepared ? prepared.microcontroller : ""),
+            components:
+              "components" in prepared
+                ? prepared.components.map((c) => ({ id: c.id, name: c.name }))
+                : [],
+            params: (() => {
+              const empty: Record<string, number | string | boolean> = {}
+              if ("customParams" in prepared) {
+                const entries = prepared.customParams.map((p) => [p.key, p.value] as const)
+                return Object.fromEntries(entries) as Record<string, number | string | boolean>
+              }
+              return empty
+            })(),
             creationTitle: prepared.creationTitle,
             creationPrompt: prepared.creationPrompt,
           },

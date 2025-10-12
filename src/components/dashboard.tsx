@@ -1048,7 +1048,7 @@ function DashboardContent({ onLogout, initialSearchInput }: DashboardProps) {
 
     
 
-    // Enqueue a single initial hardware generation job
+    // Synchronous initial hardware generation
     try {
       const response = await fetch('/api/hardware/generate-initial', {
         method: 'POST',
@@ -1061,18 +1061,22 @@ function DashboardContent({ onLogout, initialSearchInput }: DashboardProps) {
         }),
       })
 
-      const payload = await response.json().catch(() => ({})) as { success?: boolean; reportId?: string; reports?: HardwareReports; error?: string }
+      const payload = await response.json().catch(() => ({})) as { success?: boolean; reports?: Record<string, unknown>; reportId?: string; error?: string }
       if (!response.ok || !payload?.success || !payload?.reports) {
-        throw new Error(payload?.error || `Failed to generate hardware report`)
+        throw new Error(payload?.error || `Hardware generation failed`)
       }
 
-      // Clear and set new reports immediately (no polling)
+      // Clear stale then set new reports immediately
+      const curr = useCreationStore.getState().creations.find((c) => c.id === creationId)
+      if (curr) {
+        updateCreation(creationId, { ...curr, hardwareReports: {} })
+      }
       const latest = useCreationStore.getState().creations.find((c) => c.id === creationId)
       if (latest) {
         updateCreation(creationId, {
           ...latest,
-          hardwareData: { isGenerating: false, reportsGenerated: true },
           hardwareReports: payload.reports as HardwareReports,
+          hardwareData: { isGenerating: false, reportsGenerated: true },
         })
       }
 
@@ -1101,7 +1105,7 @@ function DashboardContent({ onLogout, initialSearchInput }: DashboardProps) {
       },
     })
 
-    // No timeout/polling needed in sync mode
+    // No waiting/polling in synchronous mode
   }
 
   const loadHardwareReports = async (creationId: string) => {

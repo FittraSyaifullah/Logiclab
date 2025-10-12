@@ -34,7 +34,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Project not found' }, { status: 404 })
     }
 
-    // Synchronous mode: no job creation
+    // Synchronous mode: no jobs; generate immediately and return UI-ready payload
 
     // Load master system prompt and derive JSON Schema from example shape
     const systemPromptPath = resolve(process.cwd(), 'reference', 'master system prompt', 'master system prompt.md')
@@ -65,13 +65,14 @@ export async function POST(request: NextRequest) {
 
     const strictSchema = exampleToSchema(exampleJson)
 
-    // Generate and store synchronously
     const { json } = await generateStructuredJson({
       system: systemPrompt,
       prompt: `Project Title: ${title}\n\nUser Description: ${prompt}\n\nReturn the required hardware output JSON strictly following the provided schema.`,
       schema: strictSchema,
     })
 
+    // Persist into hardware_projects using existing columns used by UI
+    // json shape: { project, description, reports: { 3DComponents, AssemblyAndParts, FirmwareAndCode } }
     const resultObj = json as {
       project?: string
       description?: string
@@ -86,6 +87,7 @@ export async function POST(request: NextRequest) {
     const assembly = resultObj?.reports?.['AssemblyAndParts']
     const firmware = resultObj?.reports?.['FirmwareAndCode']
 
+    // Build assembly and firmware content for UI
     const assemblyContent = assembly ? [
       (assembly as { overview?: string }).overview || '',
       (assembly as { assemblyInstructions?: string }).assemblyInstructions || '',
@@ -98,6 +100,7 @@ export async function POST(request: NextRequest) {
       (firmware as { improvementSuggestions?: string }).improvementSuggestions || ''
     ].filter(Boolean).join('\n\n') : ''
 
+    // Insert
     const { data: reportRow, error: insertErr } = await supabase
       .from('hardware_projects')
       .insert({
@@ -106,14 +109,14 @@ export async function POST(request: NextRequest) {
         '3d_components': threeD ? {
           project: resultObj?.project || title,
           description: resultObj?.description || prompt,
-          components: Array.isArray((threeD as { components?: unknown[] }).components) ? (threeD as { components: unknown[] }).components : [],
-          generalNotes: typeof (threeD as { generalNotes?: unknown }).generalNotes === 'string' ? (threeD as { generalNotes?: string }).generalNotes : '',
+          components: Array.isArray((threeD as { components?: unknown[] }).components) ? (threeD as { components?: unknown[] }).components : [],
+          generalNotes: typeof (threeD as { generalNotes?: string }).generalNotes === 'string' ? (threeD as { generalNotes?: string }).generalNotes as string : '',
         } : null,
         assembly_parts: assembly ? {
           content: assemblyContent,
-          partsCount: Array.isArray((assembly as { partsList?: unknown }).partsList) ? (assembly as { partsList: unknown[] }).partsList.length : 0,
-          estimatedTime: "2-3 hours",
-          difficultyLevel: "Beginner",
+          partsCount: Array.isArray((assembly as { partsList?: unknown[] }).partsList) ? (assembly as { partsList: unknown[] }).partsList.length : 0,
+          estimatedTime: '2-3 hours',
+          difficultyLevel: 'Beginner',
         } : null,
         firmware_code: firmware ? {
           content: firmwareContent,
@@ -126,33 +129,36 @@ export async function POST(request: NextRequest) {
       .select()
       .single()
 
-    if (insertErr || !reportRow) {
+    if (insertErr) {
       return NextResponse.json({ error: 'Failed to store report' }, { status: 500 })
     }
 
+    // UI-ready payload mirroring reports API transform
     const uiReports: Record<string, unknown> = {}
     if (threeD) {
-      uiReports['3d-components'] = {
-        content: [resultObj?.description || '', typeof (threeD as { generalNotes?: string })?.generalNotes === 'string' ? (threeD as { generalNotes?: string })?.generalNotes : ''].filter(Boolean).join('\n\n'),
-        components: Array.isArray((threeD as { components?: unknown[] }).components) ? (threeD as { components: Array<Record<string, unknown>> }).components.map((c) => ({
-          name: (c?.component as string) || '',
-          description: (c?.description as string) || '',
-          printTime: (c?.printTime as string) || '',
-          material: (c?.material as string) || '',
-          supports: (c?.supports as string) || '',
-          prompt: (c?.promptFor3DGeneration as string) || '',
-          notes: [c?.printSpecifications as string, c?.assemblyNotes as string].filter(Boolean).join('\n\n'),
-        })) : [],
-        reportId: reportRow.id,
-      }
+      const descriptionText = typeof (resultObj?.description ?? '') === 'string' ? (resultObj?.description as string) : ''
+      const notesText = typeof ((threeD as { generalNotes?: string }).generalNotes ?? '') === 'string' ? (threeD as { generalNotes?: string }).generalNotes as string : ''
+      const content = [descriptionText, notesText].filter(Boolean).join('\n\n')
+      const mappedComponents = Array.isArray((threeD as { components?: Array<Record<string, unknown>> }).components)
+        ? ((threeD as { components?: Array<Record<string, unknown>> }).components as Array<Record<string, unknown>>).map((c) => ({
+            name: (c?.component as string) ?? '',
+            description: (c?.description as string) ?? '',
+            printTime: (c?.printTime as string) ?? '',
+            material: (c?.material as string) ?? '',
+            supports: (c?.supports as string) ?? '',
+            prompt: (c?.promptFor3DGeneration as string) ?? '',
+            notes: [c?.printSpecifications as string, c?.assemblyNotes as string].filter(Boolean).join('\n\n'),
+          }))
+        : []
+      uiReports['3d-components'] = { content, components: mappedComponents, reportId: reportRow?.id }
     }
     if (assembly) {
       uiReports['assembly-parts'] = {
         content: assemblyContent,
-        partsCount: Array.isArray((assembly as { partsList?: unknown }).partsList) ? (assembly as { partsList: unknown[] }).partsList.length : 0,
+        partsCount: Array.isArray((assembly as { partsList?: unknown[] }).partsList) ? (assembly as { partsList: unknown[] }).partsList.length : 0,
         estimatedTime: '2-3 hours',
         difficultyLevel: 'Beginner',
-        reportId: reportRow.id,
+        reportId: reportRow?.id,
       }
     }
     if (firmware) {
@@ -162,11 +168,11 @@ export async function POST(request: NextRequest) {
         platform: (firmware as { microcontroller?: string }).microcontroller || 'Arduino IDE',
         libraries: [],
         codeLines: firmwareContent.split('\n').length,
-        reportId: reportRow.id,
+        reportId: reportRow?.id,
       }
     }
 
-    return NextResponse.json({ success: true, reportId: reportRow.id, reports: uiReports }, { headers: { 'Cache-Control': 'no-store' } })
+    return NextResponse.json({ success: true, reportId: reportRow?.id, reports: uiReports }, { headers: { 'Cache-Control': 'no-store' } })
   } catch (error: unknown) {
     console.error('[HARDWARE INITIAL] Error:', error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
