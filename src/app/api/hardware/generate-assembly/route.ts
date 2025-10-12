@@ -1,8 +1,7 @@
 import { type NextRequest, NextResponse } from "next/server"
 import { generateText, aiModel } from "@/lib/openai"
 import { createSupabaseServerClient } from "@/lib/supabase/server"
-import fs from "node:fs"
-import path from "node:path"
+import { MASTER_SYSTEM_PROMPT } from "@/lib/system-prompt"
 
 export async function POST(request: NextRequest) {
   try {
@@ -19,13 +18,9 @@ export async function POST(request: NextRequest) {
 
     const generateWithFallback = async () => {
       try {
-        // Load master system prompt
-        const systemPromptPath = path.resolve(process.cwd(), 'public', 'reference', 'master-system-prompt.md')
-        const systemPrompt = fs.readFileSync(systemPromptPath, 'utf8')
-
         const { text } = await generateText({
           model: aiModel,
-          system: systemPrompt,
+          system: MASTER_SYSTEM_PROMPT,
           prompt: `Project: ${projectData.description}
 
 Generate comprehensive assembly instructions and parts list for this hardware project.`,
