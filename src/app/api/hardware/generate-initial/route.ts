@@ -3,6 +3,7 @@ import { createSupabaseServerClient } from "@/lib/supabase/server"
 import { generateStructuredJson } from "@/lib/openai"
 
 export const maxDuration = 60
+export const runtime = "nodejs"
 
 type InitialRequestBody = {
   title: string
@@ -252,6 +253,7 @@ For complex appliances like washing machines, dishwashers, or large devices:
       system: systemPrompt,
       prompt: `Project Title: ${title}\n\nUser Description: ${prompt}\n\nReturn the required hardware output JSON strictly following the provided schema.`,
       schema: strictSchema,
+      maxOutputTokens: 2000,
     })
 
     // Persist into hardware_projects using existing columns used by UI
