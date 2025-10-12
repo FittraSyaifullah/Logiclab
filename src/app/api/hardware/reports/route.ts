@@ -119,11 +119,48 @@ export async function GET(request: NextRequest) {
       }
 
       if (targetReport.assembly_parts) {
-        transformedReports['assembly-parts'] = { ...(targetReport.assembly_parts as Record<string, unknown>), reportId: targetReport.id }
+        const rawAssembly = targetReport.assembly_parts as Record<string, unknown>
+        const hasContent = typeof (rawAssembly as { content?: unknown }).content === 'string'
+        if (hasContent) {
+          transformedReports['assembly-parts'] = { ...rawAssembly, reportId: targetReport.id }
+        } else {
+          const overview = typeof (rawAssembly as { overview?: unknown }).overview === 'string' ? (rawAssembly as { overview?: string }).overview : ''
+          const assemblyInstructions = typeof (rawAssembly as { assemblyInstructions?: unknown }).assemblyInstructions === 'string' ? (rawAssembly as { assemblyInstructions?: string }).assemblyInstructions : ''
+          const safetyChecklist = typeof (rawAssembly as { safetyChecklist?: unknown }).safetyChecklist === 'string' ? (rawAssembly as { safetyChecklist?: string }).safetyChecklist : ''
+          const partsList = Array.isArray((rawAssembly as { partsList?: unknown }).partsList) ? (rawAssembly as { partsList: unknown[] }).partsList : []
+          transformedReports['assembly-parts'] = {
+            content: [overview, assemblyInstructions, safetyChecklist].filter(Boolean).join('\n\n'),
+            partsCount: partsList.length,
+            estimatedTime: '2-3 hours',
+            difficultyLevel: 'Beginner',
+            reportId: targetReport.id,
+          }
+        }
+        console.log('[HARDWARE REPORTS] Assembly parts data:', targetReport.assembly_parts)
       }
 
       if (targetReport.firmware_code) {
-        transformedReports['firmware-code'] = { ...(targetReport.firmware_code as Record<string, unknown>), reportId: targetReport.id }
+        const rawFirmware = targetReport.firmware_code as Record<string, unknown>
+        const hasContent = typeof (rawFirmware as { content?: unknown }).content === 'string'
+        if (hasContent) {
+          transformedReports['firmware-code'] = { ...rawFirmware, reportId: targetReport.id }
+        } else {
+          const explanation = typeof (rawFirmware as { explanation?: unknown }).explanation === 'string' ? (rawFirmware as { explanation?: string }).explanation : ''
+          const code = typeof (rawFirmware as { code?: unknown }).code === 'string' ? (rawFirmware as { code?: string }).code : ''
+          const improvementSuggestions = typeof (rawFirmware as { improvementSuggestions?: unknown }).improvementSuggestions === 'string' ? (rawFirmware as { improvementSuggestions?: string }).improvementSuggestions : ''
+          const language = typeof (rawFirmware as { language?: unknown }).language === 'string' ? (rawFirmware as { language?: string }).language : 'C++'
+          const platform = typeof (rawFirmware as { microcontroller?: unknown }).microcontroller === 'string' ? (rawFirmware as { microcontroller?: string }).microcontroller : 'Arduino IDE'
+          const content = [explanation, code, improvementSuggestions].filter(Boolean).join('\n\n')
+          transformedReports['firmware-code'] = {
+            content,
+            language,
+            platform,
+            libraries: [],
+            codeLines: content.split('\n').length,
+            reportId: targetReport.id,
+          }
+        }
+        console.log('[HARDWARE REPORTS] Firmware code data:', targetReport.firmware_code)
       }
     }
 

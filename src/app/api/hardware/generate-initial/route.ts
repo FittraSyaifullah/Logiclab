@@ -51,11 +51,34 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Failed to create job' }, { status: 500 })
     }
 
-    // Load master system prompt and JSON schema
+    // Load master system prompt and derive JSON Schema from example shape
     const systemPromptPath = resolve(process.cwd(), 'reference', 'master system prompt', 'master system prompt.md')
     const schemaPath = resolve(process.cwd(), 'reference', 'master json schema', 'ai_output.json')
     const systemPrompt = readFileSync(systemPromptPath, 'utf8')
-    const schemaJson = JSON.parse(readFileSync(schemaPath, 'utf8')) as Record<string, unknown>
+    const exampleJson = JSON.parse(readFileSync(schemaPath, 'utf8')) as Record<string, unknown>
+
+    // Convert example (with "string" placeholders) into a strict JSON Schema
+    const exampleToSchema = (value: unknown): Record<string, unknown> => {
+      if (typeof value === 'string') {
+        return { type: 'string' }
+      }
+      if (Array.isArray(value)) {
+        const first = value.length > 0 ? value[0] : {}
+        return { type: 'array', items: exampleToSchema(first) }
+      }
+      if (value && typeof value === 'object') {
+        const props: Record<string, unknown> = {}
+        const required: string[] = []
+        for (const [k, v] of Object.entries(value as Record<string, unknown>)) {
+          props[k] = exampleToSchema(v)
+          required.push(k)
+        }
+        return { type: 'object', properties: props, required, additionalProperties: false }
+      }
+      return { type: 'string' }
+    }
+
+    const strictSchema = exampleToSchema(exampleJson)
 
     // Fire-and-forget processing using Responses API with structured outputs
     void (async () => {
@@ -70,7 +93,7 @@ export async function POST(request: NextRequest) {
         const { json } = await generateStructuredJson({
           system: systemPrompt,
           prompt: `Project Title: ${title}\n\nUser Description: ${prompt}\n\nReturn the required hardware output JSON strictly following the provided schema.`,
-          schema: schemaJson,
+          schema: strictSchema,
         })
 
         // Persist into hardware_projects using existing columns used by UI

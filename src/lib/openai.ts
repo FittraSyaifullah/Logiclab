@@ -43,6 +43,7 @@ export async function generateText({
     }
 
     const data = await response.json()
+    console.log(`[OPENAI] Full response data:`, JSON.stringify(data, null, 2))
     console.log(`[OPENAI] Successfully generated response with ${data.usage?.total_tokens || 0} tokens`)
 
     return { text: data.choices[0].message.content }
@@ -57,7 +58,7 @@ export async function generateStructuredJson({
   system,
   prompt,
   schema,
-  model = "gpt-4.1-mini",
+  model = "gpt-4.1",
   temperature = 0.3,
   maxOutputTokens = 4000,
 }: {
@@ -81,21 +82,17 @@ export async function generateStructuredJson({
         model,
         temperature,
         max_output_tokens: maxOutputTokens,
-        input: [
-          { role: 'system', content: [{ type: 'text', text: system }] },
-          { role: 'user', content: [{ type: 'text', text: prompt }] },
-        ],
+        instructions: system,
+        input: prompt,
         text: {
           format: {
-            type: 'json_schema',
-            json_schema: {
-              name: 'HardwareOutput',
-              schema,
-              strict: true,
-            },
-          },
-        },
-      }),
+            type: "json_schema",
+            name: "HardwareOutput", // ✅ moved here
+            schema,               // your JSON Schema object
+            strict: true
+          }
+        }
+      }),      
     })
 
     if (!response.ok) {
@@ -105,6 +102,7 @@ export async function generateStructuredJson({
     }
 
     const data = await response.json()
+    console.log(`[OPENAI] Structured response data:`, JSON.stringify(data, null, 2))
     const outputText: string | undefined = data?.output?.[0]?.content?.[0]?.text || data?.output_text
     if (!outputText) {
       throw new Error('Structured output missing text payload')
