@@ -20,7 +20,7 @@ export async function POST(request: NextRequest) {
     const generateWithFallback = async () => {
       try {
         // Load master system prompt
-        const systemPromptPath = path.resolve(process.cwd(), 'src', 'reference', 'master-system-prompt.md')
+        const systemPromptPath = path.resolve(process.cwd(), 'public', 'reference', 'master-system-prompt.md')
         const systemPrompt = fs.readFileSync(systemPromptPath, 'utf8')
 
         const { text } = await generateText({

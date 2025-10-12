@@ -40,7 +40,7 @@ export async function POST(request: NextRequest) {
     const supabase = createSupabaseServerClient()
 
     // Load master system prompt
-    const systemPromptPath = path.resolve(process.cwd(), 'src', 'reference', 'master-system-prompt.md')
+    const systemPromptPath = path.resolve(process.cwd(), 'public', 'reference', 'master-system-prompt.md')
     const systemPrompt = fs.readFileSync(systemPromptPath, 'utf8')
 
     // Call model to return STRICT JSON only (no prose or code fences)

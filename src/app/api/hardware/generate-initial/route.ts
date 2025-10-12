@@ -37,7 +37,7 @@ export async function POST(request: NextRequest) {
     // Synchronous mode: no jobs; generate immediately and return UI-ready payload
 
     // Load master system prompt and derive JSON Schema from example shape
-    const systemPromptPath = path.resolve(process.cwd(), 'src', 'reference', 'master-system-prompt.md')
+    const systemPromptPath = path.resolve(process.cwd(), 'public', 'reference', 'master-system-prompt.md')
     const schemaPath = path.resolve(process.cwd(), 'reference', 'master json schema', 'ai_output.json')
     const systemPrompt = fs.readFileSync(systemPromptPath, 'utf8')
     const exampleJson = JSON.parse(fs.readFileSync(schemaPath, 'utf8')) as Record<string, unknown>
