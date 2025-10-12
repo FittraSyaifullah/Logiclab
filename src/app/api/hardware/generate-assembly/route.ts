@@ -1,7 +1,6 @@
 import { type NextRequest, NextResponse } from "next/server"
 import { generateText, aiModel } from "@/lib/openai"
 import { createSupabaseServerClient } from "@/lib/supabase/server"
-import { MASTER_SYSTEM_PROMPT } from "@/lib/system-prompt"
 
 export async function POST(request: NextRequest) {
   try {
@@ -20,7 +19,17 @@ export async function POST(request: NextRequest) {
       try {
         const { text } = await generateText({
           model: aiModel,
-          system: MASTER_SYSTEM_PROMPT,
+          system: `You are an AI engineer teaching non-technical users how to assemble hardware projects.
+
+Your role is to:
+1. Generate step-by-step assembly instructions from step 1 to completion
+2. Create detailed parts lists with specifications and where to source components
+3. Provide wiring diagrams and connection details
+4. Guide users through observation-based assembly (visual cues, color coding)
+5. Include safety warnings and best practices
+6. Ask clarifying questions if component details are unclear
+
+Focus on clear, beginner-friendly instructions that anyone can follow. Use visual descriptions and avoid technical jargon.`,
           prompt: `Project: ${projectData.description}
 
 Generate comprehensive assembly instructions and parts list for this hardware project.`,
