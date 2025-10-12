@@ -1,7 +1,7 @@
 // OpenAI integration utilities for LogicLab
 // This calls the actual OpenAI API
 
-export const aiModel = "gpt-4"
+export const aiModel = "gpt-4o-mini"
 
 export async function generateText({
   model,

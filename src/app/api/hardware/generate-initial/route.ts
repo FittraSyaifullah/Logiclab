@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from "next/server"
 import { createSupabaseServerClient } from "@/lib/supabase/server"
 import { generateStructuredJson } from "@/lib/openai"
-import { readFileSync } from "node:fs"
-import { resolve } from "node:path"
+import fs from "node:fs"
+import path from "node:path"
 
 export const maxDuration = 60
 
@@ -37,10 +37,10 @@ export async function POST(request: NextRequest) {
     // Synchronous mode: no jobs; generate immediately and return UI-ready payload
 
     // Load master system prompt and derive JSON Schema from example shape
-    const systemPromptPath = resolve(process.cwd(), 'reference', 'master system prompt', 'master system prompt.md')
-    const schemaPath = resolve(process.cwd(), 'reference', 'master json schema', 'ai_output.json')
-    const systemPrompt = readFileSync(systemPromptPath, 'utf8')
-    const exampleJson = JSON.parse(readFileSync(schemaPath, 'utf8')) as Record<string, unknown>
+    const systemPromptPath = path.resolve(process.cwd(), 'src', 'reference', 'master-system-prompt.md')
+    const schemaPath = path.resolve(process.cwd(), 'reference', 'master json schema', 'ai_output.json')
+    const systemPrompt = fs.readFileSync(systemPromptPath, 'utf8')
+    const exampleJson = JSON.parse(fs.readFileSync(schemaPath, 'utf8')) as Record<string, unknown>
 
     // Convert example (with "string" placeholders) into a strict JSON Schema
     const exampleToSchema = (value: unknown): Record<string, unknown> => {

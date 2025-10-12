@@ -1,6 +1,8 @@
 import { type NextRequest, NextResponse } from "next/server"
 import { generateText, aiModel } from "@/lib/openai"
 import { createSupabaseServerClient } from "@/lib/supabase/server"
+import fs from "node:fs"
+import path from "node:path"
 
 export async function POST(request: NextRequest) {
   interface ProjectData {
@@ -37,44 +39,14 @@ export async function POST(request: NextRequest) {
 
     const supabase = createSupabaseServerClient()
 
+    // Load master system prompt
+    const systemPromptPath = path.resolve(process.cwd(), 'src', 'reference', 'master-system-prompt.md')
+    const systemPrompt = fs.readFileSync(systemPromptPath, 'utf8')
+
     // Call model to return STRICT JSON only (no prose or code fences)
     const { text } = await generateText({
       model: aiModel,
-      system: `You are an AI engineer specializing in breaking down hardware projects into 3D printable components.
-
-Your role is to:
-1. Analyze the hardware project and identify all structural components that can be 3D printed
-2. Break down complex parts into smaller, assemblable pieces that can fit on standard 3D printers
-3. Consider print orientation, support requirements, and assembly methods
-4. Provide detailed specifications for each printable component
-5. Generate separate prompts for 3D model generation for each component
-
-For complex appliances like washing machines, dishwashers, or large devices:
-- Break down into functional modules (motor housing, control panel, drum components, etc.)
-- Create scaled-down functional prototypes rather than full-size replicas
-- Focus on demonstrating key mechanisms and principles
-- Provide multiple size options (prototype scale vs functional scale)
-
-Return ONLY a single valid JSON object using double quotes, with exactly these keys at the top level and no others:
-- project: string
-- description: string
-- components: array of objects, each object must contain ALL of these keys with string values:
-  - component
-  - description
-  - promptFor3DGeneration
-  - printSpecifications
-  - assemblyNotes
-  - printTime
-  - material
-  - supports
-- generalNotes: string
-
-Rules:
-- Do not include any markdown, code fences, or explanation text.
-- The number of components should match the complexity of the request.
-- Design for standard 3D printer bed sizes (≈200x200mm) and minimize supports.
-- Focus on modular, printable parts that can be assembled by the user.
-`,
+      system: systemPrompt,
       prompt: `Project context:
 ${projectData?.description || ""}
 
