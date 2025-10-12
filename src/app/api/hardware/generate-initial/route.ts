@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from "next/server"
 import { createSupabaseServerClient } from "@/lib/supabase/server"
-import { generateStructuredJson } from "@/lib/openai"
-import { readFileSync } from "node:fs"
-import { resolve } from "node:path"
+
+const HARDWARE_FUNCTION_ENDPOINT = process.env.SUPABASE_HARDWARE_FUNCTION_URL
+const SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY
 
 export const maxDuration = 60
 
@@ -51,102 +51,30 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Failed to create job' }, { status: 500 })
     }
 
-    // Load master system prompt and derive JSON Schema from example shape
-    const systemPromptPath = resolve(process.cwd(), 'reference', 'master system prompt', 'master system prompt.md')
-    const schemaPath = resolve(process.cwd(), 'reference', 'master json schema', 'ai_output.json')
-    const systemPrompt = readFileSync(systemPromptPath, 'utf8')
-    const exampleJson = JSON.parse(readFileSync(schemaPath, 'utf8')) as Record<string, unknown>
-
-    // Convert example (with "string" placeholders) into a strict JSON Schema
-    const exampleToSchema = (value: unknown): Record<string, unknown> => {
-      if (typeof value === 'string') {
-        return { type: 'string' }
-      }
-      if (Array.isArray(value)) {
-        const first = value.length > 0 ? value[0] : {}
-        return { type: 'array', items: exampleToSchema(first) }
-      }
-      if (value && typeof value === 'object') {
-        const props: Record<string, unknown> = {}
-        const required: string[] = []
-        for (const [k, v] of Object.entries(value as Record<string, unknown>)) {
-          props[k] = exampleToSchema(v)
-          required.push(k)
-        }
-        return { type: 'object', properties: props, required, additionalProperties: false }
-      }
-      return { type: 'string' }
-    }
-
-    const strictSchema = exampleToSchema(exampleJson)
-
-    // Fire-and-forget processing using Responses API with structured outputs
-    void (async () => {
-      const startTimeIso = new Date().toISOString()
+    // Trigger Supabase Edge Function to process asynchronously (fire-and-forget)
+    if (HARDWARE_FUNCTION_ENDPOINT && SERVICE_ROLE_KEY) {
       try {
-        // Mark job as processing
-        await supabase
-          .from('jobs')
-          .update({ status: 'processing', started_at: startTimeIso })
-          .eq('id', job.id)
-
-        const { json } = await generateStructuredJson({
-          system: systemPrompt,
-          prompt: `Project Title: ${title}\n\nUser Description: ${prompt}\n\nReturn the required hardware output JSON strictly following the provided schema.`,
-          schema: strictSchema,
+        console.log(`[HARDWARE] Triggering hardware-processor function at ${HARDWARE_FUNCTION_ENDPOINT}`)
+        const functionResponse = await fetch(HARDWARE_FUNCTION_ENDPOINT, {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${SERVICE_ROLE_KEY}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({}),
         })
-
-        // Persist into hardware_projects using existing columns used by UI
-        // json shape: { project, description, reports: { 3DComponents, AssemblyAndParts, FirmwareAndCode } }
-        const resultObj = json as {
-          project?: string
-          description?: string
-          reports?: {
-            '3DComponents'?: { components?: unknown[]; generalNotes?: string }
-            'AssemblyAndParts'?: Record<string, unknown>
-            'FirmwareAndCode'?: Record<string, unknown>
-          }
+        if (functionResponse.ok) {
+          const result = await functionResponse.json().catch(() => ({}))
+          console.log(`[HARDWARE] Successfully triggered hardware-processor:`, result)
+        } else {
+          console.error(`[HARDWARE] Hardware-processor function returned ${functionResponse.status}:`, await functionResponse.text())
         }
-
-        // Map into storage columns
-        const threeD = resultObj?.reports?.['3DComponents']
-        const assembly = resultObj?.reports?.['AssemblyAndParts']
-        const firmware = resultObj?.reports?.['FirmwareAndCode']
-
-        // Create new hardware_projects row
-        const { data: reportRow, error: insertErr } = await supabase
-          .from('hardware_projects')
-          .insert({
-            project_id: projectId,
-            title: title || resultObj?.project || 'Hardware Project',
-            '3d_components': threeD ? {
-              project: resultObj?.project || title,
-              description: resultObj?.description || prompt,
-              components: Array.isArray(threeD?.components) ? threeD.components : [],
-              generalNotes: typeof threeD?.generalNotes === 'string' ? threeD.generalNotes : '',
-            } : null,
-            assembly_parts: assembly ? assembly : null,
-            firmware_code: firmware ? firmware : null,
-          })
-          .select()
-          .single()
-
-        if (insertErr) {
-          throw insertErr
-        }
-
-        await supabase
-          .from('jobs')
-          .update({ status: 'completed', finished_at: new Date().toISOString(), result: { reportId: reportRow?.id } })
-          .eq('id', job.id)
-      } catch (err: unknown) {
-        const message = err instanceof Error ? err.message : String(err)
-        await supabase
-          .from('jobs')
-          .update({ status: 'failed', error: message, finished_at: new Date().toISOString() })
-          .eq('id', job.id)
+      } catch (functionError) {
+        console.error("[HARDWARE] Failed to trigger hardware-processor function", functionError)
       }
-    })()
+    } else {
+      console.warn("[HARDWARE] Missing SUPABASE_HARDWARE_FUNCTION_URL or SUPABASE_SERVICE_ROLE_KEY - function not triggered")
+    }
 
     return NextResponse.json({ success: true, jobId: job.id })
   } catch (error: unknown) {
