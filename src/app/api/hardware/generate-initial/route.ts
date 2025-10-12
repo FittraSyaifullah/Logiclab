@@ -1,8 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import { createSupabaseServerClient } from "@/lib/supabase/server"
 import { generateStructuredJson } from "@/lib/openai"
-import { readFileSync } from "node:fs"
-import { resolve } from "node:path"
 
 export const maxDuration = 60
 
@@ -185,8 +183,47 @@ For complex appliances like washing machines, dishwashers, or large devices:
 - Focus on demonstrating key mechanisms and principles
 - Provide multiple size options (prototype scale vs functional scale)`
 
-    const schemaPath = resolve(process.cwd(), 'reference', 'master json schema', 'ai_output.json')
-    const exampleJson = JSON.parse(readFileSync(schemaPath, 'utf8')) as Record<string, unknown>
+    const exampleJson = {
+      "project": "string",
+      "description": "string",
+      "reports": {
+        "3DComponents": {
+          "components": [
+            {
+              "component": "string",
+              "description": "string",
+              "promptFor3DGeneration": "string",
+              "printSpecifications": "string",
+              "assemblyNotes": "string",
+              "printTime": "string",
+              "material": "string",
+              "supports": "string"
+            }
+          ],
+          "generalNotes": "string"
+        },
+        "AssemblyAndParts": {
+          "overview": "string",
+          "partsList": [
+            {
+              "part": "string",
+              "quantity": "string",
+              "vendor": "string",
+              "notes": "string"
+            }
+          ],
+          "assemblyInstructions": "string",
+          "safetyChecklist": "string"
+        },
+        "FirmwareAndCode": {
+          "microcontroller": "string",
+          "language": "string",
+          "code": "string",
+          "explanation": "string",
+          "improvementSuggestions": "string"
+        }
+      }
+    } as Record<string, unknown>
 
     // Convert example (with "string" placeholders) into a strict JSON Schema
     const exampleToSchema = (value: unknown): Record<string, unknown> => {
