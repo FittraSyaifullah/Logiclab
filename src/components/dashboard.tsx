@@ -219,7 +219,7 @@ function PersistentHeader({
       </div>
 
       <div className="flex items-center gap-2 sm:gap-3">
-        <Button
+        {/*<Button
           variant="outline"
           size="sm"
           onClick={() => setShowGrowthMarketing(true)}
@@ -227,7 +227,7 @@ function PersistentHeader({
         >
           <TrendingUp className="mr-2 h-4 w-4 text-emerald-600" />
           Growth Marketing
-        </Button>
+        </Button>*/}
 
         {/*<Button
           variant="outline"

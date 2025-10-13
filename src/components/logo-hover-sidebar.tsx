@@ -94,18 +94,18 @@ export function LogoHoverSidebar({
             New Creation
           </Button>
 
-          <Button
+          {/*<Button
             onClick={onGrowthMarketing}
             variant="outline"
             className="w-full justify-start border-emerald-300 hover:border-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-950/50 bg-transparent"
           >
             <TrendingUp className="mr-3 h-4 w-4 text-emerald-600" />
             Growth Marketing
-          </Button>
+          </Button>*/}
         </div>
 
         <div className="flex-1 overflow-hidden min-h-0">
-          {/* Software Chats */}
+          {/* Software Chats 
           <div className="text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-3">
             Software Chats
           </div>
@@ -144,11 +144,11 @@ export function LogoHoverSidebar({
                 No software chats yet. Create your first software project!
               </div>
             )}
-          </div>
+          </div> */}
 
           {/* Hardware Projects */}
           <div className="text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-3 mt-6">
-            Hardware Projects
+            Recent Projects
           </div>
 
           <div className="space-y-1 overflow-y-auto max-h-[calc(50vh-8rem)] pr-1">
