@@ -209,7 +209,7 @@ export default function LandingPage() {
               </span>
             ))}
           </h1>
-          <p className="text-base sm:text-xl text-gray-700 mb-6">create hardware and software by chatting with AI</p>
+          <p className="text-base sm:text-xl text-gray-700 mb-6">Create hardware and printable 3d models by chatting with AI</p>
           <div className="max-w-2xl mx-auto mb-8 cursor-pointer">
             <div className="relative group">
               <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400 transition-colors duration-300 group-hover:text-orange-500" />
@@ -219,20 +219,20 @@ export default function LandingPage() {
                 onChange={handleSearchInputChange}
                 onKeyPress={handleSearchKeyPress}
                 placeholder="Start building with Buildables..."
-                className="w-full pl-12 pr-16 py-3 sm:py-4 border-2 border-gray-200 rounded-full text-left hover:border-orange-300 transition-all duration-300 bg-white bg-opacity-80 shadow-[0_0_12px_rgba(249,115,22,0.25)] hover:shadow-[0_0_20px_rgba(249,115,22,0.4)] focus:shadow-[0_0_20px_rgba(249,115,22,0.4)] focus:border-orange-400 focus:outline-none"
+                className="w-full h-16 sm:h-20 md:h-24 pl-12 pr-16 py-4 sm:py-6 border-2 border-gray-200 rounded-xl text-left hover:border-orange-300 transition-all duration-300 bg-white shadow-[0_0_12px_rgba(249,115,22,0.25)] hover:shadow-[0_0_20px_rgba(249,115,22,0.4)] focus:shadow-[0_0_20px_rgba(249,115,22,0.4)] focus:border-orange-400 focus:outline-none text-base sm:text-lg"
               />
               <ArrowRight
-                className="absolute right-4 top-1/2 transform -translate-y-1/2 h-5 w-5 text-orange-500 transition-transform duration-300 group-hover:translate-x-1 cursor-pointer"
+                className="absolute right-2 bottom-2 h-8 w-8 p-1.5 text-white bg-orange-500 rounded-lg border-2 border-orange-500 transition-all duration-300 hover:bg-orange-600 hover:border-orange-600 cursor-pointer"
                 onClick={handleSearchClick}
               />
             </div>
           </div>
-          <Button
+          {/*<Button
             onClick={handleSearchClick}
             className="bg-orange-500 hover:bg-orange-600 text-white px-6 sm:px-8 py-3 rounded-full text-base sm:text-lg transition-transform duration-200 active:scale-95"
           >
             Start Creating
-          </Button>
+          </Button>*/}
           <div className="flex flex-col items-center justify-center gap-2 mt-6 sm:mt-8 text-black">
             <div className="flex items-center gap-2">
               <Check className="h-5 w-5" />
