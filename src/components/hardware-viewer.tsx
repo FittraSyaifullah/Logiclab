@@ -25,6 +25,7 @@ import {
   FileDown,
   FileCode,
   AlertTriangle,
+  Smile,
 } from "lucide-react"
 import type { Creation, HardwareComponentModel, HardwareReports } from "@/lib/types"
 import { cn } from "@/lib/utils"
@@ -511,7 +512,8 @@ export function HardwareViewer({ creation, onRegenerate, onGenerateComponentMode
       const endpointMap: Record<string, string> = {
         "3d-components": "generate-3d",
         "assembly-parts": "generate-assembly", 
-        "firmware-code": "generate-firmware"
+        "firmware-code": "generate-firmware",
+        "get-quote": "generate-quote"
       }
       
       const apiEndpoint = endpointMap[tabId] || `generate-${tabId}`
@@ -793,7 +795,7 @@ const renderComponentActions = (
       {renderPreviewViewer()}
       <Tabs value={activeTab} onValueChange={setActiveTab} className="h-full flex flex-col">
         <div className="flex items-center justify-between mb-4">
-          <TabsList className="grid w-full max-w-lg grid-cols-3">
+          <TabsList className="grid w-full max-w-2xl grid-cols-4">
             <TabsTrigger value="3d-components" className="gap-2 relative">
               <Box className="w-4 h-4" />
               3D Components
@@ -812,6 +814,13 @@ const renderComponentActions = (
               <Code className="w-4 h-4" />
               Firmware & Code
               {isRegenerating("firmware-code") && (
+                <RefreshCw className="w-3 h-3 animate-spin absolute -top-1 -right-1" />
+              )}
+            </TabsTrigger>
+            <TabsTrigger value="get-quote" className="gap-2 relative">
+              <Smile className="w-4 h-4" />
+              Get a Quote
+              {isRegenerating("get-quote") && (
                 <RefreshCw className="w-3 h-3 animate-spin absolute -top-1 -right-1" />
               )}
             </TabsTrigger>
@@ -1233,6 +1242,229 @@ const renderComponentActions = (
                       <RefreshCw className="w-4 h-4 mr-2" />
                       Regenerate Code
                     </Button>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          <TabsContent value="get-quote" className="h-full">
+            <Card className="h-full">
+              <CardHeader>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <CardTitle className="flex items-center gap-2">
+                      <Smile className="w-5 h-5" />
+                      Get a Quote
+                    </CardTitle>
+                    <CardDescription>Connect with our experts for personalized manufacturing solutions</CardDescription>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Badge variant="outline" className="gap-1">
+                      <CheckCircle className="w-3 h-3" />
+                      Expert Consultation
+                    </Badge>
+                    <Badge variant="outline" className="gap-1">
+                      <Clock className="w-3 h-3" />
+                      Quick Response
+                    </Badge>
+                  </div>
+                </div>
+              </CardHeader>
+              <CardContent className="space-y-8">
+                {/* Hero Section with Image */}
+                <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 dark:from-blue-950/20 dark:via-indigo-950/20 dark:to-purple-950/20 border border-blue-200/50 dark:border-blue-800/50">
+                  <div className="absolute inset-0 bg-gradient-to-r from-blue-600/10 to-purple-600/10 dark:from-blue-400/10 dark:to-purple-400/10" />
+                  <div className="relative grid grid-cols-1 lg:grid-cols-2 gap-8 p-8">
+                    <div className="space-y-6">
+                      <div className="space-y-4">
+                        <h2 className="text-3xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 dark:from-blue-400 dark:to-purple-400 bg-clip-text text-transparent">
+                          Ready to Bring Your Vision to Life?
+                        </h2>
+                        <p className="text-lg text-neutral-600 dark:text-neutral-300 leading-relaxed">
+                          Our manufacturing experts are standing by to provide you with a personalized quote for your hardware project. 
+                          Get professional guidance on materials, processes, and timelines.
+                        </p>
+                      </div>
+                      
+                      <div className="flex flex-wrap gap-3">
+                        <div className="flex items-center gap-2 px-4 py-2 bg-white/80 dark:bg-neutral-900/80 rounded-full border border-blue-200 dark:border-blue-800">
+                          <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
+                          <span className="text-sm font-medium text-neutral-700 dark:text-neutral-300">Free consultation</span>
+                        </div>
+                        <div className="flex items-center gap-2 px-4 py-2 bg-white/80 dark:bg-neutral-900/80 rounded-full border border-blue-200 dark:border-blue-800">
+                          <div className="w-2 h-2 bg-blue-500 rounded-full animate-pulse" />
+                          <span className="text-sm font-medium text-neutral-700 dark:text-neutral-300">24h response time</span>
+                        </div>
+                        <div className="flex items-center gap-2 px-4 py-2 bg-white/80 dark:bg-neutral-900/80 rounded-full border border-blue-200 dark:border-blue-800">
+                          <div className="w-2 h-2 bg-purple-500 rounded-full animate-pulse" />
+                          <span className="text-sm font-medium text-neutral-700 dark:text-neutral-300">Custom solutions</span>
+                        </div>
+                      </div>
+
+                      {/* CTA in Hero Section */}
+                      <div className="pt-4">
+                        <Button 
+                          size="lg" 
+                          className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white font-semibold px-8 py-3 text-lg shadow-lg hover:shadow-xl transition-all duration-200"
+                        >
+                          <Smile className="w-5 h-5 mr-2" />
+                          Talk to an Expert
+                        </Button>
+                        <p className="text-sm text-neutral-600 dark:text-neutral-400 mt-2">
+                          Free consultation • No commitment required
+                        </p>
+                      </div>
+                    </div>
+                    
+                    <div className="relative">
+                      <div className="aspect-square rounded-xl overflow-hidden border-2 border-white/50 dark:border-neutral-800/50 shadow-2xl">
+                        <img 
+                          src="/images/cad-box.jpg" 
+                          alt="CAD Design and Manufacturing" 
+                          className="w-full h-full object-cover"
+                        />
+                      </div>
+                      <div className="absolute -bottom-4 -right-4 w-16 h-16 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center shadow-lg">
+                        <Smile className="w-8 h-8 text-white" />
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Project Overview */}
+                <div className="space-y-6">
+                  <h3 className="text-2xl font-bold text-neutral-900 dark:text-white">Your Project Overview</h3>
+                  
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    {/*<div className="p-6 bg-gradient-to-br from-blue-50 to-blue-100 dark:from-blue-950/40 dark:to-blue-900/40 rounded-xl border border-blue-200 dark:border-blue-800">
+                      <div className="flex items-center gap-3 mb-3">
+                        <div className="w-10 h-10 bg-blue-500 rounded-lg flex items-center justify-center">
+                          <Box className="w-5 h-5 text-white" />
+                        </div>
+                        <div>
+                          <h4 className="font-semibold text-blue-900 dark:text-blue-100">Components</h4>
+                          <p className="text-sm text-blue-600 dark:text-blue-300">{components.length} parts</p>
+                        </div>
+                      </div>
+                    </div>*/}
+
+                    <div className="flex items-center gap-3 mb-3">
+                        <div className="w-10 h-10 bg-blue-500 rounded-lg flex items-center justify-center">
+                          <Box className="w-5 h-5 text-white" />
+                        </div>
+                        <div>
+                          <h4 className="font-semibold text-blue-900 dark:text-blue-100">{components.length} components</h4>
+                          {/*<p className="text-sm text-blue-600 dark:text-blue-300">{components.length} components</p>*/}  
+                        </div>
+                      </div>
+                    
+                    {/*<div className="p-6 bg-gradient-to-br from-green-50 to-green-100 dark:from-green-950/40 dark:to-green-900/40 rounded-xl border border-green-200 dark:border-green-800">
+                      <div className="flex items-center gap-3 mb-3">
+                        <div className="w-10 h-10 bg-green-500 rounded-lg flex items-center justify-center">
+                          <Clock className="w-5 h-5 text-white" />
+                        </div>
+                        <div>
+                          <h4 className="font-semibold text-green-900 dark:text-green-100">Print Time</h4>
+                          <p className="text-sm text-green-600 dark:text-green-300">~2-4 hours</p>
+                        </div>
+                      </div>
+                    </div>
+                    
+                    <div className="p-6 bg-gradient-to-br from-purple-50 to-purple-100 dark:from-purple-950/40 dark:to-purple-900/40 rounded-xl border border-purple-200 dark:border-purple-800">
+                      <div className="flex items-center gap-3 mb-3">
+                        <div className="w-10 h-10 bg-purple-500 rounded-lg flex items-center justify-center">
+                          <Hammer className="w-5 h-5 text-white" />
+                        </div>
+                        <div>
+                          <h4 className="font-semibold text-purple-900 dark:text-purple-100">Complexity</h4>
+                          <p className="text-sm text-purple-600 dark:text-purple-300">Beginner to Intermediate</p>
+                        </div>
+                      </div>
+                    </div>*/}
+                  </div>
+                </div>
+
+                 {/* Component Breakdown with Detailed Breakdown */}
+                 <div className="space-y-6">
+                   <h3 className="text-2xl font-bold text-neutral-900 dark:text-white">Component Breakdown</h3>
+                   
+                   {/* Detailed Breakdown - Always Visible */}
+                   {hardwareReports["3d-components"]?.content && (
+                     <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 dark:from-blue-950/20 dark:via-indigo-950/20 dark:to-purple-950/20 border border-blue-200/50 dark:border-blue-800/50 shadow-lg">
+                       <div className="absolute inset-0 bg-gradient-to-r from-blue-600/5 to-purple-600/5 dark:from-blue-400/5 dark:to-purple-400/5" />
+                       <div className="relative p-8">
+                         <div className="flex items-center gap-3 mb-6">
+                           <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-purple-600 rounded-xl flex items-center justify-center shadow-lg">
+                             <FileText className="w-5 h-5 text-white" />
+                           </div>
+                           <div>
+                             <h4 className="text-xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 dark:from-blue-400 dark:to-purple-400 bg-clip-text text-transparent">
+                              Component Analysis
+                             </h4>
+                             {/*<p className="text-sm text-neutral-600 dark:text-neutral-400">AI-generated technical specifications and insights</p>*/}
+                           </div>
+                         </div>
+                         <div className="prose prose-sm max-w-none text-neutral-700 dark:text-neutral-300 whitespace-pre-wrap leading-relaxed">
+                           {hardwareReports["3d-components"].content}
+                         </div>
+                       </div>
+                     </div>
+                   )}
+
+                   {/* Component List */}
+                   {components.length > 0 && (
+                     <div className="space-y-4">
+                       <h4 className="text-lg font-semibold text-neutral-800 dark:text-neutral-200">Individual Components</h4>
+                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                         {components.map((component, index) => (
+                           <div key={component.id} className="p-4 bg-neutral-50 dark:bg-neutral-900/50 rounded-lg border border-neutral-200 dark:border-neutral-800">
+                             <div className="flex items-center gap-3">
+                               <div className="w-8 h-8 bg-blue-500 rounded-lg flex items-center justify-center text-white font-bold text-sm">
+                                 {index + 1}
+                               </div>
+                               <div className="flex-1">
+                                 <h4 className="font-semibold text-neutral-900 dark:text-white">{component.name}</h4>
+                                 {component.description && (
+                                   <p className="text-sm text-neutral-600 dark:text-neutral-400 mt-1">{component.description}</p>
+                                 )}
+                               </div>
+                               {/*<div className="text-right">
+                                 {component.printTime && (
+                                   <p className="text-xs text-neutral-500 dark:text-neutral-500">{component.printTime}</p>
+                                 )}
+                                 {component.material && (
+                                   <p className="text-xs text-neutral-500 dark:text-neutral-500">{component.material}</p>
+                                 )}
+                               </div>*/}
+                             </div>
+                           </div>
+                         ))}
+                       </div>
+                     </div>
+                   )}
+                 </div>
+
+                {/* CTA Section */}
+                <div className="bg-gradient-to-r from-blue-600 to-purple-600 rounded-2xl p-8 text-center text-white">
+                  <div className="space-y-4">
+                    <h3 className="text-2xl font-bold">Ready to Get Started?</h3>
+                    <p className="text-blue-100 max-w-2xl mx-auto">
+                      Our manufacturing experts will review your project and provide a detailed quote within 24 hours. 
+                      Get personalized recommendations for materials, processes, and timelines.
+                    </p>
+                    <div className="flex flex-col sm:flex-row gap-4 justify-center items-center pt-4">
+                      <Button 
+                        size="lg" 
+                        className="bg-white text-blue-600 hover:bg-blue-50 font-semibold px-8 py-3 text-lg shadow-lg hover:shadow-xl transition-all duration-200"
+                      >
+                        <Smile className="w-5 h-5 mr-2" />
+                        Talk to an Expert
+                      </Button>
+                      <p className="text-sm text-blue-200">
+                        Free consultation • No commitment required
+                      </p>
+                    </div>
                   </div>
                 </div>
               </CardContent>
