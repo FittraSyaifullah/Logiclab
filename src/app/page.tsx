@@ -209,7 +209,7 @@ export default function LandingPage() {
               </span>
             ))}
           </h1>
-          <p className="text-base sm:text-xl text-gray-700 mb-6">Create hardware and printable 3d models by chatting with AI</p>
+          <p className="text-base sm:text-xl text-gray-700 mb-6">Create hardware and printable 3d models by chatting with AI.</p>
           <div className="max-w-2xl mx-auto mb-8 cursor-pointer">
             <div className="relative group">
               <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400 transition-colors duration-300 group-hover:text-orange-500" />
