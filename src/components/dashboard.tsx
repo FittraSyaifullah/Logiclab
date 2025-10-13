@@ -195,18 +195,9 @@ function PersistentHeader({
             </Button>*/}
           </div>
         )}
-        {activeCreation && creationMode === "software" && (
-          <Button
-            variant="default"
-            size="sm"
-            className="bg-orange-500 hover:bg-orange-600 text-white shadow-md font-medium px-4 py-2 rounded-lg"
-          >
-            <Monitor className="mr-2 h-4 w-4" /> Preview
-          </Button>
-        )}
       </div>
 
-      <div className="hidden md:block flex-1 max-w-md mx-4 md:mx-6">
+      {/*<div className="hidden md:block flex-1 max-w-md mx-4 md:mx-6">
         <div className="relative">
           <Link className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-slate-400" />
           <Input
@@ -216,7 +207,7 @@ function PersistentHeader({
             className="pl-10 bg-slate-50/50 dark:bg-slate-800/50 border-slate-200 dark:border-slate-700 rounded-lg"
           />
         </div>
-      </div>
+      </div>*/}
 
       <div className="flex items-center gap-2 sm:gap-3">
         {/*<Button
@@ -256,19 +247,14 @@ function PersistentHeader({
           >
             <DropdownMenuItem
               onClick={() => {
-                if (activeCreation?.softwareData?.demoUrl) {
-                  window.open(activeCreation.softwareData.demoUrl, "_blank")
-                } else {
-                  toast({
-                    title: "No demo available",
-                    description: "Generate software first to get a shareable demo link",
-                    variant: "destructive",
-                  })
-                }
+                toast({
+                  title: "Share functionality",
+                  description: "Hardware sharing features coming soon!",
+                })
               }}
               className="hover:bg-amber-50 dark:hover:bg-amber-950"
             >
-              Share preview link
+              Share project
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
@@ -1194,108 +1180,35 @@ function DashboardContent({ onLogout, initialSearchInput }: DashboardProps) {
   const handleNewCreationSubmit = async (
     creationData: Omit<Creation, "id" | "chatHistory" | "modelParams" | "generatedCode" | "viewMode">,
   ) => {
-    if (creationData.mode === "software") {
-      const newCreation: Creation = {
-        ...creationData,
-        id: Date.now().toString(),
-        chatHistory: [],
-        components: [{ id: "main", name: "Application", prompt: creationData.prompt }],
-        customParams: [],
-        viewMode: "model",
-        softwareData: {
-          chatId: "",
-          demoUrl: "",
-          isGenerating: true,
-        },
-      }
-
-      addCreation(newCreation)
-      setActiveCreationId(newCreation.id)
-
-      toast({
-        title: "Generating software...",
-        description: "Buildables is creating your application with AI.",
-      })
-
-      generateSoftware(newCreation.id)
-      return
+    // Only handle hardware mode now
+    const newCreation: Creation = {
+      ...creationData,
+      id: Date.now().toString(),
+      chatHistory: [],
+      components: [],
+      customParams: [],
+      viewMode: "model",
+      hardwareData: {
+        isGenerating: true,
+        reportsGenerated: false,
+      },
+      hardwareReports: {},
     }
 
-    if (creationData.mode === "hardware") {
-      const newCreation: Creation = {
-        ...creationData,
-        id: Date.now().toString(),
-        chatHistory: [],
-        components: [],
-        customParams: [],
-        viewMode: "model",
-        hardwareData: {
-          isGenerating: true,
-          reportsGenerated: false,
-        },
-        hardwareReports: {},
-      }
+    addCreation(newCreation)
+    setActiveCreationId(newCreation.id)
 
-      addCreation(newCreation)
-      setActiveCreationId(newCreation.id)
+    toast({
+      title: "Generating hardware specifications...",
+      description: "Buildables is creating your 3D components, assembly instructions, and firmware code.",
+    })
 
-      toast({
-        title: "Generating hardware specifications...",
-        description: "Buildables is creating your 3D components, assembly instructions, and firmware code.",
-      })
-
-      generateHardware(newCreation.id)
-      return
-    }
-
-    try {
-      const analysisResponse = await fetch("/api/analyze-for-components-and-params", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ prompt: creationData.prompt, title: creationData.title }),
-      })
-
-      if (!analysisResponse.ok) {
-        const errorData = await analysisResponse.json().catch(() => ({ error: "Unknown error" }))
-        throw new Error(errorData.error || `HTTP ${analysisResponse.status}: Failed to analyze prompt`)
-      }
-
-      const analysisResult = await analysisResponse.json()
-
-      const newCreation: Creation = {
-        ...creationData,
-        id: Date.now().toString(),
-        chatHistory: [],
-        components: analysisResult.components.map((comp: { name: string; description: string }) => ({
-          id: `${Date.now()}-${comp.name}`,
-          name: comp.name,
-          prompt: comp.description,
-        })),
-        customParams: analysisResult.parameters,
-        viewMode: "model",
-        imageUrl: analysisResult.imageUrl,
-        imagePrompt: analysisResult.imagePrompt,
-        error: analysisResult.error,
-      }
-
-      addCreation(newCreation)
-      setActiveCreationId(newCreation.id)
-
-      toast({
-        title: "Analysis complete!",
-        description: `Identified ${newCreation.components.length} components with a generated image. Click "Generate 3D Model" to create a 3D model.`,
-      })
-    } catch (error) {
-      toast({ title: "Error", description: (error as Error).message, variant: "destructive" })
-    }
+    generateHardware(newCreation.id)
   }
 
   const handleRegenerate = () => {
     if (activeCreation) {
-      if (creationMode === "software") {
-        toast({ title: "Regenerating software with v0..." })
-        generateSoftware(activeCreation.id)
-      } else if (creationMode === "hardware") {
+      if (creationMode === "hardware") {
         toast({ title: "Regenerating hardware specifications..." })
         generateHardware(activeCreation.id)
       } else {
@@ -1567,7 +1480,7 @@ function DashboardContent({ onLogout, initialSearchInput }: DashboardProps) {
         }}
       />
 
-      <ChatSidebar onLogout={onLogout} onSendMessage={handleSendMessage} />
+      {activeCreation && <ChatSidebar onLogout={onLogout} onSendMessage={handleSendMessage} />}
 
       <div className="flex-1 flex flex-col min-h-0">
         <PersistentHeader
@@ -1589,9 +1502,7 @@ function DashboardContent({ onLogout, initialSearchInput }: DashboardProps) {
         <div className="flex-1 overflow-hidden">
           {activeCreation ? (
             <>
-              {creationMode === "software" ? (
-                <SoftwareViewer creation={activeCreation} onRegenerate={handleRegenerate} />
-              ) : creationMode === "hardware" ? (
+              {creationMode === "hardware" ? (
                 <HardwareViewer
                   creation={activeCreation}
                   onRegenerate={handleRegenerate}
