@@ -14,9 +14,12 @@ type InitialRequestBody = {
 
 export async function POST(request: NextRequest) {
   try {
+    console.log('[HARDWARE INITIAL] Starting request processing...')
     const supabase = createSupabaseServerClient()
     const body = (await request.json()) as Partial<InitialRequestBody>
     const { title, prompt, projectId, userId } = body
+
+    console.log('[HARDWARE INITIAL] Request body:', { title, prompt, projectId, userId })
 
     if (!userId) return NextResponse.json({ error: "User ID is required" }, { status: 400 })
     if (!title || !prompt || !projectId) return NextResponse.json({ error: "Missing required fields" }, { status: 400 })
@@ -34,10 +37,17 @@ export async function POST(request: NextRequest) {
     }
 
     // Load master system prompt and derive JSON Schema from example shape
+    console.log('[HARDWARE INITIAL] Loading reference files...')
     const systemPromptPath = resolve(process.cwd(), 'reference', 'master system prompt', 'master system prompt.md')
     const schemaPath = resolve(process.cwd(), 'reference', 'master json schema', 'ai_output.json')
+    
+    console.log('[HARDWARE INITIAL] System prompt path:', systemPromptPath)
+    console.log('[HARDWARE INITIAL] Schema path:', schemaPath)
+    
     const systemPrompt = readFileSync(systemPromptPath, 'utf8')
     const exampleJson = JSON.parse(readFileSync(schemaPath, 'utf8')) as Record<string, unknown>
+    
+    console.log('[HARDWARE INITIAL] Files loaded successfully')
 
     // Convert example (with "string" placeholders) into a strict JSON Schema
     const exampleToSchema = (value: unknown): Record<string, unknown> => {
@@ -63,6 +73,7 @@ export async function POST(request: NextRequest) {
     const strictSchema = exampleToSchema(exampleJson)
 
     // Create job (pending)
+    console.log('[HARDWARE INITIAL] Creating job...')
     const { data: job, error: jobError } = await supabase
       .from('jobs')
       .insert({
@@ -76,14 +87,23 @@ export async function POST(request: NextRequest) {
       .single()
 
     if (jobError || !job) {
+      console.error('[HARDWARE INITIAL] Job creation failed:', jobError)
       return NextResponse.json({ error: 'Failed to create job' }, { status: 500 })
     }
+    
+    console.log('[HARDWARE INITIAL] Job created successfully:', job.id)
 
     // Trigger edge function to process jobs (fire-and-forget)
+    console.log('[HARDWARE INITIAL] Triggering edge function...')
     const HARDWARE_INITIAL_FUNCTION_ENDPOINT = process.env.SUPABASE_HARDWARE_INITIAL_FUNCTION_URL
     const SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY
+    
+    console.log('[HARDWARE INITIAL] Function URL:', HARDWARE_INITIAL_FUNCTION_ENDPOINT ? 'present' : 'missing')
+    console.log('[HARDWARE INITIAL] Service key:', SERVICE_ROLE_KEY ? 'present' : 'missing')
+    
     if (HARDWARE_INITIAL_FUNCTION_ENDPOINT && SERVICE_ROLE_KEY) {
       try {
+        console.log('[HARDWARE INITIAL] Calling edge function...')
         const fnResp = await fetch(HARDWARE_INITIAL_FUNCTION_ENDPOINT, {
           method: 'POST',
           headers: {
@@ -92,8 +112,12 @@ export async function POST(request: NextRequest) {
           },
           body: JSON.stringify({}),
         })
+        console.log('[HARDWARE INITIAL] Edge function response status:', fnResp.status)
         if (!fnResp.ok) {
-          console.warn('[HARDWARE INITIAL] Edge function returned non-OK:', await fnResp.text())
+          const errorText = await fnResp.text()
+          console.warn('[HARDWARE INITIAL] Edge function returned non-OK:', errorText)
+        } else {
+          console.log('[HARDWARE INITIAL] Edge function called successfully')
         }
       } catch (e) {
         console.warn('[HARDWARE INITIAL] Failed to trigger edge function', e)
@@ -105,7 +129,13 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ success: true, jobId: job.id })
   } catch (error: unknown) {
     console.error('[HARDWARE INITIAL] Error:', error)
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error'
+    console.error('[HARDWARE INITIAL] Error details:', {
+      message: errorMessage,
+      stack: error instanceof Error ? error.stack : undefined,
+      name: error instanceof Error ? error.name : undefined
+    })
+    return NextResponse.json({ error: `Internal server error: ${errorMessage}` }, { status: 500 })
   }
 }
 

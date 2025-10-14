@@ -1035,7 +1035,15 @@ function DashboardContent({ onLogout, initialSearchInput }: DashboardProps) {
     
 
     // Enqueue a single initial hardware generation job
+    console.log('[CLIENT] Starting hardware generation...', {
+      title: currentCreation.title,
+      prompt: currentCreation.prompt,
+      projectId: project.id,
+      userId: user?.id
+    })
+    
     try {
+      console.log('[CLIENT] Calling /api/hardware/generate-initial...')
       const response = await fetch('/api/hardware/generate-initial', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -1047,40 +1055,73 @@ function DashboardContent({ onLogout, initialSearchInput }: DashboardProps) {
         }),
       })
 
-      const payload = await response.json().catch(() => ({})) as { success?: boolean; jobId?: string; error?: string }
+      console.log('[CLIENT] Hardware API response status:', response.status)
+      console.log('[CLIENT] Hardware API response headers:', Object.fromEntries(response.headers.entries()))
+      
+      const payload = await response.json().catch((error) => {
+        console.error('[CLIENT] Failed to parse JSON response:', error)
+        return {}
+      }) as { success?: boolean; jobId?: string; error?: string }
+      
+      console.log('[CLIENT] Hardware API response payload:', payload)
+      
       if (!response.ok || !payload?.success || !payload?.jobId) {
-        throw new Error(payload?.error || `Failed to enqueue hardware generation`)
+        const errorMsg = payload?.error || `Failed to enqueue hardware generation (status: ${response.status})`
+        console.error('[CLIENT] Hardware generation failed:', errorMsg)
+        throw new Error(errorMsg)
       }
 
       const jobId = payload.jobId
+      console.log('[CLIENT] Hardware job created successfully:', jobId)
 
       // Start polling for job completion similar to software flow
+      console.log('[CLIENT] Starting job polling...')
       const pollInterval = setInterval(async () => {
         try {
+          console.log('[CLIENT] Polling job status for:', jobId)
           const statusResponse = await fetch(`/api/jobs/${jobId}`)
+          console.log('[CLIENT] Job status response:', statusResponse.status)
+          
           const statusData = await statusResponse.json()
+          console.log('[CLIENT] Job status data:', statusData)
+          
           if (statusData.completed) {
+            console.log('[CLIENT] Job completed!', statusData)
             clearInterval(pollInterval)
 
             // If a specific reportId is returned, fetch just that report to avoid stale selection
             if (statusData.reportId) {
+              console.log('[CLIENT] Fetching specific report:', statusData.reportId)
               const { user, project } = useUserStore.getState()
               if (user?.id && project?.id) {
+                console.log('[CLIENT] User and project found, clearing stale reports...')
                 // Clear stale reports before fetch to avoid flashing previous content
                 const current = useCreationStore.getState().creations.find((c) => c.id === creationId)
                 if (current) {
                   updateCreation(creationId, { ...current, hardwareReports: {} })
                 }
-                const reportsResp = await fetch(`/api/hardware/reports?projectId=${project.id}&userId=${user.id}&reportId=${statusData.reportId}`, { cache: 'no-store' })
+                
+                const reportsUrl = `/api/hardware/reports?projectId=${project.id}&userId=${user.id}&reportId=${statusData.reportId}`
+                console.log('[CLIENT] Fetching reports from:', reportsUrl)
+                const reportsResp = await fetch(reportsUrl, { cache: 'no-store' })
+                console.log('[CLIENT] Reports response status:', reportsResp.status)
+                
                 if (reportsResp.ok) {
                   const fresh = await reportsResp.json()
+                  console.log('[CLIENT] Fresh reports data:', fresh)
           const latest = useCreationStore.getState().creations.find((c) => c.id === creationId)
           if (latest) {
+                    console.log('[CLIENT] Updating creation with fresh reports...')
                     updateCreation(creationId, { ...latest, hardwareReports: fresh.reports })
                   }
+                } else {
+                  console.error('[CLIENT] Failed to fetch reports:', reportsResp.status, await reportsResp.text())
                 }
+              } else {
+                console.error('[CLIENT] Missing user or project for report fetching')
               }
             } else {
+              console.log('[CLIENT] No specific reportId, using fallback method...')
               // Fallback: Refresh latest reports for current project
               await loadHardwareReports(creationId)
             }
@@ -1090,20 +1131,26 @@ function DashboardContent({ onLogout, initialSearchInput }: DashboardProps) {
               hardwareData: { isGenerating: false, reportsGenerated: true },
             })
 
+            console.log('[CLIENT] Hardware generation completed successfully!')
             toast({ title: 'Hardware Generation Complete', description: 'Your reports are ready.' })
           } else if (statusData.status === 'failed') {
+            console.error('[CLIENT] Job failed:', statusData.error)
             clearInterval(pollInterval)
             updateCreation(creationId, {
               ...currentCreation,
               hardwareData: { isGenerating: false, reportsGenerated: false },
             })
             toast({ title: 'Hardware Generation Failed', description: statusData.error || 'Job failed', variant: 'destructive' })
+          } else {
+            console.log('[CLIENT] Job still processing, status:', statusData.status)
           }
-        } catch {
+        } catch (pollError) {
+          console.error('[CLIENT] Error during job polling:', pollError)
           // keep polling
         }
       }, 5000)
     } catch (err) {
+      console.error('[CLIENT] Hardware generation setup failed:', err)
       const message = err instanceof Error ? err.message : 'Unknown error'
       toast({ title: 'Failed to start hardware generation', description: message, variant: 'destructive' })
       updateCreation(creationId, {
@@ -1149,20 +1196,27 @@ function DashboardContent({ onLogout, initialSearchInput }: DashboardProps) {
   }
 
   const loadHardwareReports = async (creationId: string) => {
+    console.log('[CLIENT] Loading hardware reports for creation:', creationId)
     const { user, project } = useUserStore.getState()
 
     if (!user?.id || !project?.id) {
+      console.error('[CLIENT] Missing user or project for hardware reports')
       return
     }
 
     try {
-      const response = await fetch(`/api/hardware/reports?projectId=${project.id}&userId=${user.id}`)
+      const reportsUrl = `/api/hardware/reports?projectId=${project.id}&userId=${user.id}`
+      console.log('[CLIENT] Fetching hardware reports from:', reportsUrl)
+      const response = await fetch(reportsUrl)
 
+      console.log('[CLIENT] Hardware reports response status:', response.status)
       if (response.ok) {
         const reportsData = await response.json()
+        console.log('[CLIENT] Hardware reports data:', reportsData)
         // Update creation with loaded reports
         const currentCreation = useCreationStore.getState().creations.find((c) => c.id === creationId)
         if (currentCreation) {
+          console.log('[CLIENT] Updating creation with hardware reports...')
           updateCreation(creationId, {
             ...currentCreation,
             hardwareReports: reportsData.reports,
@@ -1171,9 +1225,14 @@ function DashboardContent({ onLogout, initialSearchInput }: DashboardProps) {
               ...reportsData.models,
             },
           })
+        } else {
+          console.error('[CLIENT] Current creation not found for ID:', creationId)
         }
+      } else {
+        console.error('[CLIENT] Failed to fetch hardware reports:', response.status, await response.text())
       }
     } catch (error) {
+      console.error('[CLIENT] Error loading hardware reports:', error)
     }
   }
 
