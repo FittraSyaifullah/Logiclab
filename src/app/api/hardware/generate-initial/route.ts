@@ -1,7 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
 import { createSupabaseServerClient } from "@/lib/supabase/server"
-import { readFileSync } from "node:fs"
-import { resolve } from "node:path"
 
 export const maxDuration = 60
 
@@ -36,44 +34,8 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Project not found' }, { status: 404 })
     }
 
-    // Load master system prompt and derive JSON Schema from example shape
-    console.log('[HARDWARE INITIAL] Loading reference files...')
-    const systemPromptPath = resolve(process.cwd(), 'reference', 'master system prompt', 'master system prompt.md')
-    const schemaPath = resolve(process.cwd(), 'reference', 'master json schema', 'ai_output.json')
-    
-    console.log('[HARDWARE INITIAL] System prompt path:', systemPromptPath)
-    console.log('[HARDWARE INITIAL] Schema path:', schemaPath)
-    
-    const systemPrompt = readFileSync(systemPromptPath, 'utf8')
-    const exampleJson = JSON.parse(readFileSync(schemaPath, 'utf8')) as Record<string, unknown>
-    
-    console.log('[HARDWARE INITIAL] Files loaded successfully')
-
-    // Convert example (with "string" placeholders) into a strict JSON Schema
-    const exampleToSchema = (value: unknown): Record<string, unknown> => {
-      if (typeof value === 'string') {
-        return { type: 'string' }
-      }
-      if (Array.isArray(value)) {
-        const first = value.length > 0 ? value[0] : {}
-        return { type: 'array', items: exampleToSchema(first) }
-      }
-      if (value && typeof value === 'object') {
-        const props: Record<string, unknown> = {}
-        const required: string[] = []
-        for (const [k, v] of Object.entries(value as Record<string, unknown>)) {
-          props[k] = exampleToSchema(v)
-          required.push(k)
-        }
-        return { type: 'object', properties: props, required, additionalProperties: false }
-      }
-      return { type: 'string' }
-    }
-
-    const strictSchema = exampleToSchema(exampleJson)
-
-    // Create job (pending)
-    console.log('[HARDWARE INITIAL] Creating job...')
+    // Note: System prompt and schema are handled by the edge function
+    console.log('[HARDWARE INITIAL] Creating job (system prompt handled by edge function)...')
     const { data: job, error: jobError } = await supabase
       .from('jobs')
       .insert({
@@ -81,7 +43,7 @@ export async function POST(request: NextRequest) {
         project_id: projectId,
         kind: 'hardware_initial_generation',
         status: 'pending',
-        input: { title, prompt, projectId, userId, systemPrompt, strictSchema },
+        input: { title, prompt, projectId, userId },
       })
       .select('id')
       .single()
