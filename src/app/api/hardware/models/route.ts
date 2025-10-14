@@ -58,6 +58,29 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Failed to enqueue hardware model job" }, { status: 500 })
     }
 
+    // Create hardware_models record
+    const { data: hardwareModel, error: hardwareModelError } = await supabase
+      .from("hardware_models")
+      .insert({
+        component_id: componentId,
+        component_name: componentName || "Component",
+        project_id: projectId,
+        creation_id: creationId,
+        job_id: job.id,
+        scad_code: "",
+        parameters: {},
+        scad_mime: "application/x-openscad",
+      })
+      .select("id")
+      .single()
+
+    if (hardwareModelError) {
+      console.error("[HARDWARE] Failed to create hardware model record", hardwareModelError)
+      // Don't fail the request, just log the error
+    } else {
+      console.log(`[HARDWARE] Created hardware model record: ${hardwareModel.id}`)
+    }
+
     if (HARDWARE_FUNCTION_ENDPOINT && SERVICE_ROLE_KEY) {
       try {
         console.log(`[HARDWARE] Triggering hardware-processor function at ${HARDWARE_FUNCTION_ENDPOINT}`)

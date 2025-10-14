@@ -32,6 +32,7 @@ import { cn } from "@/lib/utils"
 import dynamic from "next/dynamic"
 import "@/components/viewers/stl-viewer-styles.css"
 import { useOpenScadWorker } from "@/hooks/useOpenScadWorker"
+import { useHardwareModels } from "@/hooks/useHardwareModels"
 import { updateScadParameters } from "@/lib/scad/parameters"
 
 const STLViewer = dynamic(() => import("@/components/viewers/stl-viewer"), {
@@ -40,6 +41,7 @@ const STLViewer = dynamic(() => import("@/components/viewers/stl-viewer"), {
 
 interface HardwareViewerProps {
   creation: Creation
+  projectId?: string
   onRegenerate?: () => void
   onGenerateComponentModel?: (args: {
     componentId: string
@@ -176,7 +178,7 @@ const renderDetailedBreakdown = (content?: string) => {
   )
 }
 
-export function HardwareViewer({ creation, onRegenerate, onGenerateComponentModel, creditGate }: HardwareViewerProps) {
+export function HardwareViewer({ creation, projectId, onRegenerate, onGenerateComponentModel, creditGate }: HardwareViewerProps) {
   const { toast } = useToast()
   const [activeTab, setActiveTab] = useState("3d-components")
   const [regeneratingTabs, setRegeneratingTabs] = useState<string[]>([])
@@ -195,6 +197,7 @@ export function HardwareViewer({ creation, onRegenerate, onGenerateComponentMode
   const conversionSequence = useRef(0)
   const conversionTimers = useRef<Record<string, ReturnType<typeof setTimeout>>>({})
   const { compile: compileScadWorker } = useOpenScadWorker()
+  const { hardwareModels: storedHardwareModels, isLoading: isLoadingStoredModels } = useHardwareModels(projectId || '', creation.id)
   const autoCompileInFlight = useRef<Set<string>>(new Set())
   downloadMeshFile = (
     component,
@@ -211,7 +214,7 @@ export function HardwareViewer({ creation, onRegenerate, onGenerateComponentMode
     const safeComponent = toKebabCase(component.name || "component")
 
     if (type === "stl") {
-      const stlPayload = overrideStlContent ?? model.stlContent
+      const stlPayload = overrideStlContent ?? (model as { stlContent?: string })?.stlContent
       if (!stlPayload) return
       const bytes = base64ToUint8Array(stlPayload)
       if (bytes.byteLength < 84) {
@@ -260,8 +263,46 @@ export function HardwareViewer({ creation, onRegenerate, onGenerateComponentMode
 
   const hardwareReports = creation.hardwareReports as HardwareReports | undefined
   const componentModels = useMemo(
-    () => creation.hardwareModels ?? {},
-    [creation.hardwareModels],
+    () => {
+      // Merge stored hardware models with current creation's hardware models
+      // Stored models take precedence as they are more up-to-date
+      const currentModels = creation.hardwareModels ?? {}
+      const merged: Record<string, HardwareComponentModel> = { ...currentModels }
+      
+      // Transform stored models to match expected format
+      Object.keys(storedHardwareModels).forEach(componentId => {
+        const stored = storedHardwareModels[componentId]
+        if (stored) {
+          // Determine status based on whether SCAD code exists
+          const hasScadCode = !!stored.scadCode && stored.scadCode.trim().length > 0
+          const status: HardwareComponentModel['status'] = hasScadCode ? 'completed' : 'idle'
+          
+          merged[componentId] = {
+            ...merged[componentId],
+            componentId: stored.componentId,
+            name: stored.name,
+            scadCode: stored.scadCode,
+            parameters: Array.isArray(stored.parameters) 
+              ? stored.parameters.map((p: unknown) => {
+                  const param = p as { name?: string; value?: number; unit?: string; metadata?: Record<string, unknown> }
+                  return {
+                    name: param.name || 'Parameter',
+                    value: typeof param.value === 'number' ? param.value : 0,
+                    unit: param.unit,
+                    metadata: param.metadata || {}
+                  }
+                })
+              : [],
+            status,
+            scadMimeType: stored.scadMimeType,
+            updatedAt: stored.updatedAt,
+          }
+        }
+      })
+      
+      return merged
+    },
+    [creation.hardwareModels, storedHardwareModels],
   )
 
   const triggerConversion = useCallback(
@@ -481,7 +522,8 @@ export function HardwareViewer({ creation, onRegenerate, onGenerateComponentMode
   const renderPreviewViewer = () => {
     if (!previewComponentId) return null
     const model = componentModels[previewComponentId]
-    if (!model?.stlContent) return null
+    const stlContent = (model as { stlContent?: string })?.stlContent || computedStlContent[previewComponentId]
+    if (!stlContent) return null
 
     return (
       <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/70 backdrop-blur">
@@ -496,7 +538,7 @@ export function HardwareViewer({ creation, onRegenerate, onGenerateComponentMode
             Close
           </button>
           <div className="absolute inset-0">
-            <STLViewer stlBase64={model.stlContent} componentName={model.name ?? "Component"} />
+            <STLViewer stlBase64={stlContent} componentName={model.name ?? "Component"} />
           </div>
         </div>
       </div>
@@ -680,7 +722,7 @@ const renderComponentActions = (
 ) => {
     const status = component.model?.status ?? "idle"
     const isLoading = status === "queued" || status === "processing"
-    const canPreview = status === "completed" && (component.model?.stlContent)
+    const canPreview = status === "completed" && ((component.model as { stlContent?: string })?.stlContent || computedStlContent[component.id])
 
     return (
       <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
@@ -720,7 +762,7 @@ const renderComponentActions = (
           <Button
             variant="outline"
             size="sm"
-            disabled={!component.model?.stlContent && !computedStlContent[component.id]}
+            disabled={!(component.model as { stlContent?: string })?.stlContent && !computedStlContent[component.id]}
             onClick={() =>
               downloadMeshFile(
                 component,
@@ -919,9 +961,9 @@ const renderComponentActions = (
                         <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_360px]">
                           <div className="relative h-[420px] bg-neutral-900/80">
                             {activeComponent.model?.status === "completed" &&
-                            (computedStlContent[activeComponent.id] || activeComponent.model.stlContent) ? (
+                            (computedStlContent[activeComponent.id] || (activeComponent.model as { stlContent?: string })?.stlContent) ? (
                               <STLViewer
-                                stlBase64={computedStlContent[activeComponent.id] || activeComponent.model.stlContent!}
+                                stlBase64={computedStlContent[activeComponent.id] || (activeComponent.model as { stlContent?: string })?.stlContent || ''}
                                 componentName={activeComponent.name || "Component"}
                               />
                             ) : (
@@ -1000,10 +1042,10 @@ const renderComponentActions = (
                                       delete next[activeComponent.id]
                                       return next
                                     })
-                                    if (activeComponent.model?.stlContent) {
+                                    if ((activeComponent.model as { stlContent?: string })?.stlContent) {
                                       setComputedStlContent((prev) => ({
                                         ...prev,
-                                        [activeComponent.id]: activeComponent.model?.stlContent ?? prev[activeComponent.id],
+                                        [activeComponent.id]: (activeComponent.model as { stlContent?: string })?.stlContent ?? prev[activeComponent.id],
                                       }))
                                     }
                                   }}

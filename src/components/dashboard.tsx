@@ -421,6 +421,21 @@ function DashboardContent({ onLogout, initialSearchInput }: DashboardProps) {
 
         // Do not attempt server-side STL conversion; SCAD is enough for client
 
+        // Update hardware_models record in database
+        try {
+          await fetch("/api/hardware/models/update", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              componentId,
+              scadCode: data.component?.scadCode,
+              parameters: data.component?.parameters,
+            }),
+          })
+        } catch (updateError) {
+          console.error("[HARDWARE] Failed to update hardware model record", updateError)
+        }
+
         updateCreation(creationId, {
           ...nextCreation,
           hardwareModels: {
@@ -1564,6 +1579,7 @@ function DashboardContent({ onLogout, initialSearchInput }: DashboardProps) {
               {creationMode === "hardware" ? (
                 <HardwareViewer
                   creation={activeCreation}
+                  projectId={project?.id}
                   onRegenerate={handleRegenerate}
                   creditGate={ensureCredits}
                   onGenerateComponentModel={({ componentId, componentName, prompt }) =>
