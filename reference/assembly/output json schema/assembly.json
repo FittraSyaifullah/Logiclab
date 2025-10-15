@@ -1,4 +1,7 @@
-{"AssemblyAndParts": {
+{
+    "content": "string",
+
+    "AssemblyAndParts": {
         "overview": "string",
         "partsList": [
           {
