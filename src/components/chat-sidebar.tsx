@@ -125,6 +125,13 @@ export function ChatSidebar({ onLogout, onSendMessage }: ChatSidebarProps) {
     setFallbackInput("")
     setIsLoadingFallback(true)
 
+    // Optimistically add the user message to the UI
+    const userMessageObj = { id: Date.now().toString(), role: "user" as const, content: messageToSend }
+    const optimisticMessages = [...fallbackMessages, userMessageObj]
+    if (activeCreation?.id) {
+      updateCreation(activeCreation.id, { ...activeCreation, chatHistory: optimisticMessages })
+    }
+
     // For software mode, use the onSendMessage prop if available
     if (mode === "software" && onSendMessage) {
       try {
@@ -214,7 +221,7 @@ export function ChatSidebar({ onLogout, onSendMessage }: ChatSidebarProps) {
           role: "assistant" as const,
           content: aiResponse,
         }
-        const finalMessages = [...fallbackMessages, assistantMessage]
+        const finalMessages = [...optimisticMessages, assistantMessage]
         if (activeCreation?.id) {
           updateCreation(activeCreation.id, { ...activeCreation, chatHistory: finalMessages })
         }

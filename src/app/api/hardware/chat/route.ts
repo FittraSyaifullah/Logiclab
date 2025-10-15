@@ -119,36 +119,37 @@ export async function POST(request: NextRequest) {
 			return NextResponse.json(responseBody)
 		}
 
-		if (target.type === "assembly-parts") {
-			const description = toStrictDescription(context?.creationPrompt, message)
-			const resp = await fetch(`${request.nextUrl.origin}/api/hardware/generate-assembly`, {
-				method: "POST",
-				headers: { "Content-Type": "application/json" },
-				body: JSON.stringify({
-					projectData: { id: projectId, description, title: context?.creationTitle },
-					reportId: target.reportId,
-				}),
-			})
-        const data = await resp.json()
-			if (!resp.ok) {
-				return NextResponse.json(
-					{ error: data?.error ?? "Failed to generate assembly" },
-					{ status: resp.status },
-				)
-			}
-        const summaryRes = await generateText({
-            model: aiModel,
-            system: "You write short, clear summaries for users. 1-3 sentences max.",
-            prompt: `User requested changes to assembly: "${message}". Summarize what will change in the assembly report.`,
-            temperature: 0.3,
-            maxTokens: 120,
-        })
-        const responseBody: ChatResponseBody = {
-            "AI response": (summaryRes.text || "Updated assembly instructions and parts list based on your request.").trim(),
-            "AI content": data?.content ?? data,
+        if (target.type === "assembly-parts") {
+            // Call our edit-assembly API which invokes the Supabase Edge Function
+            const resp = await fetch(`${request.nextUrl.origin}/api/hardware/edit-assembly`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    projectId,
+                    userId,
+                    message,
+                }),
+            })
+            const data = await resp.json()
+            if (!resp.ok) {
+                return NextResponse.json(
+                    { error: data?.error ?? "Failed to edit assembly" },
+                    { status: resp.status },
+                )
+            }
+            const summaryRes = await generateText({
+                model: aiModel,
+                system: "You write short, clear summaries for users. 1-3 sentences max.",
+                prompt: `User requested changes to assembly: "${message}". Summarize what was updated in the assembly instructions and parts list.`,
+                temperature: 0.3,
+                maxTokens: 120,
+            })
+            const responseBody: ChatResponseBody = {
+                "AI response": (summaryRes.text || "Updated assembly instructions and parts list based on your request.").trim(),
+                "AI content": data?.data ?? data,
+            }
+            return NextResponse.json(responseBody)
         }
-			return NextResponse.json(responseBody)
-		}
 
 		if (target.type === "firmware-code") {
 			const description = toStrictDescription(context?.creationPrompt, message)

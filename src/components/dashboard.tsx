@@ -524,7 +524,7 @@ function DashboardContent({ onLogout, initialSearchInput }: DashboardProps) {
     }
   }
 
-  // Load projects (software and hardware) after login
+  // Load projects (software and hardware) after login; ensure initial prompt form shows by default
   useEffect(() => {
     const loadAllProjects = async () => {
       if (!user?.id) return
@@ -540,6 +540,7 @@ function DashboardContent({ onLogout, initialSearchInput }: DashboardProps) {
               const hwResp = await fetch(`/api/hardware/reports?projectId=${project.id}&userId=${user.id}`, { cache: "no-store" })
               if (hwResp.ok) {
                 const hw = await hwResp.json()
+                // If there is no active hardware creation yet, keep initial prompt visible
                 if (hw?.reports && activeCreation && activeCreation.mode === 'hardware') {
                   updateCreation(activeCreation.id, { hardwareReports: hw.reports })
                 }
@@ -1225,6 +1226,8 @@ function DashboardContent({ onLogout, initialSearchInput }: DashboardProps) {
               ...reportsData.models,
             },
           })
+          // After reports load, also load hardware messages for latest report
+          void loadHardwareMessages({})
         } else {
           console.error('[CLIENT] Current creation not found for ID:', creationId)
         }
@@ -1234,6 +1237,28 @@ function DashboardContent({ onLogout, initialSearchInput }: DashboardProps) {
     } catch (error) {
       console.error('[CLIENT] Error loading hardware reports:', error)
     }
+  }
+
+  // Load hardware chat messages for latest or selected hardware report
+  const loadHardwareMessages = async (args: { hardwareId?: string }) => {
+    const { user, project } = useUserStore.getState()
+    if (!user?.id) return
+
+    try {
+      const params = args.hardwareId
+        ? `hardwareId=${encodeURIComponent(args.hardwareId)}&userId=${encodeURIComponent(user.id)}`
+        : project?.id
+          ? `projectId=${encodeURIComponent(project.id)}&userId=${encodeURIComponent(user.id)}`
+          : `userId=${encodeURIComponent(user.id)}`
+      const resp = await fetch(`/api/hardware/messages?${params}`, { cache: 'no-store' })
+      if (!resp.ok) return
+      const data = await resp.json() as { messages?: Array<{ id: string; role: 'user' | 'assistant' | 'system'; content: string; created_at?: string }> }
+      const existing = activeCreation && useCreationStore.getState().creations.find((c) => c.id === activeCreation.id)
+      if (existing && existing.mode === 'hardware') {
+        const chatHistory = (data.messages || []).map((m) => ({ id: m.id, role: (m.role === 'system' ? 'assistant' : m.role) as 'user' | 'assistant', content: m.content, createdAt: m.created_at ? new Date(m.created_at) : undefined }))
+        updateCreation(existing.id, { chatHistory })
+      }
+    } catch {}
   }
 
   const handleNewCreationSubmit = async (
@@ -1514,6 +1539,13 @@ function DashboardContent({ onLogout, initialSearchInput }: DashboardProps) {
                }
                
                setActiveCreationId(creationId)
+
+               // Load chat messages for this hardware report
+               if (selectedKey) {
+                 void loadHardwareMessages({ hardwareId: selectedKey })
+               } else {
+                 void loadHardwareMessages({})
+               }
              }
 
             // Fetch component models for selected project
