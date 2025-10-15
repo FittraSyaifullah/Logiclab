@@ -428,6 +428,8 @@ function DashboardContent({ onLogout, initialSearchInput }: DashboardProps) {
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
               componentId,
+              projectId: project?.id,
+              // Don't pass creationId - let the API use projectId as fallback
               scadCode: data.component?.scadCode,
               parameters: data.component?.parameters,
             }),
@@ -1546,6 +1548,13 @@ function DashboardContent({ onLogout, initialSearchInput }: DashboardProps) {
                   updateCreation(activeId, { hardwareModels: { ...(curr.hardwareModels ?? {}), ...(modelsData.models || {}) } })
                 }
               }
+            }
+
+            // Fetch hardware models for the project to populate existing 3D models
+            const hardwareModelsResp = await fetch(`/api/hardware/models/fetch?projectId=${selectedProjectId}`, { cache: 'no-store' })
+            if (hardwareModelsResp.ok) {
+              const hardwareModelsData = await hardwareModelsResp.json()
+              console.log('[HARDWARE] Loaded existing hardware models for project:', hardwareModelsData.hardwareModels)
             }
           } catch (e) {
           } finally {

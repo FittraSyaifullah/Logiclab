@@ -39,7 +39,6 @@ CREATE TABLE public.hardware_models (
   component_id text NOT NULL UNIQUE,
   component_name text NOT NULL,
   creation_id uuid NOT NULL,
-  job_id uuid NOT NULL,
   scad_code text NOT NULL,
   parameters jsonb,
   scad_mime text DEFAULT 'application/x-openscad'::text,

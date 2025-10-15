@@ -5,7 +5,6 @@ export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url)
     const projectId = searchParams.get('projectId')
-    const creationId = searchParams.get('creationId')
 
     if (!projectId) {
       return NextResponse.json({ error: "projectId is required" }, { status: 400 })
@@ -13,16 +12,11 @@ export async function GET(request: NextRequest) {
 
     const supabase = createSupabaseServerClient()
 
-    // Build query
-    let query = supabase
+    // Build query - fetch all hardware models for the project
+    const query = supabase
       .from("hardware_models")
       .select("*")
       .eq("project_id", projectId)
-
-    // Optionally filter by creation_id
-    if (creationId) {
-      query = query.eq("creation_id", creationId)
-    }
 
     const { data: hardwareModels, error } = await query
 

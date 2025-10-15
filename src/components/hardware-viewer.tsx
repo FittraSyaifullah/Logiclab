@@ -197,7 +197,7 @@ export function HardwareViewer({ creation, projectId, onRegenerate, onGenerateCo
   const conversionSequence = useRef(0)
   const conversionTimers = useRef<Record<string, ReturnType<typeof setTimeout>>>({})
   const { compile: compileScadWorker } = useOpenScadWorker()
-  const { hardwareModels: storedHardwareModels, isLoading: isLoadingStoredModels } = useHardwareModels(projectId || '', creation.id)
+  const { hardwareModels: storedHardwareModels, isLoading: isLoadingStoredModels } = useHardwareModels(projectId || '')
   const autoCompileInFlight = useRef<Set<string>>(new Set())
   downloadMeshFile = (
     component,

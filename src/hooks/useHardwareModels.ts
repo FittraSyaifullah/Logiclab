@@ -19,12 +19,9 @@ interface UseHardwareModelsResult {
   refetch: () => void
 }
 
-export function useHardwareModels(projectId: string, creationId?: string): UseHardwareModelsResult {
+export function useHardwareModels(projectId: string): UseHardwareModelsResult {
   const fetchHardwareModels = useCallback(async (): Promise<Record<string, HardwareModel>> => {
     const params = new URLSearchParams({ projectId })
-    if (creationId) {
-      params.append('creationId', creationId)
-    }
 
     const response = await fetch(`/api/hardware/models/fetch?${params}`)
     
@@ -35,7 +32,7 @@ export function useHardwareModels(projectId: string, creationId?: string): UseHa
 
     const data = await response.json()
     return data.hardwareModels || {}
-  }, [projectId, creationId])
+  }, [projectId])
 
   const {
     data: hardwareModels = {},
@@ -43,7 +40,7 @@ export function useHardwareModels(projectId: string, creationId?: string): UseHa
     error,
     refetch,
   } = useQuery({
-    queryKey: ['hardware-models', projectId, creationId],
+    queryKey: ['hardware-models', projectId],
     queryFn: fetchHardwareModels,
     enabled: !!projectId,
     staleTime: 30000, // 30 seconds
