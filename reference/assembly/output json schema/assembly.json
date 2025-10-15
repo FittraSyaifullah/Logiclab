@@ -1,0 +1,14 @@
+{"AssemblyAndParts": {
+        "overview": "string",
+        "partsList": [
+          {
+            "part": "string",
+            "quantity": "string",
+            "vendor": "string",
+            "notes": "string"
+          }
+        ],
+        "assemblyInstructions": "string",
+        "safetyChecklist": "string"
+      }
+    }
