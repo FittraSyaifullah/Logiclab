@@ -129,6 +129,9 @@ function PersistentHeader({
       })
 
       if (response.ok) {
+        try { useCreationStore.getState().clearCreations() } catch {}
+        try { useHardwareStore.getState().clear() } catch {}
+        try { useCreationStore.getState().setActiveCreationId(null) } catch {}
         onLogout()
         window.location.href = "/"
       } else {
@@ -348,6 +351,7 @@ function DashboardContent({ onLogout, initialSearchInput }: DashboardProps) {
   const [credits, setCredits] = useState<{ balance: number; paid: boolean }>({ balance: 0, paid: false })
 
   const hoverTimeoutRef = useRef<NodeJS.Timeout | null>(null)
+  const prevUserIdRef = useRef<string | null>(null)
 
   const creationMode = activeCreation?.mode || (activeCreation?.softwareData ? "software" : "hardware")
   // Fetch credits for current user
@@ -365,7 +369,38 @@ function DashboardContent({ onLogout, initialSearchInput }: DashboardProps) {
   }
 
   useEffect(() => {
-    // after login/user changes, load credits
+    // Clear cross-user state when user changes (including logout), then load credits
+    const currentUserId = user?.id ?? null
+    const previousUserId = prevUserIdRef.current
+
+    if (previousUserId && previousUserId !== currentUserId) {
+      // User switched accounts; clear persisted app state tied to previous user
+      try {
+        useCreationStore.getState().clearCreations()
+      } catch {}
+      try {
+        useHardwareStore.getState().clear()
+      } catch {}
+      try {
+        setActiveCreationId(null)
+        setSelectedChat(null)
+        setSoftwareList([])
+        setChatMessages([])
+      } catch {}
+    }
+
+    if (previousUserId === null && currentUserId) {
+      // Fresh login; ensure clean UI
+      try {
+        useCreationStore.getState().clearCreations()
+        useHardwareStore.getState().clear()
+        setActiveCreationId(null)
+        setSelectedChat(null)
+      } catch {}
+    }
+
+    prevUserIdRef.current = currentUserId
+
     void refreshCredits()
   }, [user?.id])
 
