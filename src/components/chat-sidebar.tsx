@@ -119,7 +119,19 @@ export function ChatSidebar({ onLogout, onSendMessage }: ChatSidebarProps) {
 
   const handleFallbackSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!fallbackInput.trim()) return
+    console.log('[CHAT-SIDEBAR] Submit handler called:', {
+      input: fallbackInput,
+      selectedScope,
+      mode,
+      hasActiveCreation: !!activeCreation,
+      activeCreationId: activeCreation?.id,
+      activeCreationProjectId: activeCreation?.projectId
+    })
+    
+    if (!fallbackInput.trim()) {
+      console.log('[CHAT-SIDEBAR] Empty input, returning')
+      return
+    }
 
     const messageToSend = fallbackInput.trim()
     setFallbackInput("")
@@ -193,8 +205,22 @@ export function ChatSidebar({ onLogout, onSendMessage }: ChatSidebarProps) {
           },
         }
 
+        console.log('[CHAT-SIDEBAR] Hardware chat request body:', {
+          projectId: requestBody.projectId,
+          activeCreationProjectId: activeCreation?.projectId,
+          globalProjectId: project?.id,
+          selectedScope,
+          target,
+          hasUser: !!user?.id
+        })
+
         // Guard: must have a valid projectId
         if (!requestBody.projectId) {
+          console.error('[CHAT-SIDEBAR] Missing projectId:', {
+            activeCreationProjectId: activeCreation?.projectId,
+            globalProjectId: project?.id,
+            activeCreationId: activeCreation?.id
+          })
           throw new Error("Missing project context. Please reselect the hardware project and try again.")
         }
 

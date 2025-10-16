@@ -50,7 +50,7 @@ Follow these rules strictly:
 
 const COMPONENTS_OUTPUT_EXAMPLE = {
   content: "string",
-  "3DComponents": {
+  project: {
     components: [
       {
         component: "string",
@@ -109,6 +109,7 @@ serve(async (req) => {
         reports?: Record<string, unknown>
       }
     }
+    console.log('[EDGE:edit-components] Request body:', { projectId, userId, passedHardwareId, hasContext: !!context, hasReports: !!context?.reports })
 
     if (!projectId || !userMessage) {
       return new Response(JSON.stringify({ error: 'Missing projectId or userMessage' }), {
@@ -117,21 +118,9 @@ serve(async (req) => {
       })
     }
 
-    // Find target hardware report row
-    let hardwareId = passedHardwareId || ''
-    if (!hardwareId) {
-      const { data: latest, error: latestErr } = await supabase
-        .from('hardware_projects')
-        .select('id')
-        .eq('project_id', projectId)
-        .order('created_at', { ascending: false })
-        .limit(1)
-        .maybeSingle()
-      if (latestErr) {
-        console.error('[EDGE:edit-components] Latest hardware lookup error:', latestErr)
-      }
-      hardwareId = latest?.id ?? ''
-    }
+    // Find or create target hardware report row using three-tier fallback strategy
+    let targetHardwareId = passedHardwareId || null
+    console.log('[EDGE:edit-components] Initial hardwareId:', targetHardwareId)
 
     const openaiKey = Deno.env.get('OPENAI_API_KEY') ?? ''
     if (!openaiKey) throw new Error('OPENAI_API_KEY not configured')
@@ -190,7 +179,7 @@ serve(async (req) => {
 
     const parsedObj = parsed as {
       content?: string
-      "3DComponents"?: {
+      project?: {
         components?: Array<{
           component?: string
           description?: string
@@ -205,7 +194,8 @@ serve(async (req) => {
       }
     }
 
-    const componentsPayload = parsedObj?.["3DComponents"] ?? null
+    const componentsPayload = parsedObj?.project ?? null
+    console.log('[EDGE:edit-components] Parsed components count:', Array.isArray(componentsPayload?.components) ? componentsPayload!.components.length : 0)
 
     // Create display text for AI chat bubble
     const list = Array.isArray(componentsPayload?.components) ? componentsPayload!.components : []
@@ -219,40 +209,94 @@ serve(async (req) => {
           bulletList,
         ].filter(Boolean).join('\n\n') || 'Updated 3D components.')
 
-    // Insert messages
-    try {
-      const rows = [
-        {
-          project_id: projectId,
-          hardware_id: hardwareId || null,
-          user_id: userId ?? null,
-          role: 'user',
-          content: userMessage,
-          target_type: '3d-components',
-        },
-        {
-          project_id: projectId,
-          hardware_id: hardwareId || null,
-          user_id: userId ?? null,
-          role: 'assistant',
-          content: aiText,
-          target_type: '3d-components',
-        },
-      ]
-      await supabase.from('hardware_messages').insert(rows)
-    } catch (e) {
-      console.warn('[EDGE:edit-components] hardware_messages insert warning:', e)
-    }
-
-    // Update hardware_projects.3d_components
-    if (hardwareId && componentsPayload) {
-      const { error: updErr } = await supabase
+    // Three-tier fallback strategy for hardware_projects update
+    if (targetHardwareId) {
+      // Tier 1: Update existing record
+      const { data: updated, error } = await supabase
         .from('hardware_projects')
         .update({ '3d_components': componentsPayload })
-        .eq('id', hardwareId)
-      if (updErr) {
-        console.error('[EDGE:edit-components] Update hardware_projects error:', updErr)
+        .eq('id', targetHardwareId)
+        .select('id')
+        .single()
+      if (error || !updated) {
+        console.error('[EDGE:edit-components] Update hardware_projects failed', error)
+        return new Response(JSON.stringify({ error: 'Failed to update components' }), {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          status: 500,
+        })
       }
+      targetHardwareId = updated.id
+      console.log('[EDGE:edit-components] Updated existing hardware_projects.3d_components')
+    } else {
+      // Tier 2: Find latest by project_id
+      const { data: existing } = await supabase
+        .from('hardware_projects')
+        .select('id')
+        .eq('project_id', projectId)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle()
+      
+      if (existing?.id) {
+        const { data: updated, error } = await supabase
+          .from('hardware_projects')
+          .update({ '3d_components': componentsPayload })
+          .eq('id', existing.id)
+          .select('id')
+          .single()
+        if (error || !updated) {
+          console.error('[EDGE:edit-components] Update existing hardware_projects failed', error)
+          return new Response(JSON.stringify({ error: 'Failed to update components' }), {
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+            status: 500,
+          })
+        }
+        targetHardwareId = updated.id
+        console.log('[EDGE:edit-components] Updated latest hardware_projects.3d_components')
+      } else {
+        // Tier 3: Create new record
+        const { data: inserted, error } = await supabase
+          .from('hardware_projects')
+          .insert({
+            project_id: projectId,
+            title: context?.project || 'Hardware Project',
+            '3d_components': componentsPayload
+          })
+          .select('id')
+          .single()
+        if (error || !inserted) {
+          console.error('[EDGE:edit-components] Insert hardware_projects failed', error)
+          return new Response(JSON.stringify({ error: 'Failed to create components' }), {
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+            status: 500,
+          })
+        }
+        targetHardwareId = inserted.id
+        console.log('[EDGE:edit-components] Created new hardware_projects with 3d_components')
+      }
+    }
+
+    // Insert messages after database update to ensure targetHardwareId is valid
+    try {
+      if (targetHardwareId) {
+        await supabase.from('hardware_messages').insert([
+          {
+            hardware_id: targetHardwareId,
+            role: 'user',
+            content: userMessage
+          },
+          {
+            hardware_id: targetHardwareId,
+            role: 'assistant',
+            content: aiText
+          }
+        ]);
+        console.log('[EDGE:edit-components] Inserted hardware_messages rows with hardware_id:', targetHardwareId)
+      } else {
+        console.error('[EDGE:edit-components] No valid targetHardwareId for message insertion')
+      }
+    } catch (msgErr) {
+      console.warn('[EDGE:edit-components] hardware_messages insert failed (non-fatal)', msgErr)
     }
 
     return new Response(

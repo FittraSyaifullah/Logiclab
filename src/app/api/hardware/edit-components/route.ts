@@ -91,6 +91,23 @@ export async function POST(request: NextRequest) {
     console.log('[EDIT-COMPONENTS] Edge function response status:', resp.status)
     const data = await resp.json()
     console.log('[EDIT-COMPONENTS] Edge function response data:', data)
+    console.log('[EDIT-COMPONENTS] Edge function response headers:', Object.fromEntries(resp.headers.entries()))
+    
+    // Check if the edge function actually updated the database
+    if (resp.ok && data?.message === 'Components updated') {
+      console.log('[EDIT-COMPONENTS] Edge function reported success, checking database...')
+      // Verify the update by fetching the updated record
+      const { data: updatedRecord } = await supabase
+        .from('hardware_projects')
+        .select('id, "3d_components"')
+        .eq('id', hardwareRow?.id)
+        .single()
+      console.log('[EDIT-COMPONENTS] Database verification:', {
+        hardwareId: hardwareRow?.id,
+        has3dComponents: !!updatedRecord?.["3d_components"],
+        componentCount: Array.isArray(updatedRecord?.["3d_components"]?.components) ? updatedRecord["3d_components"].components.length : 0
+      })
+    }
 
     if (!resp.ok) {
       console.error('[EDIT-COMPONENTS] Edge function failed:', data?.error)

@@ -82,27 +82,32 @@ export async function GET(request: NextRequest) {
           }>
           generalNotes?: string
         }
-        // If the stored data is in the new strict JSON shape, map it to the UI's expected structure
-        const looksLikeStrictJson = raw3d && typeof raw3d === 'object' && 'project' in raw3d && 'components' in raw3d
-        if (looksLikeStrictJson) {
+        // Accept both new and legacy shapes: presence of components array is enough
+        const hasComponentsArray = raw3d && typeof raw3d === 'object' && 'components' in raw3d && Array.isArray((raw3d as { components?: unknown[] }).components)
+        if (hasComponentsArray) {
           try {
             const descriptionText = typeof raw3d.description === 'string' ? raw3d.description : ''
             const notesText = typeof raw3d.generalNotes === 'string' ? raw3d.generalNotes : ''
             const content = [descriptionText, notesText].filter(Boolean).join('\n\n')
 
-            const mappedComponents = Array.isArray(raw3d.components)
-              ? raw3d.components.map((c) => ({
-                  // UI expects these keys
-                  name: c?.component ?? '',
-                  description: c?.description ?? '',
-                  printTime: c?.printTime ?? '',
-                  material: c?.material ?? '',
-                  supports: c?.supports ?? '',
-                  prompt: c?.promptFor3DGeneration ?? '',
-                  // Put extra details into notes for now
-                  notes: [c?.printSpecifications, c?.assemblyNotes].filter(Boolean).join('\n\n'),
-                }))
-              : []
+            const mappedComponents = (raw3d.components as Array<{
+              component?: string
+              description?: string
+              printTime?: string
+              material?: string
+              supports?: string
+              promptFor3DGeneration?: string
+              printSpecifications?: string
+              assemblyNotes?: string
+            }>).map((c) => ({
+              name: c?.component ?? '',
+              description: c?.description ?? '',
+              printTime: c?.printTime ?? '',
+              material: c?.material ?? '',
+              supports: c?.supports ?? '',
+              prompt: c?.promptFor3DGeneration ?? '',
+              notes: [c?.printSpecifications, c?.assemblyNotes].filter(Boolean).join('\n\n'),
+            }))
 
             transformedReports['3d-components'] = {
               content,
@@ -110,11 +115,9 @@ export async function GET(request: NextRequest) {
               reportId: targetReport.id,
             }
           } catch {
-            // If mapping fails for any reason, fall back to passing through the raw value
             transformedReports['3d-components'] = { ...(raw3d as Record<string, unknown>), reportId: targetReport.id }
           }
         } else {
-          // Keep legacy shape as-is
           transformedReports['3d-components'] = { ...(raw3d as Record<string, unknown>), reportId: targetReport.id }
         }
       }
