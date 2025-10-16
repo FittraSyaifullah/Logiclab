@@ -430,7 +430,7 @@ export function ChatSidebar({ onLogout, onSendMessage }: ChatSidebarProps) {
               <ScrollArea className="flex-1 px-3" style={{ maxHeight: "calc(100dvh - 200px)" }}>
                 <div className="space-y-3 py-2">
                   {fallbackMessages && fallbackMessages.length > 0 ? (
-                    [...fallbackMessages].reverse().map((message) => (
+                    fallbackMessages.map((message) => (
                       <div
                         key={message?.id || Math.random()}
                         className={cn("flex gap-2 text-sm", message?.role === "user" ? "justify-end" : "justify-start")}
