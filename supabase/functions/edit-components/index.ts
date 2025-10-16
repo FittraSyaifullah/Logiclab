@@ -49,6 +49,7 @@ Follow these rules strictly:
 `
 
 const COMPONENTS_OUTPUT_EXAMPLE = {
+  content: "string",
   "3DComponents": {
     components: [
       {
@@ -188,6 +189,7 @@ serve(async (req) => {
     }
 
     const parsedObj = parsed as {
+      content?: string
       "3DComponents"?: {
         components?: Array<{
           component?: string
@@ -210,10 +212,12 @@ serve(async (req) => {
     const bulletList = list
       .map((c) => `- ${c?.component || 'Component'}: ${c?.description || ''}`)
       .join('\n')
-    const aiText = [
-      componentsPayload?.generalNotes ? `Notes: ${componentsPayload?.generalNotes}` : '',
-      bulletList,
-    ].filter(Boolean).join('\n\n') || 'Updated 3D components.'
+    const aiText = (parsedObj?.content && typeof parsedObj.content === 'string')
+      ? parsedObj.content
+      : ([
+          componentsPayload?.generalNotes ? `Notes: ${componentsPayload?.generalNotes}` : '',
+          bulletList,
+        ].filter(Boolean).join('\n\n') || 'Updated 3D components.')
 
     // Insert messages
     try {

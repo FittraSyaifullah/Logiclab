@@ -1550,15 +1550,15 @@ function DashboardContent({ onLogout, initialSearchInput }: DashboardProps) {
                const activeId = useCreationStore.getState().activeCreationId
                const active = activeId ? useCreationStore.getState().creations.find(c => c.id === activeId) : null
               const reports = data.reports || {}
-              const selectedKey = selectedReportId && (reports as Record<string, any>)[selectedReportId] ? selectedReportId : Object.keys(reports).pop()
-              const selectedReport = selectedKey ? (reports as Record<string, any>)[selectedKey] : undefined
-               const title = data?.title || selectedReport?.project || 'Hardware Project'
+              const selectedKey = selectedReportId && (reports as HardwareReports)[selectedReportId as keyof HardwareReports] ? selectedReportId : Object.keys(reports).pop()
+              const selectedReport = selectedKey ? (reports as HardwareReports)[selectedKey as keyof HardwareReports] : undefined
+               const title = data?.title || 'Hardware Project'
 
               // Use reportId as stable creation id
               const primaryReportId = (selectedReport as { reportId?: string } | undefined)?.reportId || (
-                (reports as Record<string, any>)['assembly-parts']?.reportId ||
-                (reports as Record<string, any>)['3d-components']?.reportId ||
-                (reports as Record<string, any>)['firmware-code']?.reportId
+                (reports as HardwareReports)['assembly-parts']?.reportId ||
+                (reports as HardwareReports)['3d-components']?.reportId ||
+                (reports as HardwareReports)['firmware-code']?.reportId
               )
               const creationId = primaryReportId || `${selectedProjectId}-latest`
                const existing = useCreationStore.getState().creations.find(c => c.id === creationId)
@@ -1586,9 +1586,9 @@ function DashboardContent({ onLogout, initialSearchInput }: DashboardProps) {
 
                // Load chat messages for this hardware report using the actual reportId
                const reportIdFromSections = (
-                 (reports as Record<string, any>)['assembly-parts']?.reportId ||
-                 (reports as Record<string, any>)['3d-components']?.reportId ||
-                 (reports as Record<string, any>)['firmware-code']?.reportId
+                 (reports as HardwareReports)['assembly-parts']?.reportId ||
+                 (reports as HardwareReports)['3d-components']?.reportId ||
+                 (reports as HardwareReports)['firmware-code']?.reportId
                ) as string | undefined
                const hardwareIdForMessages = (selectedReport as { reportId?: string } | undefined)?.reportId || reportIdFromSections
                if (hardwareIdForMessages) {

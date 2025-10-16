@@ -36,7 +36,7 @@ export async function POST(request: NextRequest) {
         .select('id, title, "3d_components", assembly_parts, firmware_code')
         .eq('id', reportId)
         .maybeSingle()
-      hardwareRow = data as typeof hardwareRow
+      hardwareRow = data
     }
     if (!hardwareRow) {
       const { data } = await supabase
@@ -46,7 +46,7 @@ export async function POST(request: NextRequest) {
         .order('created_at', { ascending: false })
         .limit(1)
         .maybeSingle()
-      hardwareRow = data as typeof hardwareRow
+      hardwareRow = data
     }
 
     const context = {
