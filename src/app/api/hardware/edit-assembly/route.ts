@@ -6,14 +6,17 @@ export const maxDuration = 60
 
 export async function POST(request: NextRequest) {
   try {
+    console.log('[EDIT-ASSEMBLY] Received request')
     const supabase = createSupabaseServerClient()
     const { projectId, userId, message } = (await request.json()) as {
       projectId: string
       userId?: string
       message: string
     }
+    console.log('[EDIT-ASSEMBLY] Request body:', { projectId, userId, message })
 
     if (!projectId || !message) {
+      console.error('[EDIT-ASSEMBLY] Missing required fields:', { projectId: !!projectId, message: !!message })
       return NextResponse.json({ error: "Missing projectId or message" }, { status: 400 })
     }
 
@@ -48,6 +51,14 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Supabase URL not configured" }, { status: 500 })
     }
 
+    console.log('[EDIT-ASSEMBLY] Calling edge function with:', { 
+      projectId, 
+      userId, 
+      hardwareId: latestHardware?.id, 
+      userMessage: message,
+      context: { project: context.project, description: context.description }
+    })
+    
     const resp = await fetch(`${edgeUrl}/functions/v1/edit-assembly`, {
       method: 'POST',
       headers: {
@@ -64,8 +75,12 @@ export async function POST(request: NextRequest) {
       }),
     })
 
+    console.log('[EDIT-ASSEMBLY] Edge function response status:', resp.status)
     const data = await resp.json()
+    console.log('[EDIT-ASSEMBLY] Edge function response data:', data)
+    
     if (!resp.ok) {
+      console.error('[EDIT-ASSEMBLY] Edge function failed:', data?.error)
       return NextResponse.json({ error: data?.error || 'Edge function error' }, { status: resp.status })
     }
 

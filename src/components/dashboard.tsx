@@ -1220,6 +1220,7 @@ function DashboardContent({ onLogout, initialSearchInput }: DashboardProps) {
           console.log('[CLIENT] Updating creation with hardware reports...')
           updateCreation(creationId, {
             ...currentCreation,
+            projectId: project?.id,
             hardwareReports: reportsData.reports,
             hardwareModels: {
               ...(currentCreation.hardwareModels ?? {}),
@@ -1227,7 +1228,7 @@ function DashboardContent({ onLogout, initialSearchInput }: DashboardProps) {
             },
           })
           // After reports load, also load hardware messages for latest report
-          void loadHardwareMessages({})
+          void loadHardwareMessages({ creationId })
         } else {
           console.error('[CLIENT] Current creation not found for ID:', creationId)
         }
@@ -1240,7 +1241,7 @@ function DashboardContent({ onLogout, initialSearchInput }: DashboardProps) {
   }
 
   // Load hardware chat messages for latest or selected hardware report
-  const loadHardwareMessages = async (args: { hardwareId?: string }) => {
+  const loadHardwareMessages = async (args: { hardwareId?: string; creationId?: string }) => {
     const { user, project } = useUserStore.getState()
     if (!user?.id) return
 
@@ -1253,10 +1254,11 @@ function DashboardContent({ onLogout, initialSearchInput }: DashboardProps) {
       const resp = await fetch(`/api/hardware/messages?${params}`, { cache: 'no-store' })
       if (!resp.ok) return
       const data = await resp.json() as { messages?: Array<{ id: string; role: 'user' | 'assistant' | 'system'; content: string; created_at?: string }> }
-      const existing = activeCreation && useCreationStore.getState().creations.find((c) => c.id === activeCreation.id)
-      if (existing && existing.mode === 'hardware') {
+      const targetCreationId = args.creationId || useCreationStore.getState().activeCreationId || activeCreation?.id
+      const target = targetCreationId ? useCreationStore.getState().creations.find((c) => c.id === targetCreationId) : undefined
+      if (target && target.mode === 'hardware') {
         const chatHistory = (data.messages || []).map((m) => ({ id: m.id, role: (m.role === 'system' ? 'assistant' : m.role) as 'user' | 'assistant', content: m.content, createdAt: m.created_at ? new Date(m.created_at) : undefined }))
-        updateCreation(existing.id, { chatHistory })
+        updateCreation(target.id, { chatHistory })
       }
     } catch {}
   }
@@ -1272,6 +1274,7 @@ function DashboardContent({ onLogout, initialSearchInput }: DashboardProps) {
       components: [],
       customParams: [],
       viewMode: "model",
+      projectId: useUserStore.getState().project?.id,
       hardwareData: {
         isGenerating: true,
         reportsGenerated: false,
@@ -1511,13 +1514,18 @@ function DashboardContent({ onLogout, initialSearchInput }: DashboardProps) {
                // Update or create a hardware creation to show these reports
                const activeId = useCreationStore.getState().activeCreationId
                const active = activeId ? useCreationStore.getState().creations.find(c => c.id === activeId) : null
-               const reports = data.reports || {}
-               const selectedKey = selectedReportId && reports[selectedReportId] ? selectedReportId : Object.keys(reports).pop()
-               const selectedReport = selectedKey ? reports[selectedKey] : undefined
+              const reports = data.reports || {}
+              const selectedKey = selectedReportId && (reports as Record<string, any>)[selectedReportId] ? selectedReportId : Object.keys(reports).pop()
+              const selectedReport = selectedKey ? (reports as Record<string, any>)[selectedKey] : undefined
                const title = data?.title || selectedReport?.project || 'Hardware Project'
 
-               // Use reportId as stable creation id
-               const creationId = selectedKey || `${selectedProjectId}-latest`
+              // Use reportId as stable creation id
+              const primaryReportId = (selectedReport as { reportId?: string } | undefined)?.reportId || (
+                (reports as Record<string, any>)['assembly-parts']?.reportId ||
+                (reports as Record<string, any>)['3d-components']?.reportId ||
+                (reports as Record<string, any>)['firmware-code']?.reportId
+              )
+              const creationId = primaryReportId || `${selectedProjectId}-latest`
                const existing = useCreationStore.getState().creations.find(c => c.id === creationId)
                const creationPayload: Creation = {
                  id: creationId,
@@ -1528,6 +1536,7 @@ function DashboardContent({ onLogout, initialSearchInput }: DashboardProps) {
                  components: [],
                  customParams: [],
                  viewMode: 'model',
+                 projectId: selectedProjectId,
                  hardwareData: { isGenerating: false, reportsGenerated: true },
                  hardwareReports: reports,
                }
@@ -1540,11 +1549,19 @@ function DashboardContent({ onLogout, initialSearchInput }: DashboardProps) {
                
                setActiveCreationId(creationId)
 
-               // Load chat messages for this hardware report
-               if (selectedKey) {
-                 void loadHardwareMessages({ hardwareId: selectedKey })
+               // Load chat messages for this hardware report using the actual reportId
+               const reportIdFromSections = (
+                 (reports as Record<string, any>)['assembly-parts']?.reportId ||
+                 (reports as Record<string, any>)['3d-components']?.reportId ||
+                 (reports as Record<string, any>)['firmware-code']?.reportId
+               ) as string | undefined
+               const hardwareIdForMessages = (selectedReport as { reportId?: string } | undefined)?.reportId || reportIdFromSections
+               if (hardwareIdForMessages) {
+                 console.log('[DASHBOARD] Loading hardware messages for hardwareId:', hardwareIdForMessages)
+                 void loadHardwareMessages({ hardwareId: hardwareIdForMessages, creationId })
                } else {
-                 void loadHardwareMessages({})
+                 console.log('[DASHBOARD] No reportId found; loading messages by project context')
+                 void loadHardwareMessages({ creationId })
                }
              }
 

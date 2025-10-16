@@ -155,10 +155,10 @@ export function ChatSidebar({ onLogout, onSendMessage }: ChatSidebarProps) {
         const isPredefined = (threeDLabels as readonly string[]).includes(selectedScope)
         const target = isPredefined
           ? selectedScope === "3D Components"
-            ? { type: "3d-components" as const }
+            ? { type: "3d-components" as const, reportId: activeCreation?.hardwareReports?.["3d-components"]?.reportId }
             : selectedScope === "Assembly & Parts"
-            ? { type: "assembly-parts" as const }
-            : { type: "firmware-code" as const }
+            ? { type: "assembly-parts" as const, reportId: activeCreation?.hardwareReports?.["assembly-parts"]?.reportId }
+            : { type: "firmware-code" as const, reportId: activeCreation?.hardwareReports?.["firmware-code"]?.reportId }
           : {
               type: "3d-component" as const,
               componentId:
@@ -169,8 +169,8 @@ export function ChatSidebar({ onLogout, onSendMessage }: ChatSidebarProps) {
             }
 
         const requestBody = {
-          projectId: project?.id || "",
-          creationId: activeCreation?.id || "",
+          projectId: (activeCreation?.projectId || project?.id || ""),
+          creationId: (activeCreation?.id || ""),
           userId: user?.id || "",
           message: messageToSend,
           target,
@@ -191,6 +191,11 @@ export function ChatSidebar({ onLogout, onSendMessage }: ChatSidebarProps) {
             creationTitle: prepared.creationTitle,
             creationPrompt: prepared.creationPrompt,
           },
+        }
+
+        // Guard: must have a valid projectId
+        if (!requestBody.projectId) {
+          throw new Error("Missing project context. Please reselect the hardware project and try again.")
         }
 
         const response = await fetch(apiEndpoint, {

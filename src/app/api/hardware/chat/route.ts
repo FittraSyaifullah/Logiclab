@@ -40,7 +40,17 @@ export async function POST(request: NextRequest) {
 	const supabase = createSupabaseServerClient()
 
 	try {
+		console.log('[HARDWARE CHAT] Received request')
 		const body = (await request.json()) as ChatRequestBody
+		console.log('[HARDWARE CHAT] Request body:', { 
+			projectId: body?.projectId, 
+			creationId: body?.creationId, 
+			userId: body?.userId, 
+			message: body?.message, 
+			target: body?.target,
+			context: body?.context 
+		})
+		
 		const {
 			projectId,
 			creationId,
@@ -51,6 +61,11 @@ export async function POST(request: NextRequest) {
 		} = body || ({} as ChatRequestBody)
 
 		if (!projectId || !message || !target?.type) {
+			console.error('[HARDWARE CHAT] Missing required fields:', { 
+				projectId: !!projectId, 
+				message: !!message, 
+				targetType: !!target?.type 
+			})
 			return NextResponse.json(
 				{ error: "Missing required fields: projectId, message, target.type" },
 				{ status: 400 },
@@ -86,6 +101,8 @@ export async function POST(request: NextRequest) {
 			console.warn("[HARDWARE CHAT] hardware_messages insert failed (non-fatal)", msgErr)
 		}
 
+		console.log('[HARDWARE CHAT] Routing to target type:', target.type)
+		
 		// Route based on target.type
 		if (target.type === "3d-components") {
 			const description = toStrictDescription(context?.creationPrompt, message)
@@ -120,6 +137,7 @@ export async function POST(request: NextRequest) {
 		}
 
         if (target.type === "assembly-parts") {
+            console.log('[HARDWARE CHAT] Calling edit-assembly API with:', { projectId, userId, message })
             // Call our edit-assembly API which invokes the Supabase Edge Function
             const resp = await fetch(`${request.nextUrl.origin}/api/hardware/edit-assembly`, {
                 method: "POST",
@@ -130,8 +148,11 @@ export async function POST(request: NextRequest) {
                     message,
                 }),
             })
+            console.log('[HARDWARE CHAT] Edit-assembly response status:', resp.status)
             const data = await resp.json()
+            console.log('[HARDWARE CHAT] Edit-assembly response data:', data)
             if (!resp.ok) {
+                console.error('[HARDWARE CHAT] Edit-assembly failed:', data?.error)
                 return NextResponse.json(
                     { error: data?.error ?? "Failed to edit assembly" },
                     { status: resp.status },
@@ -308,6 +329,7 @@ Do not include code fences or extra prose. Do not include any STL.`
 			return NextResponse.json(responseBody)
 		}
 
+		console.error('[HARDWARE CHAT] Unsupported target type:', target?.type)
 		return NextResponse.json({ error: "Unsupported target" }, { status: 400 })
 	} catch (error) {
 		console.error("[HARDWARE CHAT] Error:", error)

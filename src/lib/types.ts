@@ -8,6 +8,7 @@ export interface Creation {
   components: Component[]
   customParams: CustomParam[]
   microcontroller?: string
+  projectId?: string
   outputFormat?: ".ino" | ".py" | ".c"
   imageUrl?: string
   imagePrompt?: string
