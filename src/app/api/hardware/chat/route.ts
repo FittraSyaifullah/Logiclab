@@ -104,37 +104,40 @@ export async function POST(request: NextRequest) {
 		console.log('[HARDWARE CHAT] Routing to target type:', target.type)
 		
 		// Route based on target.type
-		if (target.type === "3d-components") {
-			const description = toStrictDescription(context?.creationPrompt, message)
-        const resp = await fetch(`${request.nextUrl.origin}/api/hardware/generate-3d`, {
-				method: "POST",
-				headers: { "Content-Type": "application/json" },
-				body: JSON.stringify({
-					projectData: { id: projectId, description, title: context?.creationTitle },
-					reportId: target.reportId,
-				}),
-			})
-        const data = await resp.json()
-			if (!resp.ok) {
-				return NextResponse.json(
-					{ error: data?.error ?? "Failed to generate 3D components" },
-					{ status: resp.status },
-				)
-			}
-        // Generate concise natural-language summary
-        const summaryRes = await generateText({
-            model: aiModel,
-            system: "You write short, clear summaries for users. 1-3 sentences max.",
-            prompt: `User requested changes to 3D components: "${message}". Summarize what will change in the 3D components report.`,
-            temperature: 0.3,
-            maxTokens: 120,
-        })
-        const responseBody: ChatResponseBody = {
-            "AI response": (summaryRes.text || "Updated 3D component breakdown based on your request.").trim(),
-            "AI content": data?.data ?? data,
+        if (target.type === "3d-components") {
+            console.log('[HARDWARE CHAT] Calling edit-components API with:', { projectId, userId, message, reportId: target.reportId })
+            const resp = await fetch(`${request.nextUrl.origin}/api/hardware/edit-components`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    projectId,
+                    userId,
+                    message,
+                    reportId: target.reportId,
+                }),
+            })
+            console.log('[HARDWARE CHAT] Edit-components response status:', resp.status)
+            const data = await resp.json()
+            console.log('[HARDWARE CHAT] Edit-components response data:', data)
+            if (!resp.ok) {
+                return NextResponse.json(
+                    { error: data?.error ?? "Failed to edit 3D components" },
+                    { status: resp.status },
+                )
+            }
+            const summaryRes = await generateText({
+                model: aiModel,
+                system: "You write short, clear summaries for users. 1-3 sentences max.",
+                prompt: `User requested changes to 3D components: "${message}". Summarize what was updated in the 3D components report.`,
+                temperature: 0.3,
+                maxTokens: 120,
+            })
+            const responseBody: ChatResponseBody = {
+                "AI response": (summaryRes.text || "Updated 3D component breakdown based on your request.").trim(),
+                "AI content": data?.data ?? data,
+            }
+            return NextResponse.json(responseBody)
         }
-			return NextResponse.json(responseBody)
-		}
 
         if (target.type === "assembly-parts") {
             console.log('[HARDWARE CHAT] Calling edit-assembly API with:', { projectId, userId, message })

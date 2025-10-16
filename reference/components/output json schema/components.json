@@ -1,0 +1,17 @@
+{
+    "3DComponents": {
+        "components": [
+          {
+            "component": "string",
+            "description": "string",
+            "promptFor3DGeneration": "string",
+            "printSpecifications": "string",
+            "assemblyNotes": "string",
+            "printTime": "string",
+            "material": "string",
+            "supports": "string"
+          }
+        ],
+        "generalNotes": "string"
+      }
+}
