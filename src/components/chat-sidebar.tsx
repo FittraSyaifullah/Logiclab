@@ -555,7 +555,7 @@ export function ChatSidebar({ onLogout, onSendMessage }: ChatSidebarProps) {
                             <span>{label}</span>
                           </DropdownMenuItem>
                         ))}
-                        {(() => {
+                        {/*(() => {
                           const reports = (activeCreation?.hardwareReports as HardwareReports | undefined)
                           const comps = (reports?.["3d-components"]?.components ?? []) as Array<{ name?: string }>
                           const names = comps.map((c) => c.name).filter(Boolean)
@@ -571,7 +571,7 @@ export function ChatSidebar({ onLogout, onSendMessage }: ChatSidebarProps) {
                               ))}
                             </>
                           ) : null
-                        })()}
+                        })()*/}
                       </DropdownMenuContent>
                     </DropdownMenu>
                   )}

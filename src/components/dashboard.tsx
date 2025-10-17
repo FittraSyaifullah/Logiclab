@@ -1262,8 +1262,15 @@ function DashboardContent({ onLogout, initialSearchInput }: DashboardProps) {
               ...reportsData.models,
             },
           })
-          // After reports load, also load hardware messages for latest report
-          void loadHardwareMessages({ creationId })
+          // After reports load, also load hardware messages for the active report if available
+          const reportIdFromSections = (
+            (reportsData.reports as HardwareReports)['assembly-parts']?.reportId ||
+            (reportsData.reports as HardwareReports)['3d-components']?.reportId ||
+            (reportsData.reports as HardwareReports)['firmware-code']?.reportId
+          ) as string | undefined
+          if (reportIdFromSections) {
+            void loadHardwareMessages({ hardwareId: reportIdFromSections, creationId })
+          }
         } else {
           console.error('[CLIENT] Current creation not found for ID:', creationId)
         }

@@ -21,6 +21,17 @@ CREATE TABLE public.credit_transactions (
   CONSTRAINT credit_transactions_pkey PRIMARY KEY (id),
   CONSTRAINT credit_transactions_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.users(id)
 );
+CREATE TABLE public.fulfillment_requests (
+  id bigint GENERATED ALWAYS AS IDENTITY NOT NULL,
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  user_id uuid DEFAULT auth.uid(),
+  username text,
+  project_id uuid,
+  hardware_report_id uuid,
+  CONSTRAINT fulfillment_requests_pkey PRIMARY KEY (id),
+  CONSTRAINT fulfillment_requests_project_id_fkey FOREIGN KEY (project_id) REFERENCES public.projects(id),
+  CONSTRAINT fulfillment_requests_hardware_report_id_fkey FOREIGN KEY (hardware_report_id) REFERENCES public.hardware_projects(id)
+);
 CREATE TABLE public.hardware_messages (
   id uuid NOT NULL DEFAULT gen_random_uuid(),
   hardware_id uuid NOT NULL,
@@ -39,14 +50,12 @@ CREATE TABLE public.hardware_models (
   component_id text NOT NULL UNIQUE,
   component_name text NOT NULL,
   creation_id uuid NOT NULL,
-  job_id uuid NOT NULL,
   scad_code text NOT NULL,
   parameters jsonb,
   scad_mime text DEFAULT 'application/x-openscad'::text,
   hardware_report_id uuid,
   CONSTRAINT hardware_models_pkey PRIMARY KEY (id),
   CONSTRAINT hardware_models_project_id_fkey FOREIGN KEY (project_id) REFERENCES public.projects(id),
-  CONSTRAINT hardware_models_job_id_fkey FOREIGN KEY (job_id) REFERENCES public.jobs(id),
   CONSTRAINT hardware_models_hardware_report_id_fkey FOREIGN KEY (hardware_report_id) REFERENCES public.hardware_projects(id)
 );
 CREATE TABLE public.hardware_projects (
@@ -57,6 +66,7 @@ CREATE TABLE public.hardware_projects (
   assembly_parts jsonb,
   firmware_code jsonb,
   title text,
+  full_json jsonb,
   CONSTRAINT hardware_projects_pkey PRIMARY KEY (id),
   CONSTRAINT hardware_reports_project_id_fkey FOREIGN KEY (project_id) REFERENCES public.projects(id)
 );
