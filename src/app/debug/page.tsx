@@ -75,38 +75,15 @@ export default function DebugPage() {
           </TabsList>
 
           <TabsContent value="debug">
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 md:gap-6">
-              <Card className="order-2 lg:order-1">
-                <CardHeader className="pb-2">
-                  <CardTitle className="text-base md:text-lg flex items-center gap-2"><Wrench className="h-4 w-4" />Assistant</CardTitle>
-                </CardHeader>
-                <CardContent className="p-0"><DebugChat /></CardContent>
-              </Card>
-
-              <Card className="order-1 lg:order-2">
-                <CardHeader className="pb-2">
-                  <CardTitle className="text-base md:text-lg flex items-center gap-2"><Server className="h-4 w-4" />System Information</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
-                    <InfoRow label="User" value={user?.email || "Guest"} />
-                    <InfoRow label="Active Mode" value={creationMode || "-"} />
-                    <InfoRow label="Active Creation" value={activeCreation?.title || "None"} />
-                    <InfoRow label="Credits" value={isPaid ? "Unlimited" : String(creditsBalance)} />
-                  </div>
-                  <div className="mt-4 flex flex-wrap gap-2">
-                    <Button size="sm" variant="outline" className="gap-1"><Layers className="h-4 w-4" />Open Recent</Button>
-                    <Button size="sm" variant="outline" className="gap-1"><BookOpen className="h-4 w-4" />Docs</Button>
-                  </div>
-                </CardContent>
-              </Card>
+            <div className="h-[calc(100vh-12rem)]">
+              <DebugChat />
             </div>
           </TabsContent>
 
           <TabsContent value="library">
-            <Card>
-              <CardContent className="p-0"><Library /></CardContent>
-            </Card>
+            <div className="h-[calc(100vh-12rem)]">
+              <Library />
+            </div>
           </TabsContent>
         </Tabs>
       </main>

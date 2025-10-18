@@ -21,6 +21,17 @@ CREATE TABLE public.credit_transactions (
   CONSTRAINT credit_transactions_pkey PRIMARY KEY (id),
   CONSTRAINT credit_transactions_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.users(id)
 );
+CREATE TABLE public.debug_messages (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  user_id uuid NOT NULL,
+  role text NOT NULL CHECK (role = ANY (ARRAY['user'::text, 'assistant'::text, 'system'::text])),
+  content text NOT NULL,
+  timestamp timestamp with time zone DEFAULT now(),
+  created_at timestamp with time zone DEFAULT now(),
+  CONSTRAINT debug_messages_pkey PRIMARY KEY (id),
+  CONSTRAINT debug_messages_hardware_id_fkey FOREIGN KEY (user_id) REFERENCES public.hardware_projects(id),
+  CONSTRAINT debug_messages_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.users(id)
+);
 CREATE TABLE public.fulfillment_requests (
   id bigint GENERATED ALWAYS AS IDENTITY NOT NULL,
   created_at timestamp with time zone NOT NULL DEFAULT now(),
