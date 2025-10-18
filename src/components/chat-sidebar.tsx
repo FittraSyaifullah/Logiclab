@@ -197,10 +197,7 @@ export function ChatSidebar({ onLogout, onSendMessage }: ChatSidebarProps) {
           updateCreation(activeCreation.id, { ...activeCreation, chatHistory: finalMessages })
         }
 
-        // Simple approach: reload to pick up DB-updated reports/models
-        if (typeof window !== "undefined") {
-          setTimeout(() => window.location.reload(), 500)
-        }
+        // Stay on current view; reports/models can be refreshed by parent flows without full reload
         return
       }
 
