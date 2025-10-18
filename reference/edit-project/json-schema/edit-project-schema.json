@@ -1,0 +1,42 @@
+{   "summary_of_changes": "string",
+    "project": "string",
+    "description": "string",
+    "reports": {
+      "3DComponents": {
+        "components": [
+          {
+            "component": "string",
+            "description": "string",
+            "promptFor3DGeneration": "string",
+            "printSpecifications": "string",
+            "assemblyNotes": "string",
+            "printTime": "string",
+            "material": "string",
+            "supports": "string"
+          }
+        ],
+        "generalNotes": "string"
+      },
+      "AssemblyAndParts": {
+        "overview": "string",
+        "partsList": [
+          {
+            "part": "string",
+            "quantity": "string",
+            "vendor": "string",
+            "notes": "string"
+          }
+        ],
+        "assemblyInstructions": "string",
+        "safetyChecklist": "string"
+      },
+      "FirmwareAndCode": {
+        "microcontroller": "string",
+        "language": "string",
+        "code": "string",
+        "explanation": "string",
+        "improvementSuggestions": "string"
+      }
+    }
+  }
+  
