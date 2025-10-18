@@ -8,12 +8,13 @@ export async function POST(request: NextRequest) {
   try {
     console.log('[EDIT-PROJECT] Received request')
     const supabase = createSupabaseServerClient()
-    const { projectId, userId, message } = (await request.json()) as {
+    const { projectId, hardwareId, userId, message } = (await request.json()) as {
       projectId: string
+      hardwareId?: string
       userId?: string
       message: string
     }
-    console.log('[EDIT-PROJECT] Request body:', { projectId, userId, message })
+    console.log('[EDIT-PROJECT] Request body:', { projectId, hardwareId, userId, message })
 
     if (!projectId || !message) {
       console.error('[EDIT-PROJECT] Missing required fields:', { projectId: !!projectId, message: !!message })
@@ -27,23 +28,50 @@ export async function POST(request: NextRequest) {
       .eq('id', projectId)
       .maybeSingle()
 
-    // Load latest hardware_projects row for context
-    const { data: latestHardware } = await supabase
-      .from('hardware_projects')
-      .select('id, title, "3d_components", assembly_parts, firmware_code, full_json')
-      .eq('project_id', projectId)
-      .order('created_at', { ascending: false })
-      .limit(1)
-      .maybeSingle()
+    // Load specific hardware for context when provided, else latest by project
+    type HardwareRow = {
+      id: string
+      project_id?: string
+      title: string | null
+      [k: string]: unknown
+    }
+    let contextHardwareId: string | null = null
+    let hardwareContext: HardwareRow | null = null
+    if (hardwareId) {
+      const { data: hw } = await supabase
+        .from('hardware_projects')
+        .select('id, project_id, title, "3d_components", assembly_parts, firmware_code, full_json')
+        .eq('id', hardwareId)
+        .maybeSingle()
+      if (hw && (hw as { project_id?: string }).project_id === projectId) {
+        const typed = (hw as unknown) as HardwareRow
+        contextHardwareId = typed.id
+        hardwareContext = typed
+      }
+    }
+    if (!hardwareContext) {
+      const { data: latestHardware } = await supabase
+        .from('hardware_projects')
+        .select('id, title, "3d_components", assembly_parts, firmware_code, full_json')
+        .eq('project_id', projectId)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle()
+      if (latestHardware) {
+        const typed = (latestHardware as unknown) as HardwareRow
+        contextHardwareId = typed.id
+        hardwareContext = typed
+      }
+    }
 
     // Build full context matching reference/master json schema/ai_output.json
-    const context = latestHardware?.full_json ?? {
-      project: projectRow?.name ?? latestHardware?.title ?? "",
+    const context = (hardwareContext as { full_json?: unknown } | null)?.full_json ?? {
+      project: projectRow?.name ?? (hardwareContext as { title?: string } | null)?.title ?? "",
       description: (typeof projectRow?.description === 'string' ? projectRow.description : ""),
       reports: {
-        "3DComponents": latestHardware?.["3d_components"] ?? null,
-        "AssemblyAndParts": latestHardware?.assembly_parts ?? null,
-        "FirmwareAndCode": latestHardware?.firmware_code ?? null,
+        "3DComponents": (hardwareContext as { [k: string]: unknown } | null)?.["3d_components"] ?? null,
+        "AssemblyAndParts": (hardwareContext as { assembly_parts?: unknown } | null)?.assembly_parts ?? null,
+        "FirmwareAndCode": (hardwareContext as { firmware_code?: unknown } | null)?.firmware_code ?? null,
       },
     }
 
@@ -56,7 +84,7 @@ export async function POST(request: NextRequest) {
     console.log('[EDIT-PROJECT] Calling edge function with:', {
       projectId,
       userId,
-      hardwareId: latestHardware?.id,
+      hardwareId: contextHardwareId,
       userMessage: message,
       contextExists: !!context
     })
@@ -72,7 +100,7 @@ export async function POST(request: NextRequest) {
       body: JSON.stringify({
         projectId,
         userId,
-        hardwareId: latestHardware?.id,
+        hardwareId: contextHardwareId,
         userMessage: message,
         context,
       }),

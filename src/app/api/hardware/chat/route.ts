@@ -3,6 +3,7 @@ import { createSupabaseServerClient } from "@/lib/supabase/server"
 
 interface ChatRequestBody {
   projectId: string
+  hardwareId?: string
   creationId?: string
   userId?: string
   message: string
@@ -18,18 +19,20 @@ export async function POST(request: NextRequest) {
 
 	try {
 		console.log('[HARDWARE CHAT] Received request')
-		const body = (await request.json()) as ChatRequestBody
-		console.log('[HARDWARE CHAT] Request body:', { 
-			projectId: body?.projectId, 
-			creationId: body?.creationId, 
-			userId: body?.userId, 
+    const body = (await request.json()) as ChatRequestBody
+    console.log('[HARDWARE CHAT] Request body:', { 
+      projectId: body?.projectId, 
+      hardwareId: body?.hardwareId,
+      creationId: body?.creationId, 
+      userId: body?.userId, 
       message: body?.message
-		})
+    })
 		
 		const {
-			projectId,
-			creationId,
-			userId,
+      projectId,
+      hardwareId,
+      creationId,
+      userId,
       message
 		} = body || ({} as ChatRequestBody)
 
@@ -44,7 +47,7 @@ export async function POST(request: NextRequest) {
 			)
 		}
 
-		// Optional: verify project ownership when userId provided
+    // Optional: verify project ownership when userId provided
 		if (userId) {
 			const { data: project, error: projectError } = await supabase
 				.from("projects")
@@ -59,12 +62,27 @@ export async function POST(request: NextRequest) {
 			}
 		}
 
+    // If hardwareId provided, validate it belongs to the project
+    if (hardwareId) {
+      const { data: hwRow, error: hwErr } = await supabase
+        .from('hardware_projects')
+        .select('id, project_id')
+        .eq('id', hardwareId)
+        .single()
+      if (hwErr || !hwRow) {
+        return NextResponse.json({ error: 'Hardware not found' }, { status: 404 })
+      }
+      if (hwRow.project_id !== projectId) {
+        return NextResponse.json({ error: 'Hardware does not belong to project' }, { status: 400 })
+      }
+    }
+
     // Single flow: call edit-project API which invokes the Edge Function
-    console.log('[HARDWARE CHAT] Calling edit-project API with:', { projectId, userId })
+    console.log('[HARDWARE CHAT] Calling edit-project API with:', { projectId, hardwareId, userId })
     const resp = await fetch(`${request.nextUrl.origin}/api/hardware/edit-project`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ projectId, userId, message })
+      body: JSON.stringify({ projectId, hardwareId, userId, message })
     })
     const data = await resp.json()
     if (!resp.ok) {

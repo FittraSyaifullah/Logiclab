@@ -153,13 +153,22 @@ export function ChatSidebar({ onLogout, onSendMessage }: ChatSidebarProps) {
       const prepared = prepareChatBody()
 
       if (mode === "hardware") {
-        const requestBody = { projectId: (activeCreation?.projectId || project?.id || ""), creationId: (activeCreation?.id || ""), userId: user?.id || "", message: messageToSend }
+        // Resolve the hardwareId from currently loaded reports on the creation
+        const reports = activeCreation?.hardwareReports as unknown as { [k: string]: { reportId?: string } } | undefined
+        const hardwareId = (
+          reports?.['assembly-parts']?.reportId ||
+          reports?.['3d-components']?.reportId ||
+          reports?.['firmware-code']?.reportId
+        ) as string | undefined
 
-        console.log('[CHAT-SIDEBAR] Hardware chat request body:', { projectId: requestBody.projectId, activeCreationProjectId: activeCreation?.projectId, globalProjectId: project?.id, hasUser: !!user?.id })
+        const strictProjectId = activeCreation?.projectId || ""
+        const requestBody = { projectId: strictProjectId, hardwareId, creationId: (activeCreation?.id || ""), userId: user?.id || "", message: messageToSend }
+
+        console.log('[CHAT-SIDEBAR] Hardware chat request body:', { projectId: requestBody.projectId, hardwareId: requestBody.hardwareId, activeCreationProjectId: activeCreation?.projectId, hasUser: !!user?.id })
 
         if (!requestBody.projectId) {
-          console.error('[CHAT-SIDEBAR] Missing projectId:', { activeCreationProjectId: activeCreation?.projectId, globalProjectId: project?.id, activeCreationId: activeCreation?.id })
-          throw new Error("Missing project context. Please reselect the hardware project and try again.")
+          console.error('[CHAT-SIDEBAR] Missing projectId (no global fallback):', { activeCreationProjectId: activeCreation?.projectId, activeCreationId: activeCreation?.id })
+          throw new Error("Missing project context. Please reselect the hardware project from the sidebar and try again.")
         }
 
         const response = await fetch(apiEndpoint, { method: "POST", headers: { "Content-Type": "application/json", Accept: "application/json" }, body: JSON.stringify(requestBody) })
