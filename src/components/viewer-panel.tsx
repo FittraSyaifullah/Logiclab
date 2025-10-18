@@ -26,7 +26,7 @@ export function ViewerPanel({ creation, onGenerate3D }: ViewerPanelProps) {
         if (!mounted) return
         setClientViewer(() => mod.ClientViewer ?? mod.default ?? null)
       })
-      .catch((err) => {
+      .catch(() => {
         
       })
       .finally(() => mounted && setLoadingClient(false))

@@ -6,7 +6,6 @@ import { useRouter } from "next/navigation"
 import { useState, useEffect, useRef } from "react"
 import { ChatSidebar } from "@/components/chat-sidebar"
 import { ViewerPanel } from "@/components/viewer-panel"
-import { SoftwareViewer } from "@/components/software-viewer"
 // import { CodeViewer } from "@/components/code-viewer"
 import { HardwareViewer } from "@/components/hardware-viewer"
 import { InitialPromptForm } from "@/components/initial-prompt-form"
@@ -14,7 +13,6 @@ import { IntegrationPanel } from "@/components/integration-panel"
 import { GrowthMarketingPanel } from "@/components/growth-marketing-panel"
 import { Button } from "@/components/ui/button"
 import CreditLimitModal from "@/components/credit-limit-modal"
-import { Input } from "@/components/ui/input"
 import { LogoHoverSidebar, type SoftwareItem } from "@/components/logo-hover-sidebar"
 import { useHardwareStore } from "@/hooks/use-hardware-store"
 // import { useOpenScadWorker } from "@/hooks/useOpenScadWorker"
@@ -22,23 +20,16 @@ import {
   Monitor,
   Sparkles,
   Layers,
-  Code,
-  Rocket,
-  Database,
-  TrendingUp,
-  Link,
   ChevronDown,
   Settings,
   HelpCircle,
   CreditCard,
   RotateCcw,
-  X,
 } from "lucide-react"
 import type { Creation, HardwareReports } from "@/lib/types"
 import { useCreationStore } from "@/hooks/use-creation-store"
 import { useUserStore } from "@/hooks/use-user-store"
 import { cn } from "@/lib/utils"
-import { createSupabaseClient } from "@/lib/supabase/server"
 import { useToast } from "@/hooks/use-toast"
 import {
   DropdownMenu,
@@ -394,7 +385,7 @@ function DashboardContent({ onLogout, initialSearchInput }: DashboardProps) {
     prevUserIdRef.current = currentUserId
 
     void refreshCredits()
-  }, [user?.id])
+  }, [user?.id, setActiveCreationId])
 
   // Centralized credit gate: only show modal on action attempts
   const ensureCredits = () => {
@@ -629,7 +620,7 @@ function DashboardContent({ onLogout, initialSearchInput }: DashboardProps) {
         })
       }
     }
-  }, [activeCreation, creationMode])
+  }, [activeCreation, creationMode, selectedChat])
 
   const generate3DModel = async (
     creationId: string,

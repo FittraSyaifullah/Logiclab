@@ -52,7 +52,7 @@ export function LogoHoverSidebar({
         const data = await response.json()
         setSoftware(data.software || [])
       }
-    } catch (error) {
+    } catch {
       
     } finally {
       setLoading(false)

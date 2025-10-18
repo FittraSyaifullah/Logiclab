@@ -538,7 +538,7 @@ export function HardwareViewer({ creation, onRegenerate, onGenerateComponentMode
       } else {
         
       }
-    } catch (error) {
+    } catch {
       
     } finally {
       setTimeout(() => {
@@ -552,7 +552,7 @@ export function HardwareViewer({ creation, onRegenerate, onGenerateComponentMode
   const copyToClipboard = async (text: string) => {
     try {
       await navigator.clipboard.writeText(text)
-    } catch (err) {
+    } catch {
       
     }
   }

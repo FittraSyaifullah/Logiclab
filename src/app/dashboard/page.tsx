@@ -47,7 +47,7 @@ function DashboardContent() {
         // Still redirect even if API fails
         window.location.replace("/")
       }
-    } catch (error) {
+    } catch {
       // Still redirect even if there's an error
       window.location.replace("/")
     }

@@ -62,7 +62,7 @@ export function AppSidebar({ onLogout }: AppSidebarProps) {
         } else {
           
         }
-      } catch (error) {
+      } catch {
       }
     }
 

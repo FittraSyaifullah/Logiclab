@@ -105,7 +105,7 @@ export function DebugChat() {
           }
         }
       }
-    } catch (error) {
+    } catch {
       setMessages((prev) => prev.map((msg) => (msg.role === "assistant" ? { ...msg, content: msg.content || "Sorry, I encountered an error. Please try again." } : msg)))
     } finally { setIsLoading(false); setIsGeneratingDoc(false) }
   }
@@ -133,7 +133,7 @@ export function DebugChat() {
       const showGenerateButton = (fullContent.toLowerCase().includes("design") || fullContent.toLowerCase().includes("build") || fullContent.toLowerCase().includes("create")) && (fullContent.toLowerCase().includes("system") || fullContent.toLowerCase().includes("product") || fullContent.toLowerCase().includes("device")) && !fullContent.includes("## 1. EXECUTIVE SUMMARY")
       const hasProjectDoc = fullContent.includes("## 1. EXECUTIVE SUMMARY") || fullContent.includes("## 2. TECHNICAL BACKGROUND") || (fullContent.includes("## ") && fullContent.length > 1000)
       if (hasProjectDoc) { setMessages((prev) => prev.map((msg) => (msg.id === assistantMessageId ? { ...msg, hasProjectDoc: true } : msg))) } else if (showGenerateButton) { setMessages((prev) => prev.map((msg) => (msg.id === assistantMessageId ? { ...msg, showGenerateButton: true } : msg))) }
-    } catch (error) {
+    } catch {
       setMessages((prev) => prev.map((msg) => (msg.role === "assistant" ? { ...msg, content: msg.content || "Sorry, I encountered an error. Please try again." } : msg)))
     } finally { setIsLoading(false) }
   }
@@ -153,9 +153,9 @@ export function DebugChat() {
                 <h2 className="mb-3 text-2xl font-semibold text-slate-900 dark:text-slate-100">Welcome to Debug</h2>
                 <p className="mb-8 text-balance leading-relaxed text-slate-600 dark:text-slate-300">Your AI-powered hardware engineering assistant. Ask me to search for components, perform calculations, analyze documents, or generate full project documentation for your hardware ideas.</p>
                 <div className="grid gap-3 text-left">
-                  <Card className="p-4"><p className="text-sm text-slate-600 dark:text-slate-300"><span className="font-medium text-slate-900 dark:text-slate-100">"Find me a 10kΩ resistor with 1% tolerance"</span></p></Card>
-                  <Card className="p-4"><p className="text-sm text-slate-600 dark:text-slate-300"><span className="font-medium text-slate-900 dark:text-slate-100">"Calculate the current for 12V across 100Ω"</span></p></Card>
-                  <Card className="p-4"><p className="text-sm text-slate-600 dark:text-slate-300"><span className="font-medium text-slate-900 dark:text-slate-100">"I want to design a portable water filtration system"</span></p></Card>
+                  <Card className="p-4"><p className="text-sm text-slate-600 dark:text-slate-300"><span className="font-medium text-slate-900 dark:text-slate-100">&ldquo;Find me a 10kΩ resistor with 1% tolerance&rdquo;</span></p></Card>
+                  <Card className="p-4"><p className="text-sm text-slate-600 dark:text-slate-300"><span className="font-medium text-slate-900 dark:text-slate-100">&ldquo;Calculate the current for 12V across 100Ω&rdquo;</span></p></Card>
+                  <Card className="p-4"><p className="text-sm text-slate-600 dark:text-slate-300"><span className="font-medium text-slate-900 dark:text-slate-100">&ldquo;I want to design a portable water filtration system&rdquo;</span></p></Card>
                 </div>
               </div>
             </div>

@@ -26,7 +26,7 @@ export function InitialPromptForm({ onSubmit }: InitialPromptFormProps) {
     if (value && !prompt) {
       setPrompt(value)
     }
-  }, [])
+  }, [prompt])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()

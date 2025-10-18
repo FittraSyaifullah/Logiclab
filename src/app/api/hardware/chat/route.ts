@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
 import { createSupabaseServerClient } from "@/lib/supabase/server"
-import { generateText, aiModel } from "@/lib/openai"
 
 interface ChatRequestBody {
   projectId: string

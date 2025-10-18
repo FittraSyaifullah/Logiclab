@@ -2,20 +2,15 @@
 
 import { useEffect, useMemo, useRef, useState } from "react"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Library } from "@/components/library"
 import { DebugChat } from "@/components/debug-chat"
 import { PersistentHeader } from "@/components/dashboard"
 import { useCreationStore } from "@/hooks/use-creation-store"
-import { useUserStore } from "@/hooks/use-user-store"
 import { useToast } from "@/hooks/use-toast"
-import { Layers, BookOpen, Server, Wrench } from "lucide-react"
 
 export default function DebugPage() {
   const { creations, activeCreationId } = useCreationStore()
-  const { user } = useUserStore()
   const { toast } = useToast()
 
   const activeCreation = useMemo(() => (creations ?? []).find((c) => c.id === activeCreationId), [creations, activeCreationId])

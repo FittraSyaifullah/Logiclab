@@ -77,7 +77,7 @@ export default function SignUpPage() {
         // If API returns a soft success message without session
         setError(data.error || 'Signup failed')
       }
-    } catch (error) {
+    } catch {
       setError('An unexpected error occurred')
     } finally {
       setIsLoading(false)

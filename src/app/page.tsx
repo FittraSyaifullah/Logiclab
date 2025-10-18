@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react'
 import Image from 'next/image'
 import { useRouter } from 'next/navigation'
-import { ArrowLeft, Search, Wrench, Cpu, Zap, Palette, Code, Box, Settings, MessageSquare, Check, Loader2, ArrowRight } from 'lucide-react'
+import { Search, Wrench, Cpu, Zap, Palette, Code, Box, Settings, MessageSquare, Check, ArrowRight } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
@@ -18,11 +18,8 @@ import { TYPING_PLACEHOLDER_PROMPTS } from '@/constants/typing-prompts'
 
 export default function LandingPage() {
   const { user, loading } = useAuth()
-  const { user: userStore, clearUser } = useUserStore()
+  const { clearUser } = useUserStore()
   const router = useRouter()
-  const [email, setEmail] = useState("")
-  const [firstName, setFirstName] = useState("")
-  const [isSubmitting, setIsSubmitting] = useState(false)
   const [searchInput, setSearchInput] = useState("")
   const { toast } = useToast()
   const animatedPlaceholder = useTypingPlaceholder(TYPING_PLACEHOLDER_PROMPTS, { isActive: !searchInput })
@@ -58,36 +55,6 @@ export default function LandingPage() {
     window.location.href = "/signup"
   }
 
-  const handleWaitlistSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-    if (!email || !firstName) {
-      toast({
-        title: "Please fill in all fields",
-        variant: "destructive",
-      })
-      return
-    }
-
-    setIsSubmitting(true)
-
-    try {
-      // For now, just show success message since we don't have the API endpoint
-      toast({
-        title: "Thanks for joining!",
-        description: "You're now on the waitlist. We'll be in touch soon!",
-      })
-      setEmail("")
-      setFirstName("")
-    } catch (error) {
-      toast({
-        title: "Network error",
-        description: "Could not connect to the server. Please check your internet connection.",
-        variant: "destructive",
-      })
-    } finally {
-      setIsSubmitting(false)
-    }
-  }
 
   const handleSearchClick = () => {
     const value = searchInput.trim()

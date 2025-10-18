@@ -57,7 +57,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     window.addEventListener('storage', handleStorageChange)
     return () => window.removeEventListener('storage', handleStorageChange)
-  }, [])
+  }, [clearStoreUser, setStoreUser])
 
   const signUp = async (email: string, password: string, firstName: string, lastName: string) => {
     try {
@@ -87,7 +87,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       } else {
         return { error: data.error || 'Signup failed' }
       }
-    } catch (error) {
+    } catch {
       return { error: 'An unexpected error occurred' }
     }
   }
@@ -118,7 +118,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       } else {
         return { error: data.error || 'Login failed' }
       }
-    } catch (error) {
+    } catch {
       return { error: 'An unexpected error occurred' }
     }
   }
@@ -128,7 +128,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       await destroySession()
       setUser(null)
       return { error: null }
-    } catch (error) {
+    } catch {
       return { error: 'An unexpected error occurred' }
     }
   }

@@ -11,10 +11,9 @@ import { cn } from "@/lib/utils"
 import { useCreationStore } from "@/hooks/use-creation-store"
 import { useUserStore } from "@/hooks/use-user-store"
 import { useToast } from "@/hooks/use-toast"
-import type { Creation, HardwareReports } from "@/lib/types"
+import type { Creation } from "@/lib/types"
 
 // Types for prepared request bodies
-type ThreeDLabel = never
 
 interface SoftwarePreparedBody {
   creationId: string
@@ -142,7 +141,7 @@ export function ChatSidebar({ onLogout, onSendMessage }: ChatSidebarProps) {
         await onSendMessage(messageToSend)
         setIsLoadingFallback(false)
         return
-      } catch (error) {
+      } catch {
         setIsLoadingFallback(false)
         return
       }

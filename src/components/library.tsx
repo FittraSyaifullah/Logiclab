@@ -3,6 +3,7 @@
 import type React from "react"
 
 import { useState } from "react"
+import type { LibraryFile } from "@/lib/library-context"
 import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -98,7 +99,7 @@ function FileGrid({
   formatDate,
   onRemove,
 }: {
-  files: any[]
+  files: LibraryFile[]
   getIcon: (category: string) => React.ReactNode
   formatFileSize: (bytes: number) => string
   formatDate: (date: Date) => string

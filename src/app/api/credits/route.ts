@@ -26,7 +26,7 @@ export async function GET(request: NextRequest) {
       reserved: Number(data.reserved_bigint) || 0,
       paid: !!data.paid_or_unpaid,
     })
-  } catch (err) {
+  } catch {
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }

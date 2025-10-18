@@ -15,7 +15,7 @@ export async function POST(request: NextRequest) {
     let message = ""
 
     if (!apiKey || apiKey.trim().length === 0) {
-      analysis = getMockAnalysis(projectDescription, projectPurpose)
+      analysis = getMockAnalysis()
       usingMockData = true
       message = "Using demo data - add PERPLEXITY_API_KEY to environment variables for real analysis"
     } else {
@@ -63,15 +63,15 @@ Format as valid JSON with the structure: {"icp": {"description": "", "score": 0,
         console.error(`Perplexity API error: ${response.status} - ${errorText}`)
 
         if (response.status === 401) {
-          analysis = getMockAnalysis(projectDescription, projectPurpose)
+          analysis = getMockAnalysis()
           usingMockData = true
           message = "API authentication failed - verify PERPLEXITY_API_KEY is correct"
         } else if (response.status === 429) {
-          analysis = getMockAnalysis(projectDescription, projectPurpose)
+          analysis = getMockAnalysis()
           usingMockData = true
           message = "API rate limit exceeded - try again in a few minutes"
         } else {
-          analysis = getMockAnalysis(projectDescription, projectPurpose)
+          analysis = getMockAnalysis()
           usingMockData = true
           message = `API error (${response.status}) - showing demo analysis`
         }
@@ -81,7 +81,7 @@ Format as valid JSON with the structure: {"icp": {"description": "", "score": 0,
         const analysisText = data.choices[0]?.message?.content
 
         if (!analysisText) {
-          analysis = getMockAnalysis(projectDescription, projectPurpose)
+          analysis = getMockAnalysis()
           usingMockData = true
           message = "No analysis content received - showing demo data"
         } else {
@@ -104,7 +104,7 @@ Format as valid JSON with the structure: {"icp": {"description": "", "score": 0,
             message = "Real-time analysis from Perplexity SONAR"
           } catch (parseError) {
             console.error("Analysis parsing failed:", parseError)
-            analysis = getMockAnalysis(projectDescription, projectPurpose)
+            analysis = getMockAnalysis()
             usingMockData = true
             message = "Analysis parsing failed - showing demo data"
           }
@@ -116,14 +116,14 @@ Format as valid JSON with the structure: {"icp": {"description": "", "score": 0,
   } catch (error) {
     console.error("Growth marketing analysis error:", error)
     return NextResponse.json({
-      analysis: getMockAnalysis("AI project", "Market analysis"),
+      analysis: getMockAnalysis(),
       usingMockData: true,
       message: "Analysis temporarily unavailable - showing demo data",
     })
   }
 }
 
-function getMockAnalysis(projectDescription: string, projectPurpose: string) {
+function getMockAnalysis() {
   return {
     icp: {
       description: "Tech-savvy entrepreneurs and small business owners aged 25-45 who need rapid prototyping solutions",
