@@ -7,6 +7,8 @@ import { Textarea } from "@/components/ui/textarea"
 import { Search, ArrowRight, Wrench, Cpu, Zap, Palette, Code, Box, Settings, MessageSquare, Loader2 } from "lucide-react"
 import type { Creation } from "@/lib/types"
 import { useLandingStore } from "@/hooks/use-landing-store"
+import { useTypingPlaceholder } from "@/hooks/use-typing-placeholder"
+import { TYPING_PLACEHOLDER_PROMPTS } from "@/constants/typing-prompts"
 
 interface InitialPromptFormProps {
   onSubmit: (creationData: Omit<Creation, "id" | "chatHistory" | "modelParams" | "generatedCode" | "viewMode">) => void
@@ -16,6 +18,7 @@ export function InitialPromptForm({ onSubmit }: InitialPromptFormProps) {
   const [title, setTitle] = useState("")
   const [prompt, setPrompt] = useState("")
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const animatedPlaceholder = useTypingPlaceholder(TYPING_PLACEHOLDER_PROMPTS, { isActive: !prompt })
 
   // Consume and prefill prompt from landing store once
   useEffect(() => {
@@ -136,7 +139,7 @@ export function InitialPromptForm({ onSubmit }: InitialPromptFormProps) {
               <Textarea
                 value={prompt}
                 onChange={(e) => setPrompt(e.target.value)}
-                placeholder="Ask AI to build... (e.g., a contactless water dispenser that activates when your hand is close to the sensor)"
+                placeholder={animatedPlaceholder || "Ask AI to build..."}
                 rows={5}
                 className="w-full pl-12 pr-16 py-4 border-2 border-gray-200 rounded-xl text-left hover:border-orange-300 transition-all duration-300 bg-white shadow-[0_0_12px_rgba(249,115,22,0.25)] hover:shadow-[0_0_20px_rgba(249,115,22,0.4)] focus:shadow-[0_0_20px_rgba(249,115,22,0.4)] focus:border-orange-400 focus:outline-none text-base sm:text-lg resize-y"
                 required

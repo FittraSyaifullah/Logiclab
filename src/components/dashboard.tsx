@@ -354,6 +354,15 @@ function DashboardContent({ onLogout, initialSearchInput }: DashboardProps) {
   const prevUserIdRef = useRef<string | null>(null)
 
   const creationMode = activeCreation?.mode || (activeCreation?.softwareData ? "software" : "hardware")
+  
+  // Debug logging
+  useEffect(() => {
+    console.log('[DASHBOARD] Active creation changed:', { 
+      activeCreationId, 
+      activeCreation: activeCreation ? { id: activeCreation.id, mode: activeCreation.mode, title: activeCreation.title } : null,
+      creationMode 
+    })
+  }, [activeCreationId, activeCreation, creationMode])
   // Fetch credits for current user
   const refreshCredits = async () => {
     try {
@@ -1557,8 +1566,12 @@ function DashboardContent({ onLogout, initialSearchInput }: DashboardProps) {
         onChatSelect={handleChatSelect}
         softwareList={softwareList}
          onHardwareProjectSelect={async ({ projectId: selectedProjectId, reportId: selectedReportId }) => {
+           console.log('[DASHBOARD] Hardware project selected:', { selectedProjectId, selectedReportId })
            const currentUser = useUserStore.getState().user
-           if (!currentUser?.id) return
+           if (!currentUser?.id) {
+             console.log('[DASHBOARD] No current user, aborting hardware project selection')
+             return
+           }
            
            try {
              // Fetch reports for selected project
@@ -1605,6 +1618,8 @@ function DashboardContent({ onLogout, initialSearchInput }: DashboardProps) {
                }
                
                setActiveCreationId(creationId)
+               console.log('[DASHBOARD] Set active creation ID:', creationId)
+               console.log('[DASHBOARD] Creation mode should be hardware:', creationPayload.mode)
 
                // Load chat messages for this hardware report using the actual reportId
                const reportIdFromSections = (
@@ -1668,21 +1683,27 @@ function DashboardContent({ onLogout, initialSearchInput }: DashboardProps) {
           {activeCreation ? (
             <>
               {creationMode === "hardware" ? (
-                <HardwareViewer
-                  creation={activeCreation}
-                  onRegenerate={handleRegenerate}
-                  creditGate={ensureCredits}
-                  onGenerateComponentModel={({ componentId, componentName, prompt }) =>
-                    generate3DModel(activeCreation.id, {
-                      componentId,
-                      componentName,
-                      prompt,
-                      mode: "component",
-                    })
-                  }
-                />
+                <>
+                  {console.log('[DASHBOARD] Rendering HardwareViewer with creation:', activeCreation)}
+                  <HardwareViewer
+                    creation={activeCreation}
+                    onRegenerate={handleRegenerate}
+                    creditGate={ensureCredits}
+                    onGenerateComponentModel={({ componentId, componentName, prompt }) =>
+                      generate3DModel(activeCreation.id, {
+                        componentId,
+                        componentName,
+                        prompt,
+                        mode: "component",
+                      })
+                    }
+                  />
+                </>
               ) : (
-                <ViewerPanel creation={activeCreation} onGenerate3D={generate3DModel} />
+                <>
+                  {console.log('[DASHBOARD] Rendering ViewerPanel (software mode) with creation:', activeCreation)}
+                  <ViewerPanel creation={activeCreation} onGenerate3D={generate3DModel} />
+                </>
               )}
             </>
           ) : (
