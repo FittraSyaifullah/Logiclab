@@ -19,7 +19,7 @@ import { useHardwareStore } from "@/hooks/use-hardware-store"
 // import { useOpenScadWorker } from "@/hooks/useOpenScadWorker"
 import {
   Monitor,
-  Share,
+  Sparkles,
   Layers,
   Code,
   Rocket,
@@ -31,6 +31,7 @@ import {
   HelpCircle,
   CreditCard,
   RotateCcw,
+  X,
 } from "lucide-react"
 import type { Creation, HardwareReports } from "@/lib/types"
 import { useCreationStore } from "@/hooks/use-creation-store"
@@ -45,6 +46,7 @@ import {
   DropdownMenuTrigger,
   DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu"
+import { DebugPanel } from "@/components/debug-panel"
 
 interface DashboardProps {
   onLogout: () => void
@@ -65,6 +67,7 @@ function PersistentHeader({
   hoverTimeoutRef,
   creditsBalance,
   isPaid,
+  onOpenDebug,
 }: {
   activeCreation: Creation | undefined
   creationMode: string
@@ -79,6 +82,7 @@ function PersistentHeader({
   hoverTimeoutRef: React.MutableRefObject<NodeJS.Timeout | null>
   creditsBalance: number
   isPaid: boolean
+  onOpenDebug: () => void
 }) {
   const { toast } = useToast()
   const [urlInput, setUrlInput] = useState("")
@@ -233,34 +237,14 @@ function PersistentHeader({
           Integration
         </Button>*/}
 
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button
-              variant="outline"
-              size="sm"
-              className="border-amber-300 hover:border-amber-400 hover:bg-amber-50 dark:hover:bg-amber-950/50 font-medium px-3 sm:px-4 py-2 rounded-lg bg-transparent"
-            >
-              <Share className="mr-2 h-4 w-4 text-amber-600" />
-              Share
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent
-            align="end"
-            className="bg-white/95 backdrop-blur-xl border-slate-200/40 shadow-xl rounded-lg"
-          >
-            <DropdownMenuItem
-              onClick={() => {
-                toast({
-                  title: "Share functionality",
-                  description: "Hardware sharing features coming soon!",
-                })
-              }}
-              className="hover:bg-amber-50 dark:hover:bg-amber-950"
-            >
-              Share project
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
+        <Button
+          size="sm"
+          onClick={onOpenDebug}
+          className="rounded-full px-5 sm:px-6 py-2 font-semibold text-white shadow-[0_6px_20px_rgba(124,58,237,.35)] bg-gradient-to-b from-violet-500 to-purple-600 hover:from-violet-600 hover:to-purple-700 focus-visible:ring-violet-500/30"
+        >
+          <Sparkles className="mr-2 h-4 w-4" />
+          Debug
+        </Button>
 
         {/*<Button
           variant="outline"
@@ -345,6 +329,7 @@ function DashboardContent({ onLogout, initialSearchInput }: DashboardProps) {
   const [showGrowthMarketing, setShowGrowthMarketing] = useState(false)
   const [showLogoSidebar, setShowLogoSidebar] = useState(false)
   const [showCreditModal, setShowCreditModal] = useState(false)
+  const [showDebugPanel, setShowDebugPanel] = useState(false)
   const [selectedChat, setSelectedChat] = useState<{ id: string; title?: string; software_id?: string; demo_url?: string } | null>(null)
   const [chatMessages, setChatMessages] = useState<Array<{ id: string; role: string; content: string; created_at?: string }>>([])
   const [softwareList, setSoftwareList] = useState<SoftwareItem[]>([])
@@ -1677,6 +1662,7 @@ function DashboardContent({ onLogout, initialSearchInput }: DashboardProps) {
           hoverTimeoutRef={hoverTimeoutRef}
           creditsBalance={credits.balance}
           isPaid={credits.paid}
+          onOpenDebug={() => setShowDebugPanel(true)}
         />
 
         <div className="flex-1 overflow-hidden">
@@ -1720,6 +1706,16 @@ function DashboardContent({ onLogout, initialSearchInput }: DashboardProps) {
         )}
         <CreditLimitModal open={showCreditModal} onClose={() => setShowCreditModal(false)} />
         {/* Dev test compile button removed */}
+        {showDebugPanel && (
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[60] p-4" onClick={() => setShowDebugPanel(false)}>
+            <div className="relative" onClick={(e) => e.stopPropagation()}>
+              <button aria-label="Close debug panel" className="absolute -top-3 -right-3 bg-white/90 dark:bg-slate-800 rounded-full shadow px-1.5 py-1.5" onClick={() => setShowDebugPanel(false)}>
+                <X className="h-4 w-4" />
+              </button>
+              <DebugPanel />
+            </div>
+          </div>
+        )}
       </div>
     </div>
   )
