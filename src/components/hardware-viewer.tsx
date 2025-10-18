@@ -33,6 +33,8 @@ import dynamic from "next/dynamic"
 import "@/components/viewers/stl-viewer-styles.css"
 import { useOpenScadWorker } from "@/hooks/useOpenScadWorker"
 import { updateScadParameters } from "@/lib/scad/parameters"
+import { useCreationStore } from "@/hooks/use-creation-store"
+import { useUserStore } from "@/hooks/use-user-store"
 
 const STLViewer = dynamic(() => import("@/components/viewers/stl-viewer"), {
   ssr: false,
@@ -178,6 +180,8 @@ const renderDetailedBreakdown = (content?: string) => {
 
 export function HardwareViewer({ creation, onRegenerate, onGenerateComponentModel, creditGate }: HardwareViewerProps) {
   const { toast } = useToast()
+  const { user } = useUserStore()
+  const { updateCreation } = useCreationStore()
   const [activeTab, setActiveTab] = useState("3d-components")
   const [regeneratingTabs, setRegeneratingTabs] = useState<string[]>([])
   const [previewComponentId, setPreviewComponentId] = useState<string | null>(null)
@@ -534,7 +538,17 @@ export function HardwareViewer({ creation, onRegenerate, onGenerateComponentMode
 
         if (response.ok) {
         const result = await response.json()
-        window.location.reload()
+        // In-place refresh: fetch latest report and update creation store so viewer re-renders
+        try {
+          const safeProjectId = String((creation as { projectId?: string }).projectId || '')
+          const safeUserId = String(user?.id || '')
+          const safeReportId = String(reportId || '')
+          const reportsResp = await fetch(`/api/hardware/reports?projectId=${encodeURIComponent(safeProjectId)}&userId=${encodeURIComponent(safeUserId)}&reportId=${encodeURIComponent(safeReportId)}`, { cache: 'no-store' })
+          if (reportsResp.ok) {
+            const reportsData = await reportsResp.json()
+            updateCreation(creation.id, { hardwareReports: reportsData.reports || {} })
+          }
+        } catch {}
       } else {
         
       }

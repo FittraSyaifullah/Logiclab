@@ -197,7 +197,26 @@ export function ChatSidebar({ onLogout, onSendMessage }: ChatSidebarProps) {
           updateCreation(activeCreation.id, { ...activeCreation, chatHistory: finalMessages })
         }
 
-        // Stay on current view; reports/models can be refreshed by parent flows without full reload
+        // In-place refresh: fetch latest hardware reports for this project/report and update the store so viewer re-renders
+        try {
+          const reportsObj = activeCreation?.hardwareReports as unknown as { [k: string]: { reportId?: string } } | undefined
+          const currentHardwareId = (
+            reportsObj?.['assembly-parts']?.reportId ||
+            reportsObj?.['3d-components']?.reportId ||
+            reportsObj?.['firmware-code']?.reportId
+          ) as string | undefined
+          const safeProjectId = String(activeCreation?.projectId || '')
+          const safeUserId = String(user?.id || '')
+          const params = currentHardwareId
+            ? `projectId=${encodeURIComponent(safeProjectId)}&userId=${encodeURIComponent(safeUserId)}&reportId=${encodeURIComponent(currentHardwareId)}`
+            : `projectId=${encodeURIComponent(safeProjectId)}&userId=${encodeURIComponent(safeUserId)}`
+          const reportsResp = await fetch(`/api/hardware/reports?${params}`, { cache: 'no-store' })
+          if (reportsResp.ok && activeCreation?.id) {
+            const reportsData = await reportsResp.json()
+            updateCreation(activeCreation.id, { hardwareReports: reportsData.reports || {} })
+          }
+        } catch {}
+
         return
       }
 
