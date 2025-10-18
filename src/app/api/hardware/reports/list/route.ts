@@ -13,7 +13,7 @@ export async function GET(request: NextRequest) {
 
     const supabase = createSupabaseServerClient()
 
-    // Join projects owned by user with their hardware_projects
+    // Join projects with their hardware_projects; optionally scope by projectId
     console.log('[HARDWARE LIST] Fetching hardware projects for userId (and optional projectId):', { userId, projectId })
     const base = supabase
       .from('hardware_projects')
@@ -25,11 +25,7 @@ export async function GET(request: NextRequest) {
       ? await base.eq('project_id', projectId)
       : await base
 
-    console.log('[HARDWARE LIST] Raw query result:', { 
-      rowsCount: rows?.length || 0, 
-      error: error?.message || null,
-      sampleRow: rows?.[0] || null
-    })
+    console.log('[HARDWARE LIST] Raw query result count:', rows?.length || 0)
 
     if (error) {
       console.error('[HARDWARE] list reports failed:', error)
@@ -50,17 +46,7 @@ export async function GET(request: NextRequest) {
         const relatedProject = Array.isArray(row.projects) ? row.projects[0] ?? null : row.projects
         return { row, relatedProject }
       })
-      .filter(({ relatedProject }) => {
-        const matches = projectId ? true : relatedProject?.owner_id === userId
-        console.log('[HARDWARE LIST] Filtering row:', {
-          projectId: relatedProject?.id,
-          projectOwner: relatedProject?.owner_id,
-          userId,
-          filterMode: projectId ? 'project' : 'owner',
-          matches
-        })
-        return matches
-      })
+      .filter(({ relatedProject }) => (projectId ? true : relatedProject?.owner_id === userId))
       .map(({ row, relatedProject }) => ({
         reportId: row.id,
         projectId: row.project_id,
@@ -69,7 +55,6 @@ export async function GET(request: NextRequest) {
       }))
 
     console.log('[HARDWARE LIST] Final items count:', items.length)
-    console.log('[HARDWARE LIST] Sample item:', items[0] || null)
 
     return NextResponse.json({ success: true, items })
   } catch (error: unknown) {

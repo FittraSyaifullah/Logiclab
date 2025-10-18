@@ -47,9 +47,10 @@ export async function POST(request: NextRequest) {
       },
     }
 
-    const edgeUrl = process.env.NEXT_PUBLIC_SUPABASE_URL?.replace(/\/$/, '')
-    if (!edgeUrl) {
-      return NextResponse.json({ error: "Supabase URL not configured" }, { status: 500 })
+    const directFunctionUrl = process.env.SUPABASE_EDIT_PROJECT_FUNCTION_URL?.replace(/\/$/, '')
+    const edgeBaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL?.replace(/\/$/, '')
+    if (!directFunctionUrl && !edgeBaseUrl) {
+      return NextResponse.json({ error: "Edit project function URL not configured" }, { status: 500 })
     }
 
     console.log('[EDIT-PROJECT] Calling edge function with:', {
@@ -60,7 +61,8 @@ export async function POST(request: NextRequest) {
       contextExists: !!context
     })
 
-    const resp = await fetch(`${edgeUrl}/functions/v1/edit-project`, {
+    const targetUrl = directFunctionUrl || `${edgeBaseUrl}/functions/v1/edit-project`
+    const resp = await fetch(targetUrl, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
