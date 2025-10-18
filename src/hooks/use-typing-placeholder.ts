@@ -23,7 +23,11 @@ export function useTypingPlaceholder(
   const timeoutRef = useRef<number | null>(null)
 
   const currentPrompt = safePrompts[promptIndex % safePrompts.length]
-  const placeholder = currentPrompt.slice(0, charIndex)
+  const baseText = "I want to build a"
+  const fullText = currentPrompt
+  const placeholder = isDeleting && charIndex <= baseText.length 
+    ? baseText.slice(0, charIndex)
+    : fullText.slice(0, charIndex)
 
   useEffect(() => {
     if (!isActive) {
@@ -42,9 +46,9 @@ export function useTypingPlaceholder(
       schedule(typeMs, () => setCharIndex((i) => i + 1))
     } else if (!isDeleting && charIndex === currentPrompt.length) {
       schedule(pauseMs, () => setIsDeleting(true))
-    } else if (isDeleting && charIndex > 0) {
-      schedule(eraseMs, () => setCharIndex((i) => Math.max(0, i - 1)))
-    } else if (isDeleting && charIndex === 0) {
+    } else if (isDeleting && charIndex > baseText.length) {
+      schedule(eraseMs, () => setCharIndex((i) => Math.max(baseText.length, i - 1)))
+    } else if (isDeleting && charIndex === baseText.length) {
       schedule(idleMs, () => {
         setIsDeleting(false)
         setPromptIndex((i) => (i + 1) % safePrompts.length)
@@ -54,7 +58,7 @@ export function useTypingPlaceholder(
     return () => {
       if (timeoutRef.current) window.clearTimeout(timeoutRef.current)
     }
-  }, [charIndex, isDeleting, currentPrompt, typeMs, eraseMs, pauseMs, idleMs, isActive, safePrompts.length])
+  }, [charIndex, isDeleting, currentPrompt, typeMs, eraseMs, pauseMs, idleMs, isActive, safePrompts.length, baseText.length])
 
   // Reset cycle if prompts array changes significantly
   useEffect(() => {

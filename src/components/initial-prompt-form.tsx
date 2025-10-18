@@ -139,7 +139,7 @@ export function InitialPromptForm({ onSubmit }: InitialPromptFormProps) {
               <Textarea
                 value={prompt}
                 onChange={(e) => setPrompt(e.target.value)}
-                placeholder={animatedPlaceholder || "Ask AI to build..."}
+                placeholder={animatedPlaceholder}
                 rows={5}
                 className="w-full pl-12 pr-16 py-4 border-2 border-gray-200 rounded-xl text-left hover:border-orange-300 transition-all duration-300 bg-white shadow-[0_0_12px_rgba(249,115,22,0.25)] hover:shadow-[0_0_20px_rgba(249,115,22,0.4)] focus:shadow-[0_0_20px_rgba(249,115,22,0.4)] focus:border-orange-400 focus:outline-none text-base sm:text-lg resize-y"
                 required

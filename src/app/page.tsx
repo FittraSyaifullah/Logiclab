@@ -221,7 +221,7 @@ export default function LandingPage() {
                 value={searchInput}
                 onChange={handleSearchInputChange}
                 onKeyPress={handleSearchKeyPress}
-                placeholder={animatedPlaceholder || "Start building with Buildables..."}
+                placeholder={animatedPlaceholder}
                 className="w-full h-16 sm:h-20 md:h-24 pl-12 pr-16 py-4 sm:py-6 border-2 border-gray-200 rounded-xl text-left hover:border-orange-300 transition-all duration-300 bg-white shadow-[0_0_12px_rgba(249,115,22,0.25)] hover:shadow-[0_0_20px_rgba(249,115,22,0.4)] focus:shadow-[0_0_20px_rgba(249,115,22,0.4)] focus:border-orange-400 focus:outline-none text-base sm:text-lg"
               />
               <ArrowRight
