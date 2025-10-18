@@ -6,8 +6,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
-import { Send, User, Loader2, Wrench, Monitor, ChevronLeft, ChevronRight, Box, FileText, Code, ChevronDown } from "lucide-react"
+import { Send, User, Loader2, Wrench, Monitor, ChevronLeft, ChevronRight } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { useCreationStore } from "@/hooks/use-creation-store"
 import { useUserStore } from "@/hooks/use-user-store"
@@ -15,7 +14,7 @@ import { useToast } from "@/hooks/use-toast"
 import type { Creation, HardwareReports } from "@/lib/types"
 
 // Types for prepared request bodies
-type ThreeDLabel = "3D Components" | "Assembly & Parts" | "Firmware & Code"
+type ThreeDLabel = never
 
 interface SoftwarePreparedBody {
   creationId: string
@@ -57,7 +56,7 @@ export function ChatSidebar({ onLogout, onSendMessage }: ChatSidebarProps) {
 
   const [fallbackInput, setFallbackInput] = useState("")
   const [isLoadingFallback, setIsLoadingFallback] = useState(false)
-  const [selectedScope, setSelectedScope] = useState<string>("3D Components")
+  const [selectedScope, setSelectedScope] = useState<string>("")
   
   // Use chat history from creation store directly
   const fallbackMessages = activeCreation?.chatHistory || []
@@ -91,7 +90,7 @@ export function ChatSidebar({ onLogout, onSendMessage }: ChatSidebarProps) {
       creationId: safeCreation.id || "",
       creationTitle: safeCreation.title || "Untitled Project",
       creationPrompt: safeCreation.prompt || "",
-      scope: selectedScope,
+      scope: "",
       microcontroller: safeCreation.microcontroller || "arduino",
       components: Array.isArray(safeCreation.components)
         ? safeCreation.components.map((comp) => ({
@@ -119,14 +118,7 @@ export function ChatSidebar({ onLogout, onSendMessage }: ChatSidebarProps) {
 
   const handleFallbackSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    console.log('[CHAT-SIDEBAR] Submit handler called:', {
-      input: fallbackInput,
-      selectedScope,
-      mode,
-      hasActiveCreation: !!activeCreation,
-      activeCreationId: activeCreation?.id,
-      activeCreationProjectId: activeCreation?.projectId
-    })
+    console.log('[CHAT-SIDEBAR] Submit handler called:', { input: fallbackInput, mode, hasActiveCreation: !!activeCreation, activeCreationId: activeCreation?.id, activeCreationProjectId: activeCreation?.projectId })
     
     if (!fallbackInput.trim()) {
       console.log('[CHAT-SIDEBAR] Empty input, returning')
@@ -162,76 +154,16 @@ export function ChatSidebar({ onLogout, onSendMessage }: ChatSidebarProps) {
       const prepared = prepareChatBody()
 
       if (mode === "hardware") {
-        // Map selectedScope into a routing target
-        const threeDLabels = ["3D Components", "Assembly & Parts", "Firmware & Code"] as const
-        const isPredefined = (threeDLabels as readonly string[]).includes(selectedScope)
-        const target = isPredefined
-          ? selectedScope === "3D Components"
-            ? { type: "3d-components" as const, reportId: activeCreation?.hardwareReports?.["3d-components"]?.reportId }
-            : selectedScope === "Assembly & Parts"
-            ? { type: "assembly-parts" as const, reportId: activeCreation?.hardwareReports?.["assembly-parts"]?.reportId }
-            : { type: "firmware-code" as const, reportId: activeCreation?.hardwareReports?.["firmware-code"]?.reportId }
-          : {
-              type: "3d-component" as const,
-              componentId:
-                "components" in prepared
-                  ? prepared.components.find((c) => c.name === selectedScope)?.id
-                  : undefined,
-              componentName: selectedScope,
-            }
+        const requestBody = { projectId: (activeCreation?.projectId || project?.id || ""), creationId: (activeCreation?.id || ""), userId: user?.id || "", message: messageToSend }
 
-        const requestBody = {
-          projectId: (activeCreation?.projectId || project?.id || ""),
-          creationId: (activeCreation?.id || ""),
-          userId: user?.id || "",
-          message: messageToSend,
-          target,
-          context: {
-            microcontroller: ("microcontroller" in prepared ? prepared.microcontroller : ""),
-            components:
-              "components" in prepared
-                ? prepared.components.map((c) => ({ id: c.id, name: c.name }))
-                : [],
-            params: (() => {
-              const empty: Record<string, number | string | boolean> = {}
-              if ("customParams" in prepared) {
-                const entries = prepared.customParams.map((p) => [p.key, p.value] as const)
-                return Object.fromEntries(entries) as Record<string, number | string | boolean>
-              }
-              return empty
-            })(),
-            creationTitle: prepared.creationTitle,
-            creationPrompt: prepared.creationPrompt,
-          },
-        }
+        console.log('[CHAT-SIDEBAR] Hardware chat request body:', { projectId: requestBody.projectId, activeCreationProjectId: activeCreation?.projectId, globalProjectId: project?.id, hasUser: !!user?.id })
 
-        console.log('[CHAT-SIDEBAR] Hardware chat request body:', {
-          projectId: requestBody.projectId,
-          activeCreationProjectId: activeCreation?.projectId,
-          globalProjectId: project?.id,
-          selectedScope,
-          target,
-          hasUser: !!user?.id
-        })
-
-        // Guard: must have a valid projectId
         if (!requestBody.projectId) {
-          console.error('[CHAT-SIDEBAR] Missing projectId:', {
-            activeCreationProjectId: activeCreation?.projectId,
-            globalProjectId: project?.id,
-            activeCreationId: activeCreation?.id
-          })
+          console.error('[CHAT-SIDEBAR] Missing projectId:', { activeCreationProjectId: activeCreation?.projectId, globalProjectId: project?.id, activeCreationId: activeCreation?.id })
           throw new Error("Missing project context. Please reselect the hardware project and try again.")
         }
 
-        const response = await fetch(apiEndpoint, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Accept: "application/json",
-          },
-          body: JSON.stringify(requestBody),
-        })
+        const response = await fetch(apiEndpoint, { method: "POST", headers: { "Content-Type": "application/json", Accept: "application/json" }, body: JSON.stringify(requestBody) })
 
         if (!response.ok) {
           const errorText = await response.text()
@@ -528,53 +460,7 @@ export function ChatSidebar({ onLogout, onSendMessage }: ChatSidebarProps) {
                 }}
               >
                 <div className="flex flex-col gap-2">
-                  {mode === "hardware" && (
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <button
-                          type="button"
-                          className="w-full h-9 px-3 rounded-md border border-neutral-300 dark:border-neutral-600 bg-white dark:bg-neutral-900 text-sm text-neutral-700 dark:text-neutral-200 inline-flex items-center justify-between gap-2 hover:bg-neutral-50 dark:hover:bg-neutral-800 focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                          aria-label="Select chat scope"
-                        >
-                          <span className="inline-flex items-center gap-2">
-                            {selectedScope === "3D Components" && <Box className="h-4 w-4 text-indigo-500" />}
-                            {selectedScope === "Assembly & Parts" && <FileText className="h-4 w-4 text-indigo-500" />}
-                            {selectedScope === "Firmware & Code" && <Code className="h-4 w-4 text-indigo-500" />}
-                            <span className="max-w-[12rem] truncate text-left">{selectedScope}</span>
-                          </span>
-                          <ChevronDown className="h-4 w-4 opacity-70" />
-                        </button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="start" className="w-[18rem]">
-                        <DropdownMenuLabel className="text-xs text-neutral-500">Scope</DropdownMenuLabel>
-                        {(["3D Components","Assembly & Parts","Firmware & Code"] as const).map((label) => (
-                          <DropdownMenuItem key={label} onClick={() => setSelectedScope(label)} className="flex items-center gap-2">
-                            {label === "3D Components" && <Box className="h-4 w-4 text-indigo-500" />}
-                            {label === "Assembly & Parts" && <FileText className="h-4 w-4 text-indigo-500" />}
-                            {label === "Firmware & Code" && <Code className="h-4 w-4 text-indigo-500" />}
-                            <span>{label}</span>
-                          </DropdownMenuItem>
-                        ))}
-                        {/*(() => {
-                          const reports = (activeCreation?.hardwareReports as HardwareReports | undefined)
-                          const comps = (reports?.["3d-components"]?.components ?? []) as Array<{ name?: string }>
-                          const names = comps.map((c) => c.name).filter(Boolean)
-                          const unique = Array.from(new Set(names)) as string[]
-                          return unique.length ? (
-                            <>
-                              <DropdownMenuSeparator />
-                              <DropdownMenuLabel className="text-xs text-neutral-500">Components</DropdownMenuLabel>
-                              {unique.map((name) => (
-                                <DropdownMenuItem key={name} onClick={() => setSelectedScope(name)}>
-                                  {name}
-                                </DropdownMenuItem>
-                              ))}
-                            </>
-                          ) : null
-                        })()*/}
-                      </DropdownMenuContent>
-                    </DropdownMenu>
-                  )}
+                  {/* Dropdown removed: single unified hardware edit-project flow */}
                   <form onSubmit={handleFallbackSubmit} className="flex gap-2 items-center">
                     <Input
                       value={fallbackInput}
