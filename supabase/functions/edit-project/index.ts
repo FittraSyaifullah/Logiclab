@@ -3,7 +3,7 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authordization, x-client-info, apikey, content-type'
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type'
 };
 
 // System prompt sourced from reference/edit-project/system prompt/edit-project-system-prompt.md
@@ -249,12 +249,23 @@ const EDIT_PROJECT_SCHEMA = {
         '3DComponents': {
           type: 'object',
           additionalProperties: false,
+          required: ['components','generalNotes'],
           properties: {
             components: {
               type: 'array',
               items: {
                 type: 'object',
                 additionalProperties: false,
+                required: [
+                  'component',
+                  'description',
+                  'promptFor3DGeneration',
+                  'printSpecifications',
+                  'assemblyNotes',
+                  'printTime',
+                  'material',
+                  'supports'
+                ],
                 properties: {
                   component: { type: 'string' },
                   description: { type: 'string' },
@@ -273,6 +284,7 @@ const EDIT_PROJECT_SCHEMA = {
         'AssemblyAndParts': {
           type: 'object',
           additionalProperties: false,
+          required: ['overview','partsList','assemblyInstructions','safetyChecklist'],
           properties: {
             overview: { type: 'string' },
             partsList: {
@@ -280,6 +292,7 @@ const EDIT_PROJECT_SCHEMA = {
               items: {
                 type: 'object',
                 additionalProperties: false,
+                required: ['part', 'quantity', 'vendor', 'notes'],
                 properties: {
                   part: { type: 'string' },
                   quantity: { type: 'string' },
@@ -295,6 +308,7 @@ const EDIT_PROJECT_SCHEMA = {
         'FirmwareAndCode': {
           type: 'object',
           additionalProperties: false,
+          required: ['microcontroller','language','code','explanation','improvementSuggestions'],
           properties: {
             microcontroller: { type: 'string' },
             language: { type: 'string' },
