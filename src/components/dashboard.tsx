@@ -560,6 +560,11 @@ function DashboardContent({ onLogout, initialSearchInput }: DashboardProps) {
         if (resp.ok) {
           const data = await resp.json()
           setSoftwareList(data.software || [])
+          // Ensure project is available on refresh so hardware list uses scoped URL
+          try {
+            const { setProject } = useUserStore.getState()
+            setProject(data.project ?? null)
+          } catch {}
 
           // Optionally, preload latest hardware reports into current creation if needed
           if (project?.id) {

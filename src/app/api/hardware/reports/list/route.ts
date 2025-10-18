@@ -21,9 +21,12 @@ export async function GET(request: NextRequest) {
       .order('created_at', { ascending: false })
       .limit(200)
 
-    const { data: rows, error } = projectId
-      ? await base.eq('project_id', projectId)
-      : await base
+    // Apply DB-level owner filter when projectId is missing to avoid post-filtering to zero
+    const query = projectId
+      ? base.eq('project_id', projectId)
+      : base.eq('projects.owner_id', userId as string)
+
+    const { data: rows, error } = await query
 
     console.log('[HARDWARE LIST] Raw query result count:', rows?.length || 0)
 
@@ -46,7 +49,6 @@ export async function GET(request: NextRequest) {
         const relatedProject = Array.isArray(row.projects) ? row.projects[0] ?? null : row.projects
         return { row, relatedProject }
       })
-      .filter(({ relatedProject }) => (projectId ? true : relatedProject?.owner_id === userId))
       .map(({ row, relatedProject }) => ({
         reportId: row.id,
         projectId: row.project_id,
