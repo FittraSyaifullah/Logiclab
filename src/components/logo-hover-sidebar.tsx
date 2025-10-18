@@ -152,6 +152,13 @@ export function LogoHoverSidebar({
           </div>
 
           <div className="space-y-1 overflow-y-auto max-h-[calc(50vh-8rem)] pr-1">
+            {(() => {
+              console.log('[HOVER SIDEBAR] Rendering reportsList:', { 
+                reportsListLength: reportsList?.length || 0, 
+                reportsList: reportsList 
+              })
+              return null
+            })()}
             {reportsList && reportsList.length > 0 ? (
         reportsList.map((item) => (
           <Button

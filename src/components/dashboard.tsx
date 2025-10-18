@@ -583,15 +583,30 @@ function DashboardContent({ onLogout, initialSearchInput }: DashboardProps) {
             } catch {}
           }
 
-          // Populate hover-sidebar hardware projects list
+          // Populate hover-sidebar hardware projects list (prefer scoped by current project)
           try {
-            const listResp = await fetch(`/api/hardware/reports/list?userId=${user.id}`, { cache: 'no-store' })
+            console.log('[DASHBOARD] Fetching hardware reports list for userId and projectId:', { userId: user.id, projectId: project?.id })
+            const listUrl = project?.id
+              ? `/api/hardware/reports/list?userId=${user.id}&projectId=${project.id}`
+              : `/api/hardware/reports/list?userId=${user.id}`
+            const listResp = await fetch(listUrl, { cache: 'no-store' })
+            console.log('[DASHBOARD] Hardware reports list response status:', listResp.status)
             if (listResp.ok) {
               const listData = await listResp.json()
+              console.log('[DASHBOARD] Hardware reports list data:', { 
+                success: listData.success, 
+                itemsCount: listData.items?.length || 0,
+                sampleItem: listData.items?.[0] || null
+              })
               const { setReportsList } = useHardwareStore.getState()
               setReportsList(listData.items || [])
+              console.log('[DASHBOARD] Set reportsList in store, count:', (listData.items || []).length)
+            } else {
+              console.error('[DASHBOARD] Hardware reports list failed:', listResp.status, await listResp.text())
             }
-          } catch (e) {}
+          } catch (e) {
+            console.error('[DASHBOARD] Hardware reports list error:', e)
+          }
         }
       } catch (e) {}
     }
