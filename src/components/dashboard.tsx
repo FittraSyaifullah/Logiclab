@@ -31,11 +31,15 @@ import {
   HelpCircle,
   CreditCard,
   RotateCcw,
+  MessageSquare,
 } from "lucide-react"
 import type { Creation, HardwareReports } from "@/lib/types"
 import { useCreationStore } from "@/hooks/use-creation-store"
 import { useUserStore } from "@/hooks/use-user-store"
 import { cn } from "@/lib/utils"
+import useMobile from "@/hooks/use-mobile"
+import { MobileHeader } from "@/components/mobile/MobileHeader"
+import { BottomNav } from "@/components/mobile/BottomNav"
 import { createSupabaseClient } from "@/lib/supabase/server"
 import { useToast } from "@/hooks/use-toast"
 import {
@@ -334,6 +338,7 @@ function PersistentHeader({
 }
 
 function DashboardContent({ onLogout, initialSearchInput }: DashboardProps) {
+  const isMobile = useMobile()
   const { creations, activeCreationId, setActiveCreationId, addCreation, updateCreation, deleteCreation } = useCreationStore()
   const { user, project } = useUserStore()
   const activeCreation = (creations ?? []).find((c) => c.id === activeCreationId)
@@ -1549,7 +1554,13 @@ function DashboardContent({ onLogout, initialSearchInput }: DashboardProps) {
   }, [])
 
   return (
-    <div className="flex min-h-svh w-full overflow-hidden bg-gradient-to-br from-slate-50 via-blue-50/30 to-indigo-100/40 dark:from-slate-950 dark:via-slate-900 dark:to-indigo-950/20 pt-16">
+    <div className="flex min-h-svh w-full overflow-hidden bg-gradient-to-br from-slate-50 via-blue-50/30 to-indigo-100/40 dark:from-slate-950 dark:via-slate-900 dark:to-indigo-950/20 pt-16 sm:pt-16">
+      {isMobile && (
+        <MobileHeader
+          title={activeCreation ? activeCreation.title : "Buildables"}
+          onMenu={() => setShowLogoSidebar((v) => !v)}
+        />
+      )}
       <LogoHoverSidebar
         isVisible={showLogoSidebar}
         onNewCreation={() => {
@@ -1660,7 +1671,9 @@ function DashboardContent({ onLogout, initialSearchInput }: DashboardProps) {
         }}
       />
 
-      {activeCreation && <ChatSidebar onLogout={onLogout} onSendMessage={handleSendMessage} />}
+      {activeCreation && (
+        <ChatSidebar onLogout={onLogout} onSendMessage={handleSendMessage} fullWidthOnMobile={isMobile} />
+      )}
 
       <div className="flex-1 flex flex-col min-h-0">
         <PersistentHeader
@@ -1679,7 +1692,7 @@ function DashboardContent({ onLogout, initialSearchInput }: DashboardProps) {
           isPaid={credits.paid}
         />
 
-        <div className="flex-1 overflow-hidden">
+        <div className="flex-1 overflow-hidden pb-14 sm:pb-0">
           {activeCreation ? (
             <>
               {creationMode === "hardware" ? (
@@ -1720,6 +1733,17 @@ function DashboardContent({ onLogout, initialSearchInput }: DashboardProps) {
         )}
         <CreditLimitModal open={showCreditModal} onClose={() => setShowCreditModal(false)} />
         {/* Dev test compile button removed */}
+        {isMobile && (
+          <BottomNav
+            activeKey={creationMode === "hardware" ? "hardware" : "software"}
+            items={[
+              { key: "home", label: "Home", icon: Monitor, onClick: () => { window.location.href = "/dashboard" } },
+              { key: "hardware", label: "Hardware", icon: Layers, onClick: () => setViewMode("model") },
+              { key: "chat", label: "Chat", icon: MessageSquare, onClick: () => setShowLogoSidebar(true) },
+              { key: "settings", label: "Settings", icon: Settings, onClick: () => { window.location.href = "/settings" } },
+            ]}
+          />
+        )}
       </div>
     </div>
   )

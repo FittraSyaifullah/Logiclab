@@ -46,9 +46,10 @@ type PreparedBody = SoftwarePreparedBody | HardwarePreparedBody
 interface ChatSidebarProps {
   onLogout: () => void
   onSendMessage?: (message: string) => void
+  fullWidthOnMobile?: boolean
 }
 
-export function ChatSidebar({ onLogout, onSendMessage }: ChatSidebarProps) {
+export function ChatSidebar({ onLogout, onSendMessage, fullWidthOnMobile = false }: ChatSidebarProps) {
   const [isCollapsed, setIsCollapsed] = useState(false)
   const { creations, activeCreationId, updateCreation } = useCreationStore()
   const { user, project } = useUserStore()
@@ -347,6 +348,7 @@ export function ChatSidebar({ onLogout, onSendMessage }: ChatSidebarProps) {
       className={cn(
         "flex flex-col h-full shrink-0 bg-white/95 dark:bg-slate-900/95 backdrop-blur-xl border-r border-slate-200/40 dark:border-slate-700/40 transition-all duration-300",
         isCollapsed ? "w-16" : "w-80",
+        fullWidthOnMobile && "sm:w-80 w-full border-r-0 border-b sm:border-b-0 sm:border-r"
       )}
     >
       <div className="flex items-center justify-between p-4 border-b border-slate-200/30 dark:border-slate-700/30">
