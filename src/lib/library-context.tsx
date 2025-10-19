@@ -8,9 +8,12 @@ export type LibraryFile = {
   name: string
   type: string
   size: number
-  file: File
+  file?: File
   uploadedAt: Date
   category: "document" | "3d-model" | "image" | "other"
+  bucket?: string
+  path?: string
+  status?: string
 }
 
 type LibraryContextType = {
