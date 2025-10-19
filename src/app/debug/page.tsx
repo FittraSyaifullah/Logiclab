@@ -56,10 +56,10 @@ export default function DebugPage() {
 
       <main className="max-w-7xl mx-auto px-4 sm:px-6 md:px-8 py-6 md:py-8">
         <div className="mb-6 md:mb-8 flex items-center justify-between gap-3">
-          <div>
+          {/*<div>
             <h1 className="text-2xl md:text-3xl font-bold text-slate-900 dark:text-slate-100">Debug Tools</h1>
             <p className="text-sm md:text-base text-slate-600 dark:text-slate-300">Diagnostics and developer utilities</p>
-          </div>
+          </div>*/}
           <Badge className="bg-violet-100 text-violet-800 dark:bg-violet-900/40 dark:text-violet-200">Beta</Badge>
         </div>
 

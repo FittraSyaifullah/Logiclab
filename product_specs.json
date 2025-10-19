@@ -1,0 +1,37 @@
+{
+  "name": "Smart Desk",
+  "description": "Smart desk with built-in wireless charging, hidden cable management, and adjustable height.",
+  "features": [
+    "Built-in wireless charging",
+    "Hidden cable management",
+    "Adjustable height"
+  ],
+  "dimensions": {
+    "length": 100,
+    "width": 100,
+    "height": 100
+  },
+  "weight": 100,
+  "material": "Wood",
+  "color": "Brown",
+  "price": 1000,
+  "discount": 100,
+  "discount_price": 900,
+  "discount_percentage": 10,
+  "discount_type": "percentage",
+  "discount_code": "1000",
+  "discount_expiry": "2025-01-01",
+  "discount_quantity": 1,
+  "discount_product_id": "1000",
+  "discount_product_name": "Smart Desk",
+  "discount_product_price": 1000,
+  "discount_product_quantity": 1,
+  "discount_product_id": "1000",
+  "discount_product_name": "Smart Desk",
+  "discount_product_price": 1000,
+  "discount_product_quantity": 1,
+  "discount_product_id": "1000",
+  "discount_product_name": "Smart Desk",
+  "discount_product_price": 1000,
+  "discount_product_quantity": 1
+}
