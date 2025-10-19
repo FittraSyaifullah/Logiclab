@@ -10,6 +10,7 @@ import { ScrollArea } from "@/components/ui/scroll-area"
 import { Send, Paperclip, FileText, Loader2, Cpu, CheckCircle2, FileDown, Download, Sparkles } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { useLibrary } from "@/lib/library-context"
+import { useAuth } from "@/contexts/AuthContext"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 
 type Message = {
@@ -22,6 +23,7 @@ type Message = {
 
 export function DebugChat() {
   const { addFiles, files } = useLibrary()
+  const { user } = useAuth()
   const [uploadedFiles, setUploadedFiles] = useState<File[]>([])
   const [inputValue, setInputValue] = useState("")
   const [messages, setMessages] = useState<Message[]>([])
@@ -39,6 +41,27 @@ export function DebugChat() {
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight
     }
   }, [messages])
+
+  // Load debug chat history on mount for this user
+  useEffect(() => {
+    const loadHistory = async () => {
+      if (!user?.id) return
+      try {
+        const res = await fetch(`/api/debug-chat/list?userId=${encodeURIComponent(user.id)}`)
+        const json = await res.json()
+        const serverMessages = Array.isArray(json?.messages) ? json.messages as Array<{ id: string; role: string; content: string }> : []
+        const mapped: Message[] = serverMessages.map((m) => ({
+          id: m.id,
+          role: (m.role === 'system' ? 'assistant' : m.role) as 'user' | 'assistant',
+          content: m.content,
+        }))
+        setMessages(mapped)
+      } catch {
+        // ignore
+      }
+    }
+    loadHistory()
+  }, [user?.id])
 
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files || [])
@@ -113,29 +136,26 @@ export function DebugChat() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!inputValue.trim() || isLoading) return
+    if (!user?.id) return
     const userMessage: Message = { id: Date.now().toString(), role: "user", content: inputValue.trim() }
     setMessages((prev) => [...prev, userMessage])
     setInputValue("")
     setIsLoading(true)
-    const assistantMessageId = (Date.now() + 1).toString()
-    setMessages((prev) => [...prev, { id: assistantMessageId, role: "assistant", content: "" }])
     try {
-      const libraryContext = files.length > 0 ? `\n\nAvailable reference documents in library: ${files.map((f) => f.name).join(", ")}` : ""
-      const response = await fetch("/api/chat", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ messages: [userMessage].map((m) => ({ role: m.role, content: m.content + libraryContext })) }) })
-      if (!response.ok) throw new Error(`API error: ${response.status}`)
-      const reader = response.body?.getReader(); const decoder = new TextDecoder(); if (!reader) throw new Error("No reader available")
-      let buffer = ""; let fullContent = ""
-      while (true) {
-        const { done, value } = await reader.read(); if (done) break
-        buffer += decoder.decode(value, { stream: true }); const lines = buffer.split("\n"); buffer = lines.pop() || ""
-        for (const line of lines) { if (line.startsWith("0:")) { try { const text = JSON.parse(line.slice(2)); fullContent += text; setMessages((prev) => prev.map((msg) => (msg.id === assistantMessageId ? { ...msg, content: msg.content + text } : msg))) } catch {} } }
-      }
-      const showGenerateButton = (fullContent.toLowerCase().includes("design") || fullContent.toLowerCase().includes("build") || fullContent.toLowerCase().includes("create")) && (fullContent.toLowerCase().includes("system") || fullContent.toLowerCase().includes("product") || fullContent.toLowerCase().includes("device")) && !fullContent.includes("## 1. EXECUTIVE SUMMARY")
-      const hasProjectDoc = fullContent.includes("## 1. EXECUTIVE SUMMARY") || fullContent.includes("## 2. TECHNICAL BACKGROUND") || (fullContent.includes("## ") && fullContent.length > 1000)
-      if (hasProjectDoc) { setMessages((prev) => prev.map((msg) => (msg.id === assistantMessageId ? { ...msg, hasProjectDoc: true } : msg))) } else if (showGenerateButton) { setMessages((prev) => prev.map((msg) => (msg.id === assistantMessageId ? { ...msg, showGenerateButton: true } : msg))) }
+      const res = await fetch('/api/debug-chat/send', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId: user.id, message: userMessage.content })
+      })
+      const data = await res.json()
+      const assistantText: string = data?.content || 'No response.'
+      const assistantMessage: Message = { id: (Date.now() + 1).toString(), role: 'assistant', content: assistantText }
+      setMessages((prev) => [...prev, assistantMessage])
     } catch {
-      setMessages((prev) => prev.map((msg) => (msg.role === "assistant" ? { ...msg, content: msg.content || "Sorry, I encountered an error. Please try again." } : msg)))
-    } finally { setIsLoading(false) }
+      setMessages((prev) => [...prev, { id: (Date.now() + 2).toString(), role: 'assistant', content: 'Sorry, I encountered an error. Please try again.' }])
+    } finally {
+      setIsLoading(false)
+    }
   }
 
   return (

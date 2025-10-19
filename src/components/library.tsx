@@ -11,14 +11,12 @@ import { ScrollArea } from "@/components/ui/scroll-area"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { useLibrary } from "@/lib/library-context"
 import { useAuth } from "@/contexts/AuthContext"
-import { createSupabaseClient } from "@/lib/supabase/server"
-import { supabase } from "@/lib/supabase"
 import { extractTextLight, getFileCategoryFromNameAndType, uiCategoryToDbType } from "@/lib/file-utils"
 import { FileText, Box, ImageIcon, File, Trash2, Search, Upload } from "lucide-react"
 import { cn } from "@/lib/utils"
 
 export function Library() {
-  const { files, addFiles, removeFile } = useLibrary()
+  const { files, addFiles, removeFile, replaceFiles } = useLibrary()
   const [searchQuery, setSearchQuery] = useState("")
   const { user } = useAuth()
   const [loading, setLoading] = useState(false)
@@ -31,8 +29,18 @@ export function Library() {
         const res = await fetch(`/api/files/list?userId=${encodeURIComponent(user.id)}`)
         const json = await res.json()
         if (json?.files) {
-          // For now, just show counts via header; state remains local for uploads
-          // A fuller refactor would replace local state entirely with server files
+          const serverFiles = (json.files as Array<any>).map((f) => ({
+            id: f.id,
+            name: f.original_name ?? f.path.split('/').pop() ?? f.id,
+            type: f.mime_type ?? 'application/octet-stream',
+            size: Number(f.size_bytes ?? 0),
+            uploadedAt: new Date(f.created_at),
+            category: f.file_type === 'model' ? '3d-model' : (f.file_type as any),
+            bucket: f.bucket,
+            path: f.path,
+            status: f.status,
+          }))
+          replaceFiles(serverFiles)
         }
       } finally {
         setLoading(false)
@@ -210,13 +218,17 @@ function FileGrid({
         <Card key={file.id} className="group relative overflow-hidden transition-all hover:shadow-md">
           <div className="p-4">
             <div className="mb-3 flex items-start justify-between">
-              <div className={cn("rounded-lg p-2",
+              <div className={cn("rounded-lg p-2 overflow-hidden",
                 file.category === "document" && "bg-blue-500/10 text-blue-600",
                 file.category === "3d-model" && "bg-purple-500/10 text-purple-600",
                 file.category === "image" && "bg-green-500/10 text-green-600",
                 file.category === "other" && "bg-slate-100 text-slate-600")}
               >
-                {getIcon(file.category)}
+                {file.category === 'image' && file.bucket && file.path ? (
+                  <ImageThumb bucket={file.bucket} path={file.path} alt={file.name} />
+                ) : (
+                  getIcon(file.category)
+                )}
               </div>
               <Button
                 variant="ghost"
@@ -231,7 +243,25 @@ function FileGrid({
                       body: JSON.stringify({ userId: user.id, fileId: file.id })
                     })
                   } finally {
-                    onRemove(file.id)
+                    // Refresh server list to reflect deletion
+                    const res = await fetch(`/api/files/list?userId=${encodeURIComponent(user.id)}`)
+                    const json = await res.json()
+                    if (json?.files) {
+                      const serverFiles = (json.files as Array<any>).map((f) => ({
+                        id: f.id,
+                        name: f.original_name ?? f.path.split('/').pop() ?? f.id,
+                        type: f.mime_type ?? 'application/octet-stream',
+                        size: Number(f.size_bytes ?? 0),
+                        uploadedAt: new Date(f.created_at),
+                        category: f.file_type === 'model' ? '3d-model' : (f.file_type as any),
+                        bucket: f.bucket,
+                        path: f.path,
+                        status: f.status,
+                      }))
+                      replaceFiles(serverFiles)
+                    } else {
+                      onRemove(file.id)
+                    }
                   }
                 }}
               >
@@ -249,5 +279,22 @@ function FileGrid({
     </div>
   )
 }
+function ImageThumb({ bucket, path, alt }: { bucket: string; path: string; alt: string }) {
+  const [url, setUrl] = useState<string | null>(null)
+  useEffect(() => {
+    let mounted = true
+    ;(async () => {
+      try {
+        const res = await fetch('/api/files/signed-download', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ bucket, path, expiresIn: 60 }) })
+        const json = await res.json()
+        if (mounted && json?.url) setUrl(json.url)
+      } catch {}
+    })()
+    return () => { mounted = false }
+  }, [bucket, path])
+  if (!url) return <ImageIcon className="h-5 w-5" />
+  return <img src={url} alt={alt} className="h-10 w-10 object-cover rounded" />
+}
+
 
 

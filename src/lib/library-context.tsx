@@ -21,6 +21,7 @@ type LibraryContextType = {
   addFiles: (files: File[]) => void
   removeFile: (id: string) => void
   getFilesByCategory: (category: LibraryFile["category"]) => LibraryFile[]
+  replaceFiles: (serverFiles: Omit<LibraryFile, 'file'>[]) => void
 }
 
 const LibraryContext = createContext<LibraryContextType | undefined>(undefined)
@@ -52,8 +53,12 @@ export function LibraryProvider({ children }: { children: React.ReactNode }) {
     return files.filter((f) => f.category === category)
   }
 
+  const replaceFiles = (serverFiles: Omit<LibraryFile, 'file'>[]) => {
+    setFiles(serverFiles.map((f) => ({ ...f, file: undefined })))
+  }
+
   return (
-    <LibraryContext.Provider value={{ files, addFiles, removeFile, getFilesByCategory }}>
+    <LibraryContext.Provider value={{ files, addFiles, removeFile, getFilesByCategory, replaceFiles }}>
       {children}
     </LibraryContext.Provider>
   )
