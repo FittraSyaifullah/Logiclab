@@ -227,7 +227,7 @@ export function PersistentHeader({
           Integration
         </Button>*/}
 
-        <Button
+        {/*<Button
           size="sm"
           onClick={() => {
             try { useCreationStore.getState().setActiveCreationId(null) } catch {}
@@ -237,16 +237,16 @@ export function PersistentHeader({
         >
           <Monitor className="mr-2 h-4 w-4" />
           Dashboard
-        </Button>
+        </Button>*/}
 
-        <Button
+        {/*<Button
           size="sm"
           onClick={() => router.push('/debug')}
           className="rounded-full px-5 sm:px-6 py-2 font-semibold text-white shadow-[0_6px_20px_rgba(124,58,237,.35)] bg-gradient-to-b from-violet-500 to-purple-600 hover:from-violet-600 hover:to-purple-700 focus-visible:ring-violet-500/30"
         >
           <Sparkles className="mr-2 h-4 w-4" />
           Debug
-        </Button>
+        </Button>*/}
 
         {/*<Button
           variant="outline"
