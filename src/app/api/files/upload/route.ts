@@ -1,6 +1,5 @@
 import { NextRequest } from 'next/server'
 import { createSupabaseServerClient } from '@/lib/supabase/server'
-import { supabase as clientSupabase } from '@/lib/supabase'
 
 // Note: This route expects the client to send multipart/form-data with fields:
 // - file: the uploaded File
@@ -37,9 +36,9 @@ export async function POST(req: NextRequest) {
       bucket,
       path,
       file_type: fileType,
-      mime_type: (file as any).type ?? null,
+      mime_type: file.type ?? null,
       original_name: file.name,
-      size_bytes: (file as any).size ?? null,
+      size_bytes: file.size ?? null,
       title,
       description,
       status: 'uploaded',

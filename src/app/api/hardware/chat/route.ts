@@ -31,7 +31,6 @@ export async function POST(request: NextRequest) {
 		const {
       projectId,
       hardwareId,
-      creationId,
       userId,
       message
 		} = body || ({} as ChatRequestBody)

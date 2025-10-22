@@ -29,13 +29,23 @@ export function Library() {
         const res = await fetch(`/api/files/list?userId=${encodeURIComponent(user.id)}`)
         const json = await res.json()
         if (json?.files) {
-          const serverFiles = (json.files as Array<any>).map((f) => ({
+          const serverFiles = (json.files as Array<{
+            id: string;
+            original_name?: string;
+            path: string;
+            mime_type?: string;
+            size_bytes?: number;
+            created_at: string;
+            file_type?: string;
+            bucket: string;
+            status: string;
+          }>).map((f) => ({
             id: f.id,
             name: f.original_name ?? f.path.split('/').pop() ?? f.id,
             type: f.mime_type ?? 'application/octet-stream',
             size: Number(f.size_bytes ?? 0),
             uploadedAt: new Date(f.created_at),
-            category: f.file_type === 'model' ? '3d-model' : (f.file_type as any),
+            category: f.file_type === 'model' ? '3d-model' as const : (f.file_type === 'image' ? 'image' as const : f.file_type === 'document' ? 'document' as const : 'other' as const),
             bucket: f.bucket,
             path: f.path,
             status: f.status,
@@ -234,36 +244,7 @@ function FileGrid({
                 variant="ghost"
                 size="icon"
                 className="h-8 w-8 opacity-0 transition-opacity group-hover:opacity-100"
-                onClick={async () => {
-                  if (!user?.id) return
-                  try {
-                    await fetch('/api/files/delete', {
-                      method: 'POST',
-                      headers: { 'Content-Type': 'application/json' },
-                      body: JSON.stringify({ userId: user.id, fileId: file.id })
-                    })
-                  } finally {
-                    // Refresh server list to reflect deletion
-                    const res = await fetch(`/api/files/list?userId=${encodeURIComponent(user.id)}`)
-                    const json = await res.json()
-                    if (json?.files) {
-                      const serverFiles = (json.files as Array<any>).map((f) => ({
-                        id: f.id,
-                        name: f.original_name ?? f.path.split('/').pop() ?? f.id,
-                        type: f.mime_type ?? 'application/octet-stream',
-                        size: Number(f.size_bytes ?? 0),
-                        uploadedAt: new Date(f.created_at),
-                        category: f.file_type === 'model' ? '3d-model' : (f.file_type as any),
-                        bucket: f.bucket,
-                        path: f.path,
-                        status: f.status,
-                      }))
-                      replaceFiles(serverFiles)
-                    } else {
-                      onRemove(file.id)
-                    }
-                  }
-                }}
+                onClick={() => onRemove(file.id)}
               >
                 <Trash2 className="h-4 w-4 text-red-500" />
               </Button>
