@@ -41,6 +41,7 @@ export async function POST(request: NextRequest) {
 				projectId: !!projectId, 
         message: !!message
 			})
+      
 			return NextResponse.json(
         { error: "Missing required fields: projectId, message" },
 				{ status: 400 },
