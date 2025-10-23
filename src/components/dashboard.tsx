@@ -31,6 +31,7 @@ import { useCreationStore } from "@/hooks/use-creation-store"
 import { useUserStore } from "@/hooks/use-user-store"
 import { cn } from "@/lib/utils"
 import { useToast } from "@/hooks/use-toast"
+import { useHardwareRealtime } from "@/hooks/use-hardware-realtime"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -338,6 +339,9 @@ function DashboardContent({ onLogout, initialSearchInput }: DashboardProps) {
 
   const hoverTimeoutRef = useRef<NodeJS.Timeout | null>(null)
   const prevUserIdRef = useRef<string | null>(null)
+
+  // Subscribe to realtime updates for hardware projects/models
+  useHardwareRealtime()
 
   const creationMode = activeCreation?.mode || (activeCreation?.softwareData ? "software" : "hardware")
   

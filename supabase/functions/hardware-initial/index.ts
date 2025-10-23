@@ -374,12 +374,61 @@ For complex appliances like washing machines, dishwashers, or large devices:
           .from('jobs')
           .update({ status: 'completed', finished_at: new Date().toISOString(), result: { reportId: inserted.id } })
           .eq('id', job.id)
+
+        // Fire webhook to Next.js app (HTTPS)
+        const webhookUrl = Deno.env.get('WEBHOOK_URL')
+        const webhookSecret = Deno.env.get('HARDWARE_WEBHOOK_SECRET')
+        try {
+          if (webhookUrl && webhookSecret && webhookUrl.startsWith('https://')) {
+            await fetch(webhookUrl, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'X-Buildables-Webhook-Secret': webhookSecret,
+              },
+              body: JSON.stringify({
+                type: 'hardware.initial.completed',
+                projectId,
+                reportId: inserted.id,
+                status: 'completed',
+                title,
+              }),
+            })
+          } else {
+            console.warn('[EDGE:hardware-initial] Skipping webhook: WEBHOOK_URL missing/invalid or secret missing')
+          }
+        } catch (whErr) {
+          console.warn('[EDGE:hardware-initial] Webhook POST failed', whErr)
+        }
       } catch (err) {
         console.error('[EDGE:hardware-initial] Job error', err)
         await supabase
           .from('jobs')
           .update({ status: 'failed', error: err instanceof Error ? err.message : String(err), finished_at: new Date().toISOString() })
           .eq('id', job.id)
+
+        // Notify webhook about failure
+        try {
+          const webhookUrl = Deno.env.get('WEBHOOK_URL')
+          const webhookSecret = Deno.env.get('HARDWARE_WEBHOOK_SECRET')
+          if (webhookUrl && webhookSecret && webhookUrl.startsWith('https://')) {
+            await fetch(webhookUrl, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'X-Buildables-Webhook-Secret': webhookSecret,
+              },
+              body: JSON.stringify({
+                type: 'hardware.initial.failed',
+                projectId: (job.input as { projectId?: string })?.projectId,
+                status: 'failed',
+                error: err instanceof Error ? err.message : String(err),
+              }),
+            })
+          }
+        } catch (whErr) {
+          console.warn('[EDGE:hardware-initial] Failure webhook POST failed', whErr)
+        }
       }
     }
 

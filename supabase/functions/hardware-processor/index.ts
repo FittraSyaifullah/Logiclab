@@ -311,6 +311,33 @@ Do not include code fences or extra prose. Do not include any STL.`
             console.warn(`[EDGE] Post-success debit failed for job ${job.id}:`, debit.error)
           }
         }
+
+        // Notify Next.js webhook about component model completion
+        try {
+          const webhookUrl = Deno.env.get('WEBHOOK_URL')
+          const webhookSecret = Deno.env.get('HARDWARE_WEBHOOK_SECRET')
+          if (webhookUrl && webhookSecret && webhookUrl.startsWith('https://')) {
+            await fetch(webhookUrl, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'X-Buildables-Webhook-Secret': webhookSecret,
+              },
+              body: JSON.stringify({
+                type: 'hardware.model.completed',
+                status: 'completed',
+                projectId,
+                creationId,
+                componentId,
+                jobId: job.id,
+              }),
+            })
+          } else {
+            console.warn('[EDGE:hardware-processor] Skipping webhook: WEBHOOK_URL missing/invalid or secret missing')
+          }
+        } catch (whErr) {
+          console.warn('[EDGE:hardware-processor] Webhook POST failed', whErr)
+        }
       } catch (jobError) {
         console.error(`Error processing hardware job ${job.id}`, jobError)
         await supabaseClient
@@ -321,6 +348,32 @@ Do not include code fences or extra prose. Do not include any STL.`
             finished_at: new Date().toISOString(),
           })
           .eq('id', job.id)
+
+        // Notify webhook about failure
+        try {
+          const webhookUrl = Deno.env.get('WEBHOOK_URL')
+          const webhookSecret = Deno.env.get('HARDWARE_WEBHOOK_SECRET')
+          if (webhookUrl && webhookSecret && webhookUrl.startsWith('https://')) {
+            await fetch(webhookUrl, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'X-Buildables-Webhook-Secret': webhookSecret,
+              },
+              body: JSON.stringify({
+                type: 'hardware.model.failed',
+                status: 'failed',
+                projectId: (job.input as { projectId?: string })?.projectId,
+                creationId: (job.input as { creationId?: string })?.creationId,
+                componentId: (job.input as { componentId?: string })?.componentId,
+                jobId: job.id,
+                error: jobError instanceof Error ? jobError.message : 'Unknown error',
+              }),
+            })
+          }
+        } catch (whErr) {
+          console.warn('[EDGE:hardware-processor] Failure webhook POST failed', whErr)
+        }
       }
     }
 
