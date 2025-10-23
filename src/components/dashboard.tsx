@@ -343,8 +343,9 @@ function DashboardContent({ onLogout, initialSearchInput }: DashboardProps) {
   // SSE subscription for hardware initial flow (no websockets/polling)
   useEffect(() => {
     const { user, project } = useUserStore.getState()
-    if (!user?.id || !project?.id) return
-    const url = `/api/hardware/stream?projectId=${encodeURIComponent(String(project.id))}&userId=${encodeURIComponent(String(user.id))}`
+    if (!project?.id) return
+    // Subscribe to project channel only (no user dimension) to match webhook broadcast
+    const url = `/api/hardware/stream?projectId=${encodeURIComponent(String(project.id))}`
     const evtSource = new EventSource(url)
     evtSource.onmessage = (ev) => {
       try {
@@ -362,6 +363,10 @@ function DashboardContent({ onLogout, initialSearchInput }: DashboardProps) {
               const reportsData = await reportsResp.json()
               if (isViewingHardware && active) {
                 useCreationStore.getState().updateCreation(active.id, { hardwareReports: reportsData.reports || {} })
+              } else {
+                // Play ding + toast to indicate new reports are ready
+                try { new Audio('/soundeffects/ding-36029.mp3').play() } catch {}
+                useToast().toast?.({ title: 'Hardware reports ready', description: 'Open your project to view the latest results.' })
               }
             }
           })()
