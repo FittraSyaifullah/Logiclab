@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { createSupabaseServerClient } from "@/lib/supabase/server"
 
+export const runtime = "nodejs"
 export const maxDuration = 300
 
 type InitialRequestBody = {
