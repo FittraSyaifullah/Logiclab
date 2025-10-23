@@ -18,6 +18,7 @@ serve(async (req) => {
       Deno.env.get('SUPABASE_URL') ?? '',
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     )
+    console.log('[EDGE:hardware-initial] Supabase URL prefix:', (Deno.env.get('SUPABASE_URL') || '').slice(0, 32))
 
     const { data: jobs, error: jobsError } = await supabase
       .from('jobs')
@@ -35,6 +36,7 @@ serve(async (req) => {
       })
     }
 
+    console.log('[EDGE:hardware-initial] Pending jobs count:', jobs?.length || 0)
     if (!jobs || jobs.length === 0) {
       return new Response(JSON.stringify({ message: 'No pending jobs' }), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
@@ -256,6 +258,7 @@ For complex appliances like washing machines, dishwashers, or large devices:
 
     for (const job of jobs) {
       try {
+        console.log('[EDGE:hardware-initial] Processing job:', job.id)
         await supabase
           .from('jobs')
           .update({ status: 'processing', started_at: new Date().toISOString() })
@@ -263,6 +266,7 @@ For complex appliances like washing machines, dishwashers, or large devices:
 
         const payload = (job.input ?? {}) as { title?: string; prompt?: string; projectId?: string; userId?: string }
         const { title, prompt, projectId, userId } = payload
+        console.log('[EDGE:hardware-initial] Job payload:', { projectId, userId, hasTitle: !!title, promptLen: (prompt || '').length })
         if (!title || !prompt || !projectId || !userId) {
           throw new Error('Missing required input for initial generation')
         }
@@ -369,11 +373,25 @@ For complex appliances like washing machines, dishwashers, or large devices:
         if (insertErr || !inserted) {
           throw insertErr || new Error('Insert failed')
         }
+        console.log('[EDGE:hardware-initial] Inserted hardware_projects row id:', inserted.id)
+
+        // Confirm insert exists (defensive log)
+        try {
+          const { data: confirm } = await supabase
+            .from('hardware_projects')
+            .select('id, project_id')
+            .eq('id', inserted.id)
+            .single()
+          console.log('[EDGE:hardware-initial] Confirmed insert exists:', !!confirm, 'projectId:', confirm?.project_id)
+        } catch (cErr) {
+          console.warn('[EDGE:hardware-initial] Confirm select failed', cErr)
+        }
 
         await supabase
           .from('jobs')
           .update({ status: 'completed', finished_at: new Date().toISOString(), result: { reportId: inserted.id } })
           .eq('id', job.id)
+        console.log('[EDGE:hardware-initial] Marked job completed:', job.id)
 
         // Fire webhook to Next.js app (HTTPS)
         const webhookUrl = Deno.env.get('WEBHOOK_URL')

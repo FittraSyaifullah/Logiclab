@@ -39,12 +39,14 @@ export async function POST(request: NextRequest) {
 					.eq('project_id', projectId)
 					.limit(1)
 					.single()
+				console.log('[WEBHOOK] DB verification', { found: !!data, projectId, reportId })
 				if (data?.id) {
 					broadcast(channelKey(projectId, undefined), {
-						event: payload?.type || 'hardware.initial.completed',
+						event: (payload?.type as string) || 'hardware.initial.completed',
 						projectId,
 						reportId,
 					})
+					console.log('[WEBHOOK] Broadcasted SSE event for project', projectId)
 				}
 			}
 		} catch {}
@@ -60,5 +62,3 @@ export async function POST(request: NextRequest) {
 export async function GET() {
 	return NextResponse.json({ ok: true })
 }
-
-
