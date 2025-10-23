@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { createSupabaseServerClient } from "@/lib/supabase/server"
 
-export const maxDuration = 60
+export const maxDuration = 300
 
 type InitialRequestBody = {
   title: string
