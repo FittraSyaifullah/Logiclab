@@ -1,4 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server"
+import { createSupabaseServerClient } from "@/lib/supabase/server"
+import { broadcast, channelKey } from "@/lib/sse"
 
 export const runtime = "nodejs"
 export const dynamic = "force-dynamic"
@@ -17,14 +19,35 @@ export async function POST(request: NextRequest) {
 
 		const payload = await request.json().catch(() => ({})) as Record<string, unknown>
 
-		// Minimal handling: acknowledge receipt. All client hydration happens via Supabase Realtime
-		// and existing API routes that read from tables populated by the edge functions.
 		console.log("[WEBHOOK] hardware event received", {
 			type: (payload?.type as string) || "unknown",
 			projectId: payload?.projectId,
 			reportId: payload?.reportId,
 			status: payload?.status,
 		})
+
+		// Confirm DB row exists before broadcasting (avoid race)
+		try {
+			const supabase = createSupabaseServerClient()
+			const projectId = String(payload?.projectId || "")
+			const reportId = String(payload?.reportId || "")
+			if (projectId && reportId) {
+				const { data } = await supabase
+					.from('hardware_projects')
+					.select('id')
+					.eq('id', reportId)
+					.eq('project_id', projectId)
+					.limit(1)
+					.single()
+				if (data?.id) {
+					broadcast(channelKey(projectId, undefined), {
+						event: payload?.type || 'hardware.initial.completed',
+						projectId,
+						reportId,
+					})
+				}
+			}
+		} catch {}
 
 		return NextResponse.json({ success: true })
 	} catch (error) {

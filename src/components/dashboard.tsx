@@ -31,7 +31,7 @@ import { useCreationStore } from "@/hooks/use-creation-store"
 import { useUserStore } from "@/hooks/use-user-store"
 import { cn } from "@/lib/utils"
 import { useToast } from "@/hooks/use-toast"
-import { useHardwareRealtime } from "@/hooks/use-hardware-realtime"
+// import { useHardwareRealtime } from "@/hooks/use-hardware-realtime"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -340,8 +340,41 @@ function DashboardContent({ onLogout, initialSearchInput }: DashboardProps) {
   const hoverTimeoutRef = useRef<NodeJS.Timeout | null>(null)
   const prevUserIdRef = useRef<string | null>(null)
 
-  // Subscribe to realtime updates for hardware projects/models
-  useHardwareRealtime()
+  // SSE subscription for hardware initial flow (no websockets/polling)
+  useEffect(() => {
+    const { user, project } = useUserStore.getState()
+    if (!user?.id || !project?.id) return
+    const url = `/api/hardware/stream?projectId=${encodeURIComponent(String(project.id))}&userId=${encodeURIComponent(String(user.id))}`
+    const evtSource = new EventSource(url)
+    evtSource.onmessage = (ev) => {
+      try {
+        const data = JSON.parse(ev.data) as { event?: string; projectId?: string; reportId?: string }
+        if (data?.event === 'hardware.initial.completed' && data?.projectId && data?.reportId) {
+          // Fetch that specific report and hydrate active hardware creation if present
+          void (async () => {
+            const currentUser = useUserStore.getState().user
+            const currentProject = useUserStore.getState().project
+            const activeId = useCreationStore.getState().activeCreationId
+            const active = activeId ? useCreationStore.getState().creations.find(c => c.id === activeId) : null
+            const isViewingHardware = active && active.mode === 'hardware' && (active.projectId === data.projectId)
+            const reportsResp = await fetch(`/api/hardware/reports?projectId=${encodeURIComponent(String(data.projectId))}&userId=${encodeURIComponent(String(currentUser?.id || ''))}&reportId=${encodeURIComponent(String(data.reportId))}`, { cache: 'no-store' })
+            if (reportsResp.ok) {
+              const reportsData = await reportsResp.json()
+              if (isViewingHardware && active) {
+                useCreationStore.getState().updateCreation(active.id, { hardwareReports: reportsData.reports || {} })
+              }
+            }
+          })()
+        }
+      } catch {}
+    }
+    evtSource.onerror = () => {
+      try { evtSource.close() } catch {}
+    }
+    return () => {
+      try { evtSource.close() } catch {}
+    }
+  }, [])
 
   const creationMode = activeCreation?.mode || (activeCreation?.softwareData ? "software" : "hardware")
   
