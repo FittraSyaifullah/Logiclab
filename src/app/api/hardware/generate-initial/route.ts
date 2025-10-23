@@ -65,21 +65,30 @@ export async function POST(request: NextRequest) {
     
     if (HARDWARE_INITIAL_FUNCTION_ENDPOINT && SERVICE_ROLE_KEY) {
       try {
-        console.log('[HARDWARE INITIAL] Calling edge function (fire-and-forget)...')
-        // Fire-and-forget: do not await long-running processing
+        console.log('[HARDWARE INITIAL] Calling edge function (fire-and-forget) with retry...')
+        // Fire-and-forget with short retry/backoff to resist transient egress/TLS issues
         void (async () => {
-          try {
-            const resp = await fetch(HARDWARE_INITIAL_FUNCTION_ENDPOINT, {
-              method: 'POST',
-              headers: {
-                Authorization: `Bearer ${SERVICE_ROLE_KEY}`,
-                'Content-Type': 'application/json',
-              },
-              body: JSON.stringify({}),
-            })
-            console.log('[HARDWARE INITIAL] Edge function returned:', resp.status)
-          } catch (innerErr) {
-            console.warn('[HARDWARE INITIAL] Edge function call error (background)', innerErr)
+          const maxAttempts = 3
+          for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+            try {
+              const resp = await fetch(HARDWARE_INITIAL_FUNCTION_ENDPOINT, {
+                method: 'POST',
+                headers: {
+                  Authorization: `Bearer ${SERVICE_ROLE_KEY}`,
+                  'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({}),
+              })
+              console.log('[HARDWARE INITIAL] Edge function returned:', resp.status, { attempt })
+              break
+            } catch (innerErr) {
+              const jitter = 300 + Math.floor(Math.random() * 500) // 300–800ms
+              console.warn(`[HARDWARE INITIAL] Edge function call error (attempt ${attempt})`, innerErr)
+              if (attempt < maxAttempts) {
+                await new Promise((r) => setTimeout(r, jitter * attempt))
+                continue
+              }
+            }
           }
         })()
       } catch (e) {
