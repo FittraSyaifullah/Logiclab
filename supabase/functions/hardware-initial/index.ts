@@ -274,6 +274,7 @@ For complex appliances like washing machines, dishwashers, or large devices:
         const openaiKey = Deno.env.get('OPENAI_API_KEY') ?? ''
         if (!openaiKey) throw new Error('OPENAI_API_KEY not configured')
 
+        console.log('[EDGE:hardware-initial] Building OpenAI request...')
         const body = {
           model: 'gpt-4.1',
           temperature: 0.3,
@@ -304,10 +305,12 @@ For complex appliances like washing machines, dishwashers, or large devices:
           console.error('[EDGE:hardware-initial] OpenAI error:', t)
           throw new Error(`OpenAI error ${resp.status}`)
         }
+        console.log('[EDGE:hardware-initial] OpenAI response OK, status:', resp.status)
 
         const data = await resp.json()
         const outputText: string | undefined = data?.output?.[0]?.content?.[0]?.text || data?.output_text
         if (!outputText) throw new Error('Structured output missing text payload')
+        console.log('[EDGE:hardware-initial] OpenAI output length:', (outputText || '').length)
 
         let parsed: unknown
         try {
@@ -325,10 +328,20 @@ For complex appliances like washing machines, dishwashers, or large devices:
             'FirmwareAndCode'?: Record<string, unknown>
           }
         }
+        console.log('[EDGE:hardware-initial] Parsed keys:', {
+          hasProject: typeof resultObj?.project === 'string',
+          hasDescription: typeof resultObj?.description === 'string',
+          hasReports: !!resultObj?.reports,
+        })
 
         const threeD = resultObj?.reports?.['3DComponents'] as { components?: unknown[]; generalNotes?: string } | undefined
         const assembly = resultObj?.reports?.['AssemblyAndParts'] as Record<string, unknown> | undefined
         const firmware = resultObj?.reports?.['FirmwareAndCode'] as Record<string, unknown> | undefined
+        console.log('[EDGE:hardware-initial] Section presence:', {
+          threeD: !!threeD,
+          assembly: !!assembly,
+          firmware: !!firmware,
+        })
 
         const assemblyContent = assembly ? [
           (assembly as { overview?: string }).overview || '',
@@ -341,7 +354,13 @@ For complex appliances like washing machines, dishwashers, or large devices:
           (firmware as { code?: string }).code || '',
           (firmware as { improvementSuggestions?: string }).improvementSuggestions || ''
         ].filter(Boolean).join('\n\n') : ''
+        console.log('[EDGE:hardware-initial] Content lengths:', {
+          componentsCount: Array.isArray(threeD?.components) ? (threeD?.components as unknown[])?.length : 0,
+          assemblyLen: assemblyContent.length,
+          firmwareLen: firmwareContent.length,
+        })
 
+        console.log('[EDGE:hardware-initial] Inserting into hardware_projects for project:', projectId)
         const { data: inserted, error: insertErr } = await supabase
           .from('hardware_projects')
           .insert({
