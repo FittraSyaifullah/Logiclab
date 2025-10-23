@@ -370,10 +370,13 @@ For complex appliances like washing machines, dishwashers, or large devices:
           throw insertErr || new Error('Insert failed')
         }
 
+        console.log('[EDGE:hardware-initial] Inserted hardware_projects row', { reportId: inserted.id, projectId })
+
         await supabase
           .from('jobs')
           .update({ status: 'completed', finished_at: new Date().toISOString(), result: { reportId: inserted.id } })
           .eq('id', job.id)
+        console.log('[EDGE:hardware-initial] Marked job completed and stored reportId')
 
         // Fire webhook to Next.js app (HTTPS)
         const webhookUrl = Deno.env.get('WEBHOOK_URL')

@@ -29,21 +29,21 @@ export function useHardwareRealtime() {
 			.channel("hardware-updates")
 			.on(
 				"postgres_changes",
-				{ event: "INSERT", schema: "public", table: "hardware_projects", filter: project?.id ? `project_id=eq.${project.id}` : undefined },
+				{ event: "INSERT", schema: "public", table: "hardware_projects" },
 				(payload) => {
 					void handleProjectsChange(payload.new as Record<string, unknown>)
 				},
 			)
 			.on(
 				"postgres_changes",
-				{ event: "UPDATE", schema: "public", table: "hardware_projects", filter: project?.id ? `project_id=eq.${project.id}` : undefined },
+				{ event: "UPDATE", schema: "public", table: "hardware_projects" },
 				(payload) => {
 					void handleProjectsChange(payload.new as Record<string, unknown>)
 				},
 			)
 			.on(
 				"postgres_changes",
-				{ event: "*", schema: "public", table: "hardware_models", filter: project?.id ? `project_id=eq.${project.id}` : undefined },
+				{ event: "*", schema: "public", table: "hardware_models" },
 				(_payload) => {
 					// Models are hydrated through existing list endpoint; rely on project updates for viewer
 				},
