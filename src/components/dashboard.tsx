@@ -366,7 +366,7 @@ function DashboardContent({ onLogout, initialSearchInput }: DashboardProps) {
               } else {
                 // Play ding + toast to indicate new reports are ready
                 try { new Audio('/soundeffects/ding-36029.mp3').play() } catch {}
-                useToast().toast?.({ title: 'Hardware reports ready', description: 'Open your project to view the latest results.' })
+                toast({ title: 'Hardware reports ready', description: 'Open your project to view the latest results.' })
               }
             }
           })()
