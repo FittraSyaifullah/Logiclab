@@ -65,22 +65,23 @@ export async function POST(request: NextRequest) {
     
     if (HARDWARE_INITIAL_FUNCTION_ENDPOINT && SERVICE_ROLE_KEY) {
       try {
-        console.log('[HARDWARE INITIAL] Calling edge function...')
-        const fnResp = await fetch(HARDWARE_INITIAL_FUNCTION_ENDPOINT, {
-          method: 'POST',
-          headers: {
-            Authorization: `Bearer ${SERVICE_ROLE_KEY}`,
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({}),
-        })
-        console.log('[HARDWARE INITIAL] Edge function response status:', fnResp.status)
-        if (!fnResp.ok) {
-          const errorText = await fnResp.text()
-          console.warn('[HARDWARE INITIAL] Edge function returned non-OK:', errorText)
-        } else {
-          console.log('[HARDWARE INITIAL] Edge function called successfully')
-        }
+        console.log('[HARDWARE INITIAL] Calling edge function (fire-and-forget)...')
+        // Fire-and-forget: do not await long-running processing
+        void (async () => {
+          try {
+            const resp = await fetch(HARDWARE_INITIAL_FUNCTION_ENDPOINT, {
+              method: 'POST',
+              headers: {
+                Authorization: `Bearer ${SERVICE_ROLE_KEY}`,
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify({}),
+            })
+            console.log('[HARDWARE INITIAL] Edge function returned:', resp.status)
+          } catch (innerErr) {
+            console.warn('[HARDWARE INITIAL] Edge function call error (background)', innerErr)
+          }
+        })()
       } catch (e) {
         console.warn('[HARDWARE INITIAL] Failed to trigger edge function', e)
       }

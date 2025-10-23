@@ -380,20 +380,23 @@ For complex appliances like washing machines, dishwashers, or large devices:
         const webhookSecret = Deno.env.get('HARDWARE_WEBHOOK_SECRET')
         try {
           if (webhookUrl && webhookSecret && webhookUrl.startsWith('https://')) {
-            await fetch(webhookUrl, {
+            const payload = {
+              type: 'hardware.initial.completed',
+              projectId,
+              reportId: inserted.id,
+              status: 'completed',
+              title,
+            }
+            console.log('[EDGE:hardware-initial] Posting success webhook', { url: webhookUrl, payload })
+            const whResp = await fetch(webhookUrl, {
               method: 'POST',
               headers: {
                 'Content-Type': 'application/json',
                 'X-Buildables-Webhook-Secret': webhookSecret,
               },
-              body: JSON.stringify({
-                type: 'hardware.initial.completed',
-                projectId,
-                reportId: inserted.id,
-                status: 'completed',
-                title,
-              }),
+              body: JSON.stringify(payload),
             })
+            console.log('[EDGE:hardware-initial] Webhook response (success)', { status: whResp.status })
           } else {
             console.warn('[EDGE:hardware-initial] Skipping webhook: WEBHOOK_URL missing/invalid or secret missing')
           }
@@ -412,19 +415,22 @@ For complex appliances like washing machines, dishwashers, or large devices:
           const webhookUrl = Deno.env.get('WEBHOOK_URL')
           const webhookSecret = Deno.env.get('HARDWARE_WEBHOOK_SECRET')
           if (webhookUrl && webhookSecret && webhookUrl.startsWith('https://')) {
-            await fetch(webhookUrl, {
+            const payload = {
+              type: 'hardware.initial.failed',
+              projectId: (job.input as { projectId?: string })?.projectId,
+              status: 'failed',
+              error: err instanceof Error ? err.message : String(err),
+            }
+            console.log('[EDGE:hardware-initial] Posting failure webhook', { url: webhookUrl, payload })
+            const whResp = await fetch(webhookUrl, {
               method: 'POST',
               headers: {
                 'Content-Type': 'application/json',
                 'X-Buildables-Webhook-Secret': webhookSecret,
               },
-              body: JSON.stringify({
-                type: 'hardware.initial.failed',
-                projectId: (job.input as { projectId?: string })?.projectId,
-                status: 'failed',
-                error: err instanceof Error ? err.message : String(err),
-              }),
+              body: JSON.stringify(payload),
             })
+            console.log('[EDGE:hardware-initial] Webhook response (failure)', { status: whResp.status })
           }
         } catch (whErr) {
           console.warn('[EDGE:hardware-initial] Failure webhook POST failed', whErr)
