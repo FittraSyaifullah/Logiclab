@@ -35,7 +35,13 @@ serve(async (req) => {
       })
     }
 
+    console.log(`[EDGE:hardware-initial] Found ${jobs?.length || 0} pending jobs`)
+    if (jobs && jobs.length > 0) {
+      console.log(`[EDGE:hardware-initial] Job IDs: ${jobs.map(j => j.id).join(', ')}`)
+    }
+
     if (!jobs || jobs.length === 0) {
+      console.log('[EDGE:hardware-initial] No pending jobs found')
       return new Response(JSON.stringify({ message: 'No pending jobs' }), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         status: 200,
@@ -256,6 +262,8 @@ For complex appliances like washing machines, dishwashers, or large devices:
 
     for (const job of jobs) {
       try {
+        console.log(`[EDGE:hardware-initial] Processing job ID: ${job.id}`)
+        
         await supabase
           .from('jobs')
           .update({ status: 'processing', started_at: new Date().toISOString() })
@@ -263,6 +271,11 @@ For complex appliances like washing machines, dishwashers, or large devices:
 
         const payload = (job.input ?? {}) as { title?: string; prompt?: string; projectId?: string; userId?: string }
         const { title, prompt, projectId, userId } = payload
+        
+        console.log(`[EDGE:hardware-initial] Job ${job.id} - Project ID: ${projectId}, User ID: ${userId}`)
+        console.log(`[EDGE:hardware-initial] Job ${job.id} - Title: ${title}`)
+        console.log(`[EDGE:hardware-initial] Job ${job.id} - Prompt length: ${prompt?.length || 0} characters`)
+        
         if (!title || !prompt || !projectId || !userId) {
           throw new Error('Missing required input for initial generation')
         }
@@ -286,6 +299,8 @@ For complex appliances like washing machines, dishwashers, or large devices:
           },
         }
 
+        console.log(`[EDGE:hardware-initial] Job ${job.id} - Calling OpenAI API...`)
+        
         const resp = await fetch('https://api.openai.com/v1/responses', {
           method: 'POST',
           headers: {
@@ -295,20 +310,32 @@ For complex appliances like washing machines, dishwashers, or large devices:
           body: JSON.stringify(body),
         })
 
+        console.log(`[EDGE:hardware-initial] Job ${job.id} - OpenAI response status: ${resp.status}`)
+
         if (!resp.ok) {
           const t = await resp.text()
-          console.error('[EDGE:hardware-initial] OpenAI error:', t)
+          console.error(`[EDGE:hardware-initial] Job ${job.id} - OpenAI error:`, t)
           throw new Error(`OpenAI error ${resp.status}`)
         }
 
         const data = await resp.json()
+        console.log(`[EDGE:hardware-initial] Job ${job.id} - OpenAI response received, parsing output...`)
+        
         const outputText: string | undefined = data?.output?.[0]?.content?.[0]?.text || data?.output_text
-        if (!outputText) throw new Error('Structured output missing text payload')
+        if (!outputText) {
+          console.error(`[EDGE:hardware-initial] Job ${job.id} - No output text in OpenAI response:`, JSON.stringify(data, null, 2))
+          throw new Error('Structured output missing text payload')
+        }
+        
+        console.log(`[EDGE:hardware-initial] Job ${job.id} - OpenAI output length: ${outputText.length} characters`)
 
         let parsed: unknown
         try {
           parsed = JSON.parse(outputText)
-        } catch (_e) {
+          console.log(`[EDGE:hardware-initial] Job ${job.id} - Successfully parsed OpenAI JSON output`)
+        } catch (parseError) {
+          console.error(`[EDGE:hardware-initial] Job ${job.id} - Failed to parse JSON:`, parseError)
+          console.error(`[EDGE:hardware-initial] Job ${job.id} - Raw output text:`, outputText.substring(0, 500) + '...')
           throw new Error('Failed to parse structured JSON output')
         }
 
@@ -338,6 +365,8 @@ For complex appliances like washing machines, dishwashers, or large devices:
           (firmware as { improvementSuggestions?: string }).improvementSuggestions || ''
         ].filter(Boolean).join('\n\n') : ''
 
+        console.log(`[EDGE:hardware-initial] Job ${job.id} - Inserting hardware project data...`)
+        
         const { data: inserted, error: insertErr } = await supabase
           .from('hardware_projects')
           .insert({
@@ -367,19 +396,25 @@ For complex appliances like washing machines, dishwashers, or large devices:
           .single()
 
         if (insertErr || !inserted) {
+          console.error(`[EDGE:hardware-initial] Job ${job.id} - Database insert error:`, insertErr)
           throw insertErr || new Error('Insert failed')
         }
+
+        console.log(`[EDGE:hardware-initial] Job ${job.id} - Hardware project created with ID: ${inserted.id}`)
 
         await supabase
           .from('jobs')
           .update({ status: 'completed', finished_at: new Date().toISOString(), result: { reportId: inserted.id } })
           .eq('id', job.id)
+          
+        console.log(`[EDGE:hardware-initial] Job ${job.id} - Job completed successfully`)
       } catch (err) {
-        console.error('[EDGE:hardware-initial] Job error', err)
+        console.error(`[EDGE:hardware-initial] Job ${job.id} - Error:`, err)
         await supabase
           .from('jobs')
           .update({ status: 'failed', error: err instanceof Error ? err.message : String(err), finished_at: new Date().toISOString() })
           .eq('id', job.id)
+        console.log(`[EDGE:hardware-initial] Job ${job.id} - Marked as failed`)
       }
     }
 
