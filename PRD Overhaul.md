@@ -1,15 +1,15 @@
 ﻿## **Product Requirements Document (PRD)**
 1. Product Overview
-We are building an AI-powered product creation platform that allows non-technical users to build hardware or software prototypes, run business analysis, and generate 3D visualizations or working demo apps without coding.
+We are building an AI-powered product creation platform that allows non-technical users to build hardware prototypes and generate 3D visualizations without coding.
 The product integrates multiple APIs:
 adamcad for 3D modeling
 
 
 
-Perplexity/SONAR for decision-making and business analysis reports
+Removed Perplexity/SONAR business analysis per current scope
 
 
-v0 API for software generation
+v0 API used only during signup to create an initial project ID
 
 
 Stripe for payments
@@ -23,7 +23,7 @@ Supabase for authentication and data persistence
 Lower the barrier to entry for non-technical creators.
 
 
-Provide end-to-end workflows: ideation → prototype (software or hardware) → analysis → refinement.
+Provide end-to-end workflows: ideation → hardware prototype → refinement.
 
 
 Ensure a seamless authentication, project management, and payment flow.
@@ -79,66 +79,24 @@ Flow D: Landing page → Input box interaction → Prompt popup → Sign Up/Logi
 4.2 Dashboard
 Layout:
 
-
 Header (profile, logout, payment link)
 
+Hoverable Sidebar (navigation: Dashboard, Payments)
 
-Hoverable Sidebar (navigation: Dashboard, Business Analysis, Payments)
+Main Panel: Initial Prompt Form + Chat UI + Hardware Viewer
 
-
-Main Panel: Initial Prompt Form + Chat UI + Viewer Panel
-
-
-Initial Prompt Form:
-
-
-Toggle: Hardware | Software
-
+Initial Prompt Form: Hardware project inputs only
 
 Hardware flow:
 
-
-Claude generates list of components → send to adamcad API
-
-
-Response displayed in 3D viewer
-
+Model generation, assembly instructions, and firmware/code scaffolds
 
 Panel with sliders for parametric adjustments (e.g., height, hole size)
 
-
-Chat UI placeholder (not yet storing messages)
-
-
-Software flow:
+Chat UI for hardware editing
 
 
-v0 generates initial app → response includes demoUrl
-
-
-Display demoUrl in iframe
-
-
-Chat UI: every user message → request sent to v0 send-message API → response updates iframe + chat log
-
-
-4.3 Business Analysis (SONAR)
-Form:
-
-
-"What is your project?"
-
-
-"What does it do? What problem does it solve?"
-
-
-API call → SONAR generates report
-
-
-Populate report UI
-
-
-Provide Download as PDF option
+4.3 Business Analysis: Removed from scope in current iteration
 
 
 4.4 Payments (Stripe)
@@ -170,11 +128,7 @@ Billing and subscription management handled via Stripe → integrated into dashb
 - Chat UI (placeholder for now, not persisted)
 
 ### 4. Software Prototype Flow
-- Toggle software mode in dashboard
-- Send prompt to v0 API
-- Render returned `demoUrl` in iframe
-- Chat UI with v0 send-message API
-- Each response updates iframe + chat log
+Removed from scope (v0 used only at signup to create a project ID)
 
 ### 5. Chat Functionality
 - Unified chat UI component
@@ -213,13 +167,7 @@ Backend: Supabase (auth + DB)
 APIs:
 
 
-adamcad (3D hardware models)
-
-
-v0 (software generation + chat updates)
-
-
-SONAR (business analysis reports)
+v0 (signup-only project creation)
 
 
 Stripe (payments)
@@ -242,7 +190,7 @@ Conversion: Free → Paid upgrade rate (via Stripe).
 Performance:
 
 
-API response time < 3s for v0 and adamcad.
+API response time goals apply to hardware flows.
 
 
 PDF report generation < 5s.

@@ -1,14 +1,12 @@
 # Buildables - AI-Powered Product Creation Platform
 
-Buildables is an AI-powered product creation platform that allows non-technical users to build hardware or software prototypes, run business analysis, and generate 3D visualizations or working demo apps without coding.
+Buildables is an AI-powered product creation platform that allows non-technical users to build hardware prototypes and generate 3D visualizations without coding.
 
 ## Features
 
 ### 🚀 Core Functionality
-- **Hardware Prototyping**: Generate 3D models and component lists using AI
-- **Software Development**: Build working demo apps without coding
-- **Business Analysis**: AI-powered market research and business insights
-- **Unified Dashboard**: Single workspace for all project management
+- **Hardware Prototyping**: Generate 3D components, assembly instructions, and firmware/code scaffolds using AI
+- **Unified Dashboard**: Single workspace for hardware project management
 
 ### 🎨 Design System
 - **Modern UI**: Clean, professional interface with orange-red gradient branding
@@ -93,15 +91,11 @@ This project follows strict development principles:
 - Clear user feedback
 - Actionable error messages
 
-## API Integration Ready
+## API Integration
 
-The application is structured to integrate with:
-
-- **adamcad API**: 3D hardware modeling
-- **v0 API**: Software generation and chat
-- **Perplexity/SONAR**: Business analysis reports
-- **Stripe**: Payment processing
 - **Supabase**: Authentication and data persistence
+- **OpenSCAD (WASM)**: Client-side SCAD/STL processing for hardware models
+- **v0 SDK (signup-only)**: Used only to create an initial project ID on user signup
 
 ## Database Schema
 
@@ -131,23 +125,16 @@ Ensure these environment variables are set in `.env.local` (for local dev) and y
 NEXT_PUBLIC_SUPABASE_URL=
 NEXT_PUBLIC_SUPABASE_ANON_KEY=
 
-# v0 SDK (required)
+# v0 SDK (signup-only; optional but recommended)
 V0_API_KEY=
 
-# Supabase Edge Functions
-# Direct URL to the deployed v0-processor function
-# Example: https://<project>.supabase.co/functions/v1/v0-processor
-SUPABASE_SOFTWARE_FUNCTION_URL=
-
-# Service role key for authenticated function invocation
-# Required by software/hardware API routes to call Supabase Functions with bearer auth
+# Service role key for hardware edge function calls
 SUPABASE_SERVICE_ROLE_KEY=
 ```
 
 Notes:
-- `SUPABASE_SOFTWARE_FUNCTION_URL` is used by `src/app/api/software/generate/route.ts` to invoke the long-running software generation worker. This decouples invocation from URL derivation and supports custom domains or per-env differences.
-- `SUPABASE_SERVICE_ROLE_KEY` is sent as `Authorization: Bearer <key>` when invoking edge functions so they can read headers and use service role inside the function (per Supabase Functions auth).
-- `V0_API_KEY` is required for all v0 interactions (`src/lib/v0-service.ts`). If it is missing, API calls will fail explicitly to satisfy transparent error handling.
+- `SUPABASE_SERVICE_ROLE_KEY` is sent as `Authorization: Bearer <key>` when invoking hardware-related edge functions so they can read headers and use service role inside the function.
+- `V0_API_KEY` is used only during signup to create a v0 project (`src/lib/v0-service.ts`). If it is missing, signup proceeds without a v0 project ID.
 - Keep secrets out of version control and configure them in your hosting provider.
 
 ### Code Style

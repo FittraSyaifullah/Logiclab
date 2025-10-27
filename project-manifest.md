@@ -1,7 +1,7 @@
 # Project Manifest: Buildables (Overhaul)
 
 ## Project Overview
-Buildables is an AI-powered product creation platform that allows non-technical users to build hardware or software prototypes, run business analysis, and generate 3D visualizations or working demo apps without coding. The platform integrates multiple APIs including adamcad for 3D modeling, Perplexity/SONAR for business analysis, v0 for software generation, Stripe for payments, and Supabase for authentication and data persistence.
+Buildables is an AI-powered product creation platform that allows non-technical users to build hardware prototypes and generate 3D visualizations without coding. The platform integrates Supabase for authentication and data persistence, and uses v0 only during signup to create an initial project ID.
 
 ## Architecture
 - **Frontend**: Next.js 15.5.3 with TypeScript, Tailwind CSS, and shadcn/ui components
@@ -19,16 +19,15 @@ Buildables is an AI-powered product creation platform that allows non-technical 
 ## Components
 - **Authentication System**: ✅ Complete - Login/signup flows, session management, protected routes
 - **Dashboard Layout**: ✅ Complete - Main dashboard with header, sidebar, and content areas
-- **Initial Prompt Form**: ✅ Complete - Integrated form for project creation with hardware/software toggle
+- **Initial Prompt Form**: ✅ Complete - Integrated form for hardware project creation
 - **Navigation & Sidebar**: ✅ Complete - App sidebar, chat sidebar, logo hover sidebar
-- **Content Viewer Components**: ✅ Complete - Viewer panel, software viewer, code viewer, hardware viewer
-- **Modal/Overlay Components**: ✅ Complete - Integration panel, growth marketing panel, debug panel
+- **Content Viewer Components**: ✅ Complete - Hardware viewer
+- **Modal/Overlay Components**: ✅ Complete - Integration panel, debug panel
 - **UI Primitives**: ✅ Complete - All required shadcn/ui components (button, input, textarea, etc.)
 - **State Management**: ✅ Complete - User store, creation store with proper TypeScript types
-- **API Routes**: ✅ Complete - Authentication, hardware generation, software generation, user management
+- **API Routes**: ✅ Complete - Authentication, hardware generation, user management
 - **Database Schema**: ✅ Complete - User management with display_name triggers
-- **Hardware Generation APIs**: ✅ Complete - 3D model generation, assembly instructions, firmware code
-- **Software Generation APIs**: ✅ Complete - v0 integration, chat functionality, demo generation
+- **Hardware Generation APIs**: ✅ Complete - 3D components, assembly instructions, and firmware/code scaffolds
 - **3D Modeling Integration**: ✅ Complete - SCAD to STL conversion, OpenJSCAD integration
 - **Job Queue System**: ✅ Complete - Background processing for hardware model generation
 
@@ -67,16 +66,15 @@ Buildables is an AI-powered product creation platform that allows non-technical 
   - 3D: @react-three/fiber, @react-three/drei, three, @jscad/openjscad
   - PDF: jspdf
   - Database: Supabase client
-  - AI: v0-sdk, OpenAI integration
+  - AI: v0-sdk (signup-only)
 
 - **3D Processing**: OpenSCAD WASM worker performs SCAD → STL conversion client-side. Known warning `"Could not initialize localization."` is expected in browser workers; we allow completion when STL output validates, surface the warning to users via UI, and guard for truncated output per transparent error handling principle.
 
 ## Recent Achievements
-- **Hardware Generation Pipeline**: Complete end-to-end hardware project generation with 3D models, assembly instructions, and firmware code
-- **Software Generation Pipeline**: Full v0 integration for demo app generation with chat functionality
+- **Hardware Generation Pipeline**: Complete end-to-end hardware project generation with 3D models, assembly instructions, and firmware/code scaffolds
 - **3D Modeling System**: Advanced SCAD processing with parameter support and STL conversion
 - **Job Queue System**: Robust background processing for hardware model generation
 - **Type Safety**: Comprehensive TypeScript interfaces for all data structures
-- **Error Handling**: Graceful fallbacks and user-friendly error messages throughout the application
+- **Error Handling**: Transparent errors and user-friendly messages throughout the application
 
-The project has evolved significantly with full hardware and software generation capabilities now implemented. The platform is ready for production use with advanced 3D modeling, AI-powered generation, and comprehensive project management features.
+Software generation and Perplexity business analysis flows have been removed per the latest requirements.

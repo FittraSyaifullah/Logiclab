@@ -45,26 +45,7 @@ export function AppSidebar({ onLogout }: AppSidebarProps) {
   const handleDeleteCreation = async (creationId: string) => {
     const creationToDelete = creations.find((c) => c.id === creationId)
 
-    if (creationToDelete?.softwareData?.chatId) {
-      try {
-        const response = await fetch("/api/delete-chat", {
-          method: "DELETE",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            chatId: creationToDelete.softwareData.chatId,
-          }),
-        })
-
-        if (!response.ok) {
-          
-        } else {
-          
-        }
-      } catch {
-      }
-    }
+    // software chat deletion removed
 
     deleteCreation(creationId)
     if (activeCreationId === creationId) {
@@ -74,9 +55,7 @@ export function AppSidebar({ onLogout }: AppSidebarProps) {
   }
 
   const getCreationIcon = (creation: Creation) => {
-    if (creation.mode === "software" || creation.softwareData) {
-      return <Monitor className="w-4 h-4" />
-    } else if (creation.hasCode) {
+    if (creation.hasCode) {
       return <Cpu className="w-4 h-4" />
     } else {
       return <Box className="w-4 h-4" />
