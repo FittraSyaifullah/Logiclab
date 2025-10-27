@@ -68,22 +68,15 @@ export function ChatSidebar({ onLogout, onSendMessage }: ChatSidebarProps) {
     return content.includes('<Thinking>') || content.includes('<CodeProject>')
   }
 
-  const mode = activeCreation?.mode || (activeCreation?.softwareData ? "software" : "hardware")
-  const apiEndpoint = mode === "hardware" ? "/api/hardware/chat" : "/api/chat/software"
+  const mode = "hardware"
+  const apiEndpoint = "/api/hardware/chat"
   
   
 
   const prepareChatBody = (): PreparedBody => {
     const safeCreation = activeCreation || {} as Partial<Creation>
 
-    if (mode === "software") {
-      return {
-        creationId: safeCreation.id || "",
-        creationTitle: safeCreation.title || "Untitled Project",
-        creationPrompt: safeCreation.prompt || "",
-        chatId: safeCreation.softwareData?.chatId || "",
-      }
-    }
+    // software mode removed
 
     const bodyData: HardwarePreparedBody = {
       creationId: safeCreation.id || "",
@@ -135,17 +128,7 @@ export function ChatSidebar({ onLogout, onSendMessage }: ChatSidebarProps) {
       updateCreation(activeCreation.id, { ...activeCreation, chatHistory: optimisticMessages })
     }
 
-    // For software mode, use the onSendMessage prop if available
-    if (mode === "software" && onSendMessage) {
-      try {
-        await onSendMessage(messageToSend)
-        setIsLoadingFallback(false)
-        return
-      } catch {
-        setIsLoadingFallback(false)
-        return
-      }
-    }
+    // software mode removed
 
     // For hardware mode or when onSendMessage is not available, use the API endpoint
 
@@ -220,125 +203,7 @@ export function ChatSidebar({ onLogout, onSendMessage }: ChatSidebarProps) {
         return
       }
 
-      // default software branch below
-      const requestBody = {
-        messages: fallbackMessages.map((msg) => ({
-          id: msg?.id || Date.now().toString(),
-          role: msg?.role || "user",
-          content: msg?.content || "",
-        })),
-        ...prepared,
-      }
-
-      const response = await fetch(apiEndpoint, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Accept: "application/json",
-        },
-        body: JSON.stringify(requestBody),
-      })
-
-      if (!response.ok) {
-        const errorText = await response.text()
-        let errorData
-        try {
-          errorData = JSON.parse(errorText)
-        } catch {
-          errorData = { error: errorText || "Unknown error" }
-        }
-        throw new Error(`HTTP ${response.status}: ${errorData.error || response.statusText}`)
-      }
-
-      if (mode === "software") {
-        const responseData = await response.json()
-
-        if (responseData.allMessages && Array.isArray(responseData.allMessages)) {
-          const formattedMessages = responseData.allMessages.map((msg: { id?: string; role?: string; content?: string; createdAt?: string }) => ({
-            id: msg.id || Date.now().toString(),
-            role: msg.role || "assistant",
-            content: msg.content || "",
-            createdAt: msg.createdAt,
-          }))
-
-          if (activeCreation?.id) {
-            const updatedCreation = { ...activeCreation, chatHistory: formattedMessages }
-            if (responseData.demo && activeCreation.softwareData) {
-              updatedCreation.softwareData = {
-                ...activeCreation.softwareData,
-                demoUrl: responseData.demo,
-              }
-            }
-            updateCreation(activeCreation.id, updatedCreation)
-          }
-        } else {
-          const assistantContent = responseData.message || "Response received from v0"
-
-          const assistantMessage = {
-            id: (Date.now() + 1).toString(),
-            role: "assistant" as const,
-            content: assistantContent,
-          }
-
-          const finalMessages = [...fallbackMessages, assistantMessage]
-
-          if (activeCreation?.id) {
-            const updatedCreation = { ...activeCreation, chatHistory: finalMessages }
-            if (responseData.demo && activeCreation.softwareData) {
-              updatedCreation.softwareData = {
-                ...activeCreation.softwareData,
-                demoUrl: responseData.demo,
-              }
-            }
-            updateCreation(activeCreation.id, updatedCreation)
-          }
-        }
-      } else {
-        const reader = response.body?.getReader()
-        if (!reader) {
-          throw new Error("No response body available")
-        }
-
-        let assistantContent = ""
-        const assistantMessage = {
-          id: (Date.now() + 1).toString(),
-          role: "assistant" as const,
-          content: "",
-        }
-
-        // Messages will be updated via creation store
-
-        try {
-          while (true) {
-            const { done, value } = await reader.read()
-            if (done) break
-
-            const chunk = new TextDecoder().decode(value)
-            const lines = chunk.split("\n")
-
-            for (const line of lines) {
-              if (line.startsWith("0:")) {
-                try {
-                  const data = JSON.parse(line.slice(2))
-                  if (data.type === "text-delta" && data.textDelta) {
-                    assistantContent += data.textDelta
-                    // Messages will be updated via creation store
-                  }
-                } catch (parseError) {
-                }
-              }
-            }
-          }
-        } finally {
-          reader.releaseLock()
-        }
-
-        const finalMessages = [...fallbackMessages, { ...assistantMessage, content: assistantContent }]
-        if (activeCreation?.id) {
-          updateCreation(activeCreation.id, { ...activeCreation, chatHistory: finalMessages })
-        }
-        // Messages already updated via creation store
-      }
+      // streaming/software branch removed
     } catch (error) {
 
       let errorMessage = "Failed to send message. Please try again."

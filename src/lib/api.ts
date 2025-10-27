@@ -98,73 +98,19 @@ export class AdamCADAPI {
   }
 }
 
-// Perplexity SONAR API integration
-export class SONARAPI {
-  private apiKey: string
-
-  constructor(apiKey: string) {
-    this.apiKey = apiKey
-  }
-
-  async generateBusinessReport(projectDescription: string, problemStatement: string) {
-    const prompt = `Analyze this project for market research:
-
-Project: ${projectDescription}
-Purpose: ${problemStatement}
-
-Provide a comprehensive market analysis including:
-1. Ideal customer profile and market viability (score out of 50)
-2. Solution-market fit and payment likelihood (score out of 50)  
-3. Target market niches (5-10 specific niches)
-4. Key competitors with strengths, weaknesses, and opportunities
-5. Priority features with customer benefits
-6. Honest customer and advisor feedback
-7. Customer journey stages with touchpoints and pain points
-8. Competitive moats and advantages
-9. Testable hypotheses with measurable goals
-
-Format as valid JSON with the structure: {"icp": {"description": "", "score": 0, "viability": ""}, "solution": {"analysis": "", "score": 0, "paymentLikelihood": ""}, "niches": [], "competitors": [{"name": "", "strengths": [], "weaknesses": [], "traction": "", "opportunities": ""}], "features": [{"feature": "", "benefit": "", "priority": ""}], "feedback": {"customer": "", "advisor": ""}, "customerJourney": [{"stage": "", "touchpoints": [], "painPoints": [], "opportunities": []}], "moats": [], "hypotheses": [{"hypothesis": "", "goal": "", "metric": ""}]}`
-
-    const response = await fetch('https://api.perplexity.ai/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${this.apiKey}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        model: 'sonar-pro',
-        messages: [
-          {
-            role: 'user',
-            content: prompt,
-          },
-        ],
-        temperature: 0.3,
-        max_tokens: 3000,
-      }),
-    })
-
-    if (!response.ok) {
-      throw new Error(`Perplexity API error: ${response.statusText}`)
-    }
-
-    return response.json()
-  }
-}
+// SONAR/Perplexity removed per requirements
 
 // API factory function
 export function createAPIClients() {
   const v0ApiKey = process.env.V0_API_KEY
   const adamcadApiKey = process.env.ADAMCAD_API_KEY
-  const perplexityApiKey = process.env.PERPLEXITY_API_KEY
 
-  if (!v0ApiKey || !adamcadApiKey || !perplexityApiKey) {
+  if (!v0ApiKey || !adamcadApiKey) {
     throw new Error('Missing required API keys in environment variables')
   }
 
   return {
     v0: new V0API(v0ApiKey),
     adamcad: new AdamCADAPI(adamcadApiKey),
-    sonar: new SONARAPI(perplexityApiKey),
   }
 }

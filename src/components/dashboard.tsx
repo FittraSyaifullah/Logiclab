@@ -5,15 +5,15 @@ import Image from "next/image"
 import { useRouter } from "next/navigation"
 import { useState, useEffect, useRef } from "react"
 import { ChatSidebar } from "@/components/chat-sidebar"
-import { ViewerPanel } from "@/components/viewer-panel"
+// import { ViewerPanel } from "@/components/viewer-panel"
 // import { CodeViewer } from "@/components/code-viewer"
 import { HardwareViewer } from "@/components/hardware-viewer"
 import { InitialPromptForm } from "@/components/initial-prompt-form"
 import { IntegrationPanel } from "@/components/integration-panel"
-import { GrowthMarketingPanel } from "@/components/growth-marketing-panel"
+// import { GrowthMarketingPanel } from "@/components/growth-marketing-panel"
 import { Button } from "@/components/ui/button"
 import CreditLimitModal from "@/components/credit-limit-modal"
-import { LogoHoverSidebar, type SoftwareItem } from "@/components/logo-hover-sidebar"
+import { LogoHoverSidebar } from "@/components/logo-hover-sidebar"
 import { useHardwareStore } from "@/hooks/use-hardware-store"
 // import { useOpenScadWorker } from "@/hooks/useOpenScadWorker"
 import {
@@ -319,15 +319,13 @@ function DashboardContent({ onLogout, initialSearchInput }: DashboardProps) {
   const [showGrowthMarketing, setShowGrowthMarketing] = useState(false)
   const [showLogoSidebar, setShowLogoSidebar] = useState(false)
   const [showCreditModal, setShowCreditModal] = useState(false)
-  const [selectedChat, setSelectedChat] = useState<{ id: string; title?: string; software_id?: string; demo_url?: string } | null>(null)
-  const [chatMessages, setChatMessages] = useState<Array<{ id: string; role: string; content: string; created_at?: string }>>([])
-  const [softwareList, setSoftwareList] = useState<SoftwareItem[]>([])
+  // software chat state removed
   const [credits, setCredits] = useState<{ balance: number; paid: boolean }>({ balance: 0, paid: false })
 
   const hoverTimeoutRef = useRef<NodeJS.Timeout | null>(null)
   const prevUserIdRef = useRef<string | null>(null)
 
-  const creationMode = activeCreation?.mode || (activeCreation?.softwareData ? "software" : "hardware")
+  const creationMode = "hardware"
   
   // Debug logging
   useEffect(() => {
@@ -366,9 +364,6 @@ function DashboardContent({ onLogout, initialSearchInput }: DashboardProps) {
       } catch {}
       try {
         setActiveCreationId(null)
-        setSelectedChat(null)
-        setSoftwareList([])
-        setChatMessages([])
       } catch {}
     }
 
@@ -378,7 +373,6 @@ function DashboardContent({ onLogout, initialSearchInput }: DashboardProps) {
         useCreationStore.getState().clearCreations()
         useHardwareStore.getState().clear()
         setActiveCreationId(null)
-        setSelectedChat(null)
       } catch {}
     }
 
@@ -550,7 +544,6 @@ function DashboardContent({ onLogout, initialSearchInput }: DashboardProps) {
         const resp = await fetch(`/api/user/data?userId=${user.id}`, { cache: "no-store" })
         if (resp.ok) {
           const data = await resp.json()
-          setSoftwareList(data.software || [])
           // Ensure project is available on refresh so hardware list uses scoped URL
           try {
             const { setProject } = useUserStore.getState()
@@ -604,23 +597,9 @@ function DashboardContent({ onLogout, initialSearchInput }: DashboardProps) {
 
   useEffect(() => {
     if (activeCreation) {
-      setViewMode(activeCreation.viewMode || (creationMode === "software" ? "code" : "model"))
-      // Auto-select software chat when switching to a software creation that has softwareData
-      if (
-        creationMode === "software" &&
-        activeCreation.softwareData &&
-        activeCreation.id &&
-        (!selectedChat || selectedChat.id !== activeCreation.id)
-      ) {
-        setSelectedChat({
-          id: activeCreation.id,
-          title: activeCreation.title,
-          software_id: activeCreation.softwareData.chatId,
-          demo_url: activeCreation.softwareData.demoUrl,
-        })
-      }
+      setViewMode(activeCreation.viewMode || "model")
     }
-  }, [activeCreation, creationMode, selectedChat])
+  }, [activeCreation])
 
   const generate3DModel = async (
     creationId: string,
@@ -971,13 +950,7 @@ function DashboardContent({ onLogout, initialSearchInput }: DashboardProps) {
                     }
                     setActiveCreationId(softwareCreation.id)
 
-                    // Set selected chat so UI knows which software is active for messages
-                    setSelectedChat({
-                      id: statusData.software.id,
-                      title: softwareCreation.title,
-                      software_id: statusData.software.chatId,
-                      demo_url: statusData.software.demoUrl,
-                    })
+                    // software chat selection removed
                   }
                 } catch (error) {
                 }
@@ -1340,170 +1313,22 @@ function DashboardContent({ onLogout, initialSearchInput }: DashboardProps) {
 
   const handleRegenerate = () => {
     if (activeCreation) {
-      if (creationMode === "hardware") {
-        toast({ title: "Regenerating hardware specifications..." })
-        generateHardware(activeCreation.id)
-      } else {
-        toast({ title: "Regenerating 3D model with PartCrafter..." })
-        generate3DModel(activeCreation.id)
-      }
+      toast({ title: "Regenerating hardware specifications..." })
+      generateHardware(activeCreation.id)
     }
   }
 
   const handleDeploy = () => {
-    if (activeCreation?.softwareData?.demoUrl) {
-      toast({
-        title: "Deploy to Vercel",
-        description: "Deployment functionality coming soon!",
-      })
-    } else {
-      toast({
-        title: "No app to deploy",
-        description: "Generate software first to deploy",
-        variant: "destructive",
-      })
-    }
+    toast({
+      title: "No app to deploy",
+      description: "Software deployment is disabled.",
+      variant: "destructive",
+    })
   }
 
-  const handleChatSelect = async (software: { id: string; title?: string; software_id?: string; demo_url?: string }) => {
-    if (!user?.id) {
-      return
-    }
-    
-    setSelectedChat(software)
-    setShowLogoSidebar(false)
-    
-    // Load messages for this chat
-    try {
-      const response = await fetch(`/api/software/messages?softwareId=${software.id}&userId=${user.id}`, { cache: "no-store" })
-      if (response.ok) {
-        const data = await response.json()
-        setChatMessages(data.messages || [])
-        
-        // Create a software creation for display
-          const softwareCreation: Creation = {
-          id: software.id,
-            title: software.title ?? "Software",
-            prompt: (data.messages?.[0]?.content as string | undefined) ?? "Software project",
-          mode: "software",
-            chatHistory: (data.messages as Array<{ id: string; role: 'user' | 'assistant'; content: string; created_at: string }> | undefined)?.map((msg) => ({
-              id: msg.id,
-              role: msg.role,
-              content: msg.content,
-              createdAt: new Date(msg.created_at)
-            })) || [],
-          components: [],
-          customParams: [],
-          softwareData: {
-              chatId: software.software_id ?? "",
-              demoUrl: software.demo_url ?? "",
-            isGenerating: false
-          }
-        }
-        
-        // Add or update in creation store
-        const existingCreation = creations.find(c => c.id === software.id)
-        if (existingCreation) {
-          updateCreation(software.id, softwareCreation)
-        } else {
-          addCreation(softwareCreation)
-        }
-        setActiveCreationId(software.id)
-      }
-    } catch (error) {
-      toast({
-        title: "Error",
-        description: "Failed to load chat messages",
-        variant: "destructive"
-      })
-    }
-  }
+  // software handleChatSelect removed
 
-  const handleSendMessage = async (message: string) => {
-    
-    
-    if (!user?.id) {
-      return
-    }
-    // Fallback: if selectedChat is not set, try to use activeCreation when in software mode
-    const effectiveSoftwareId = selectedChat?.id || (creationMode === 'software' ? activeCreation?.id : undefined)
-    if (!effectiveSoftwareId) {
-      return
-    }
-    
-    
-    
-    try {
-      const requestBody = {
-        softwareId: effectiveSoftwareId,
-        message: message,
-        userId: user.id
-      }
-      
-      const response = await fetch('/api/software/chat', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(requestBody)
-      })
-      
-      let responseData
-      try {
-        const responseText = await response.text()
-        
-        if (response.headers.get("content-type")?.includes("application/json")) {
-          responseData = JSON.parse(responseText)
-        } else {
-          throw new Error(`Server returned non-JSON response: ${responseText.substring(0, 200)}...`)
-        }
-      } catch (parseError) {
-        throw new Error(`Failed to parse server response: ${parseError instanceof Error ? parseError.message : 'Unknown error'}`)
-      }
-      
-      if (response.ok) {
-        
-        // Update the software creation with new demo URL
-        if (responseData.demoUrl && effectiveSoftwareId) {
-          updateCreation(effectiveSoftwareId, {
-            softwareData: {
-              chatId: selectedChat?.software_id ?? activeCreation?.softwareData?.chatId ?? "",
-              demoUrl: responseData.demoUrl as string,
-              isGenerating: false
-            }
-          })
-        }
-        
-        // Reload messages to get the updated conversation
-        const messagesResponse = await fetch(`/api/software/messages?softwareId=${effectiveSoftwareId}&userId=${user.id}`)
-        if (messagesResponse.ok) {
-          const messagesData = await messagesResponse.json()
-          setChatMessages(messagesData.messages || [])
-          
-          // Update creation store with new messages
-          const updatedCreation = {
-            chatHistory: (messagesData.messages as Array<{ id: string; role: 'user' | 'assistant'; content: string; created_at: string }> | undefined)?.map((msg) => ({
-              id: msg.id,
-              role: msg.role,
-              content: msg.content,
-              createdAt: new Date(msg.created_at)
-            })) || []
-          }
-          updateCreation(effectiveSoftwareId, updatedCreation)
-        } else {
-        }
-      } else {
-        const errorMessage = responseData?.error || `HTTP ${response.status}: Server error`
-        throw new Error(errorMessage)
-      }
-    } catch (error) {
-      toast({
-        title: "Error",
-        description: error instanceof Error ? error.message : "Failed to send message",
-        variant: "destructive"
-      })
-    }
-  }
+  // software handleSendMessage removed
 
   const handleSidebarMouseEnter = () => {
     if (hoverTimeoutRef.current) {
@@ -1534,7 +1359,7 @@ function DashboardContent({ onLogout, initialSearchInput }: DashboardProps) {
         onNewCreation={() => {
           setShowLogoSidebar(false)
           setActiveCreationId(null)
-          setSelectedChat(null)
+          // software UI cleared
         }}
         onGrowthMarketing={() => {
           setShowLogoSidebar(false)
@@ -1542,8 +1367,6 @@ function DashboardContent({ onLogout, initialSearchInput }: DashboardProps) {
         }}
         onMouseEnter={handleSidebarMouseEnter}
         onMouseLeave={handleSidebarMouseLeave}
-        onChatSelect={handleChatSelect}
-        softwareList={softwareList}
          onHardwareProjectSelect={async ({ projectId: selectedProjectId, reportId: selectedReportId }) => {
            console.log('[DASHBOARD] Hardware project selected:', { selectedProjectId, selectedReportId })
            const currentUser = useUserStore.getState().user
@@ -1639,7 +1462,7 @@ function DashboardContent({ onLogout, initialSearchInput }: DashboardProps) {
         }}
       />
 
-      {activeCreation && <ChatSidebar onLogout={onLogout} onSendMessage={handleSendMessage} />}
+      {activeCreation && <ChatSidebar onLogout={onLogout} />}
 
       <div className="flex-1 flex flex-col min-h-0">
         <PersistentHeader
@@ -1678,12 +1501,7 @@ function DashboardContent({ onLogout, initialSearchInput }: DashboardProps) {
                     }
                   />
                 </>
-              ) : (
-                <>
-                  {console.log('[DASHBOARD] Rendering ViewerPanel (software mode) with creation:', activeCreation)}
-                  <ViewerPanel creation={activeCreation} onGenerate3D={generate3DModel} />
-                </>
-              )}
+              ) : null}
             </>
           ) : (
             <div className="h-full w-full overflow-hidden">
@@ -1694,9 +1512,7 @@ function DashboardContent({ onLogout, initialSearchInput }: DashboardProps) {
 
         {showIntegrations && <IntegrationPanel isOpen={showIntegrations} onClose={() => setShowIntegrations(false)} />}
 
-        {showGrowthMarketing && (
-          <GrowthMarketingPanel creditGate={ensureCredits} isOpen={showGrowthMarketing} onClose={() => setShowGrowthMarketing(false)} />
-        )}
+        {/* GrowthMarketingPanel removed */}
         <CreditLimitModal open={showCreditModal} onClose={() => setShowCreditModal(false)} />
         {/* Dev test compile button removed */}
       </div>

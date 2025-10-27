@@ -1,18 +1,10 @@
 "use client"
 import { Button } from "@/components/ui/button"
-import { Plus, TrendingUp, Settings, HelpCircle, MessageSquare } from "lucide-react"
+import { Plus, TrendingUp, Settings, HelpCircle } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { useUserStore } from "@/hooks/use-user-store"
 import { useHardwareStore } from "@/hooks/use-hardware-store"
 import { useState, useEffect, useCallback } from "react"
-
-export interface SoftwareItem {
-  id: string
-  title: string
-  demo_url: string
-  software_id: string
-  created_at: string
-}
 
 interface LogoHoverSidebarProps {
   isVisible: boolean
@@ -20,8 +12,6 @@ interface LogoHoverSidebarProps {
   onGrowthMarketing?: () => void
   onMouseEnter?: () => void
   onMouseLeave?: () => void
-  onChatSelect?: (software: SoftwareItem) => void
-  softwareList?: SoftwareItem[]
   onHardwareProjectSelect?: (args: { projectId: string; reportId: string }) => void
 }
 
@@ -31,48 +21,11 @@ export function LogoHoverSidebar({
   onGrowthMarketing,
   onMouseEnter,
   onMouseLeave,
-  onChatSelect,
-  softwareList,
   onHardwareProjectSelect,
 }: LogoHoverSidebarProps) {
   const { user, project } = useUserStore()
   const { reportsList } = useHardwareStore()
-  const [software, setSoftware] = useState<SoftwareItem[]>([])
-  const [loading, setLoading] = useState(false)
-  const [selectedChatId, setSelectedChatId] = useState<string | null>(null)
-
-  // Load user's software (chats) when component mounts or user changes
-  const loadUserSoftware = useCallback(async () => {
-    if (!user) return
-    
-    setLoading(true)
-    try {
-      const response = await fetch(`/api/user/data?userId=${user.id}`, { cache: 'no-store' })
-      if (response.ok) {
-        const data = await response.json()
-        setSoftware(data.software || [])
-      }
-    } catch {
-      
-    } finally {
-      setLoading(false)
-    }
-  }, [user])
-
-  useEffect(() => {
-    if (softwareList && softwareList.length > 0) {
-      setSoftware(softwareList)
-      return
-    }
-    if (user && project && isVisible) {
-      void loadUserSoftware()
-    }
-  }, [softwareList, user, project, isVisible, loadUserSoftware])
-
-  const handleChatSelect = (softwareItem: SoftwareItem) => {
-    setSelectedChatId(softwareItem.id)
-    onChatSelect?.(softwareItem)
-  }
+  
 
   return (
     <div
@@ -105,46 +58,7 @@ export function LogoHoverSidebar({
         </div>
 
         <div className="flex-1 overflow-hidden min-h-0">
-          {/* Software Chats 
-          <div className="text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-3">
-            Software Chats
-          </div>
-
-          <div className="space-y-1 overflow-y-auto max-h-[calc(50vh-8rem)] pr-1">
-            {loading ? (
-              <div className="text-sm text-slate-500 dark:text-slate-400 text-center py-4">
-                Loading chats...
-              </div>
-            ) : software && software.length > 0 ? (
-              software.map((chat) => (
-                <Button
-                  key={chat.id}
-                  variant="ghost"
-                  onClick={() => handleChatSelect(chat)}
-                  className={cn(
-                    "w-full justify-start text-left p-3 h-auto",
-                    selectedChatId === chat.id
-                      ? "bg-blue-100 dark:bg-blue-950/50 text-blue-900 dark:text-blue-100"
-                      : "text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800",
-                  )}
-                >
-                  <div className="flex flex-col items-start w-full">
-                    <div className="flex items-center gap-2 w-full">
-                      <MessageSquare className="h-4 w-4 flex-shrink-0" />
-                      <div className="font-medium text-sm truncate">{chat.title}</div>
-                    </div>
-                    <div className="text-xs text-slate-500 dark:text-slate-400 truncate w-full ml-6">
-                      {new Date(chat.created_at).toLocaleDateString()}
-                    </div>
-                  </div>
-                </Button>
-              ))
-            ) : (
-              <div className="text-sm text-slate-500 dark:text-slate-400 text-center py-4">
-                No software chats yet. Create your first software project!
-              </div>
-            )}
-          </div> */}
+          {/* Software chats removed */}
 
           {/* Hardware Projects */}
           <div className="text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-3 mt-6">
