@@ -1088,11 +1088,13 @@ function DashboardContent({ onLogout, initialSearchInput }: DashboardProps) {
       console.log('[CLIENT] Hardware job created successfully:', jobId)
 
       // Subscribe to realtime job updates
+      console.log('[CLIENT] Subscribing to Realtime job updates...', { jobId })
       const { unsubscribe } = subscribeToJobStatus(jobId, {
         onUpdate: () => {
-          // optional progress updates
+          console.log('[CLIENT] Realtime job update received')
         },
         onCompleted: async (row) => {
+          console.log('[CLIENT] Realtime job completed event', { jobId, result: row.result })
           await unsubscribe()
           const reportId = row.result?.reportId
           if (reportId) {
@@ -1103,33 +1105,116 @@ function DashboardContent({ onLogout, initialSearchInput }: DashboardProps) {
                 updateCreation(creationId, { ...current, hardwareReports: {} })
               }
               const reportsUrl = `/api/hardware/reports?projectId=${project.id}&userId=${user.id}&reportId=${reportId}`
+              console.log('[CLIENT] Fetching reports for completed job', { reportsUrl })
               const reportsResp = await fetch(reportsUrl, { cache: 'no-store' })
               if (reportsResp.ok) {
                 const fresh = await reportsResp.json()
+                console.log('[CLIENT] Reports fetched', {
+                  hasReports: !!fresh?.reports,
+                  reportKeys: fresh?.reports ? Object.keys(fresh.reports) : [],
+                  componentsCount: fresh?.reports?.['3d-components']?.components?.length ?? 0,
+                })
                 const latest = useCreationStore.getState().creations.find((c) => c.id === creationId)
                 if (latest) {
-                  updateCreation(creationId, { ...latest, hardwareReports: fresh.reports })
+                  updateCreation(creationId, { ...latest, projectId: project.id, hardwareReports: fresh.reports })
                 }
+                // Focus the updated creation
+                setActiveCreationId(creationId)
+              } else {
+                console.warn('[CLIENT] Reports fetch failed', { status: reportsResp.status, text: await reportsResp.text() })
               }
             }
           } else {
+            console.log('[CLIENT] Completed without reportId, loading latest reports')
             await loadHardwareReports(creationId)
           }
-          updateCreation(creationId, {
-            ...currentCreation,
-            hardwareData: { isGenerating: false, reportsGenerated: true },
-          })
+          {
+            const after = useCreationStore.getState().creations.find((c) => c.id === creationId)
+            if (after) {
+              updateCreation(creationId, {
+                ...after,
+                hardwareData: { isGenerating: false, reportsGenerated: true },
+              })
+            }
+          }
           toast({ title: 'Hardware Generation Complete', description: 'Your reports are ready.' })
         },
         onFailed: async (row) => {
+          console.warn('[CLIENT] Realtime job failed event', { jobId, error: row.error })
           await unsubscribe()
-          updateCreation(creationId, {
-            ...currentCreation,
-            hardwareData: { isGenerating: false, reportsGenerated: false },
-          })
+          {
+            const after = useCreationStore.getState().creations.find((c) => c.id === creationId)
+            if (after) {
+              updateCreation(creationId, {
+                ...after,
+                hardwareData: { isGenerating: false, reportsGenerated: false },
+              })
+            }
+          }
           toast({ title: 'Hardware Generation Failed', description: row.error || 'Job failed', variant: 'destructive' })
         },
       })
+
+      // Race guard: if the job already completed/failed before subscription activated
+      try {
+        console.log('[CLIENT] Race-guard: fetching job status immediately after subscribe', { jobId })
+        const statusResponse = await fetch(`/api/jobs/${jobId}`)
+        if (statusResponse.ok) {
+          const statusData = await statusResponse.json()
+          if (statusData.completed) {
+            console.log('[CLIENT] Race-guard detected completed job', { jobId, reportId: statusData.reportId })
+            // Simulate onCompleted path
+            const reportId = statusData.reportId as string | undefined
+            if (reportId) {
+              const { user, project } = useUserStore.getState()
+              if (user?.id && project?.id) {
+                const current = useCreationStore.getState().creations.find((c) => c.id === creationId)
+                if (current) updateCreation(creationId, { ...current, hardwareReports: {} })
+                const reportsUrl = `/api/hardware/reports?projectId=${project.id}&userId=${user.id}&reportId=${reportId}`
+                console.log('[CLIENT] Race-guard fetching reports', { reportsUrl })
+                const reportsResp = await fetch(reportsUrl, { cache: 'no-store' })
+                if (reportsResp.ok) {
+                  const fresh = await reportsResp.json()
+                  console.log('[CLIENT] Race-guard reports fetched', {
+                    hasReports: !!fresh?.reports,
+                    reportKeys: fresh?.reports ? Object.keys(fresh.reports) : [],
+                    componentsCount: fresh?.reports?.['3d-components']?.components?.length ?? 0,
+                  })
+                  const latest = useCreationStore.getState().creations.find((c) => c.id === creationId)
+                  if (latest) updateCreation(creationId, { ...latest, projectId: project.id, hardwareReports: fresh.reports })
+                  // Focus the updated creation
+                  setActiveCreationId(creationId)
+                } else {
+                  console.warn('[CLIENT] Race-guard reports fetch failed', { status: reportsResp.status, text: await reportsResp.text() })
+                }
+              }
+            } else {
+              console.log('[CLIENT] Race-guard completed without reportId; loading latest reports')
+              await loadHardwareReports(creationId)
+            }
+            {
+              const after = useCreationStore.getState().creations.find((c) => c.id === creationId)
+              if (after) {
+                updateCreation(creationId, { ...after, hardwareData: { isGenerating: false, reportsGenerated: true } })
+              }
+            }
+            toast({ title: 'Hardware Generation Complete', description: 'Your reports are ready.' })
+            await unsubscribe()
+          } else if (statusData.status === 'failed') {
+            console.warn('[CLIENT] Race-guard detected failed job', { jobId, error: statusData.error })
+            {
+              const after = useCreationStore.getState().creations.find((c) => c.id === creationId)
+              if (after) {
+                updateCreation(creationId, { ...after, hardwareData: { isGenerating: false, reportsGenerated: false } })
+              }
+            }
+            toast({ title: 'Hardware Generation Failed', description: statusData.error || 'Job failed', variant: 'destructive' })
+            await unsubscribe()
+          }
+        }
+      } catch {
+        console.warn('[CLIENT] Race-guard status fetch failed', { jobId })
+      }
     } catch (err) {
       console.error('[CLIENT] Hardware generation setup failed:', err)
       const message = err instanceof Error ? err.message : 'Unknown error'

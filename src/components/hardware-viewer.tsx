@@ -770,7 +770,9 @@ const renderComponentActions = (
     )
   }
 
-  if (creation.hardwareData?.isGenerating) {
+  const hasReports = !!hardwareReports && Object.keys(hardwareReports).length > 0
+
+  if (creation.hardwareData?.isGenerating && !hasReports) {
     return (
       <div className="flex-1 p-6 flex items-center justify-center">
         <div className="text-center space-y-4">
