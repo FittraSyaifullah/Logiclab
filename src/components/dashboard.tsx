@@ -1098,58 +1098,44 @@ function DashboardContent({ onLogout, initialSearchInput }: DashboardProps) {
           await unsubscribe()
           const reportId = row.result?.reportId
           if (reportId) {
-            const { user, project } = useUserStore.getState()
-            if (user?.id && project?.id) {
-              const current = useCreationStore.getState().creations.find((c) => c.id === creationId)
-              if (current) {
-                updateCreation(creationId, { ...current, hardwareReports: {} })
-              }
+              const { user, project } = useUserStore.getState()
+              if (user?.id && project?.id) {
+                const current = useCreationStore.getState().creations.find((c) => c.id === creationId)
+                if (current) {
+                  updateCreation(creationId, { ...current, hardwareReports: {} })
+                }
               const reportsUrl = `/api/hardware/reports?projectId=${project.id}&userId=${user.id}&reportId=${reportId}`
               console.log('[CLIENT] Fetching reports for completed job', { reportsUrl })
-              const reportsResp = await fetch(reportsUrl, { cache: 'no-store' })
-              if (reportsResp.ok) {
-                const fresh = await reportsResp.json()
+                const reportsResp = await fetch(reportsUrl, { cache: 'no-store' })
+                if (reportsResp.ok) {
+                  const fresh = await reportsResp.json()
                 console.log('[CLIENT] Reports fetched', {
                   hasReports: !!fresh?.reports,
                   reportKeys: fresh?.reports ? Object.keys(fresh.reports) : [],
                   componentsCount: fresh?.reports?.['3d-components']?.components?.length ?? 0,
                 })
-                const latest = useCreationStore.getState().creations.find((c) => c.id === creationId)
-                if (latest) {
-                  updateCreation(creationId, { ...latest, projectId: project.id, hardwareReports: fresh.reports })
-                }
-                // Focus the updated creation
-                setActiveCreationId(creationId)
-              } else {
+                const creationActions = useCreationStore.getState()
+                creationActions.applyHardwareReports(creationId, project.id, fresh.reports)
+                } else {
                 console.warn('[CLIENT] Reports fetch failed', { status: reportsResp.status, text: await reportsResp.text() })
+                }
               }
-            }
-          } else {
+            } else {
             console.log('[CLIENT] Completed without reportId, loading latest reports')
-            await loadHardwareReports(creationId)
-          }
-          {
-            const after = useCreationStore.getState().creations.find((c) => c.id === creationId)
-            if (after) {
-              updateCreation(creationId, {
-                ...after,
-                hardwareData: { isGenerating: false, reportsGenerated: true },
-              })
+              await loadHardwareReports(creationId)
             }
+          {
+            const { setHardwareGenerationState } = useCreationStore.getState()
+            setHardwareGenerationState(creationId, { isGenerating: false, reportsGenerated: true })
           }
-          toast({ title: 'Hardware Generation Complete', description: 'Your reports are ready.' })
+            toast({ title: 'Hardware Generation Complete', description: 'Your reports are ready.' })
         },
         onFailed: async (row) => {
           console.warn('[CLIENT] Realtime job failed event', { jobId, error: row.error })
           await unsubscribe()
           {
-            const after = useCreationStore.getState().creations.find((c) => c.id === creationId)
-            if (after) {
-              updateCreation(creationId, {
-                ...after,
-                hardwareData: { isGenerating: false, reportsGenerated: false },
-              })
-            }
+            const { setHardwareGenerationState } = useCreationStore.getState()
+            setHardwareGenerationState(creationId, { isGenerating: false, reportsGenerated: false, error: row.error ?? undefined })
           }
           toast({ title: 'Hardware Generation Failed', description: row.error || 'Job failed', variant: 'destructive' })
         },
@@ -1180,11 +1166,9 @@ function DashboardContent({ onLogout, initialSearchInput }: DashboardProps) {
                     reportKeys: fresh?.reports ? Object.keys(fresh.reports) : [],
                     componentsCount: fresh?.reports?.['3d-components']?.components?.length ?? 0,
                   })
-                  const latest = useCreationStore.getState().creations.find((c) => c.id === creationId)
-                  if (latest) updateCreation(creationId, { ...latest, projectId: project.id, hardwareReports: fresh.reports })
-                  // Focus the updated creation
-                  setActiveCreationId(creationId)
-                } else {
+                  const creationActions = useCreationStore.getState()
+                  creationActions.applyHardwareReports(creationId, project.id, fresh.reports)
+          } else {
                   console.warn('[CLIENT] Race-guard reports fetch failed', { status: reportsResp.status, text: await reportsResp.text() })
                 }
               }
@@ -1193,20 +1177,16 @@ function DashboardContent({ onLogout, initialSearchInput }: DashboardProps) {
               await loadHardwareReports(creationId)
             }
             {
-              const after = useCreationStore.getState().creations.find((c) => c.id === creationId)
-              if (after) {
-                updateCreation(creationId, { ...after, hardwareData: { isGenerating: false, reportsGenerated: true } })
-              }
+              const { setHardwareGenerationState } = useCreationStore.getState()
+              setHardwareGenerationState(creationId, { isGenerating: false, reportsGenerated: true })
             }
             toast({ title: 'Hardware Generation Complete', description: 'Your reports are ready.' })
             await unsubscribe()
           } else if (statusData.status === 'failed') {
             console.warn('[CLIENT] Race-guard detected failed job', { jobId, error: statusData.error })
             {
-              const after = useCreationStore.getState().creations.find((c) => c.id === creationId)
-              if (after) {
-                updateCreation(creationId, { ...after, hardwareData: { isGenerating: false, reportsGenerated: false } })
-              }
+              const { setHardwareGenerationState } = useCreationStore.getState()
+              setHardwareGenerationState(creationId, { isGenerating: false, reportsGenerated: false, error: statusData.error ?? undefined })
             }
             toast({ title: 'Hardware Generation Failed', description: statusData.error || 'Job failed', variant: 'destructive' })
             await unsubscribe()
@@ -1232,13 +1212,8 @@ function DashboardContent({ onLogout, initialSearchInput }: DashboardProps) {
       description: "Your hardware specifications are being generated. This may take up to 2 minutes.",
     })
 
-    updateCreation(creationId, {
-      ...currentCreation,
-      hardwareData: {
-        isGenerating: true,
-        reportsGenerated: false,
-      },
-    })
+    const { setHardwareGenerationState } = useCreationStore.getState()
+    setHardwareGenerationState(creationId, { isGenerating: true, reportsGenerated: false, error: undefined })
 
     // Realtime subscription will handle completion; no polling or timeouts
   }

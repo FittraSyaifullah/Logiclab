@@ -1,6 +1,6 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
-import type { Creation } from '@/lib/types'
+import type { Creation, HardwareData, HardwareReports, HardwareComponentModel } from '@/lib/types'
 
 interface CreationStore {
   creations: Creation[]
@@ -10,6 +10,9 @@ interface CreationStore {
   updateCreation: (id: string, updates: Partial<Creation>) => void
   deleteCreation: (id: string) => void
   clearCreations: () => void
+  applyHardwareReports: (id: string, projectId: string, reports: HardwareReports | Record<string, unknown>) => void
+  setHardwareGenerationState: (id: string, patch: Partial<HardwareData>) => void
+  upsertHardwareModels: (id: string, models: Record<string, HardwareComponentModel>) => void
 }
 
 export const useCreationStore = create<CreationStore>()(
@@ -29,6 +32,65 @@ export const useCreationStore = create<CreationStore>()(
         creations: state.creations.map((creation) =>
           creation.id === id ? { ...creation, ...updates } : creation
         )
+      })),
+      
+      applyHardwareReports: (id, projectId, reports) => set((state) => {
+        const existing = state.creations.find((c) => c.id === id)
+        if (!existing) {
+          return state
+        }
+
+        const nextHardwareData = {
+          isGenerating: false,
+          reportsGenerated: true,
+        }
+
+        return {
+          creations: state.creations.map((creation) =>
+            creation.id === id
+              ? {
+                  ...creation,
+                  projectId,
+                  hardwareReports: reports as Creation['hardwareReports'],
+                  hardwareData: {
+                    ...(creation.hardwareData ?? nextHardwareData),
+                    ...nextHardwareData,
+                  },
+                }
+              : creation,
+          ),
+          activeCreationId: id,
+        }
+      }),
+
+      setHardwareGenerationState: (id, patch) => set((state) => ({
+        creations: state.creations.map((creation) =>
+          creation.id === id
+            ? {
+                ...creation,
+                hardwareData: {
+                  isGenerating: false,
+                  reportsGenerated: false,
+                  ...(creation.hardwareData ?? {}),
+                  ...patch,
+                },
+              }
+            : creation,
+        ),
+      })),
+
+      upsertHardwareModels: (id, models) => set((state) => ({
+        creations: state.creations.map((creation) =>
+          creation.id === id
+            ? {
+                ...creation,
+                hardwareModels: {
+                  ...(creation.hardwareModels ?? {}),
+                  ...models,
+                },
+              }
+            : creation,
+        ),
       })),
       
       deleteCreation: (id) => set((state) => ({
