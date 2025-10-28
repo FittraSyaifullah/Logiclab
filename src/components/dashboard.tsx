@@ -31,6 +31,7 @@ import { useCreationStore } from "@/hooks/use-creation-store"
 import { useUserStore } from "@/hooks/use-user-store"
 import { cn } from "@/lib/utils"
 import { useToast } from "@/hooks/use-toast"
+import { subscribeToJobStatus } from "@/lib/realtime"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -1086,81 +1087,49 @@ function DashboardContent({ onLogout, initialSearchInput }: DashboardProps) {
       const jobId = payload.jobId
       console.log('[CLIENT] Hardware job created successfully:', jobId)
 
-      // Start polling for job completion similar to software flow
-      console.log('[CLIENT] Starting job polling...')
-      const pollInterval = setInterval(async () => {
-        try {
-          console.log('[CLIENT] Polling job status for:', jobId)
-          const statusResponse = await fetch(`/api/jobs/${jobId}`)
-          console.log('[CLIENT] Job status response:', statusResponse.status)
-          
-          const statusData = await statusResponse.json()
-          console.log('[CLIENT] Job status data:', statusData)
-          
-          if (statusData.completed) {
-            console.log('[CLIENT] Job completed!', statusData)
-            clearInterval(pollInterval)
-
-            // If a specific reportId is returned, fetch just that report to avoid stale selection
-            if (statusData.reportId) {
-              console.log('[CLIENT] Fetching specific report:', statusData.reportId)
-              const { user, project } = useUserStore.getState()
-              if (user?.id && project?.id) {
-                console.log('[CLIENT] User and project found, clearing stale reports...')
-                // Clear stale reports before fetch to avoid flashing previous content
-                const current = useCreationStore.getState().creations.find((c) => c.id === creationId)
-                if (current) {
-                  updateCreation(creationId, { ...current, hardwareReports: {} })
-                }
-                
-                const reportsUrl = `/api/hardware/reports?projectId=${project.id}&userId=${user.id}&reportId=${statusData.reportId}`
-                console.log('[CLIENT] Fetching reports from:', reportsUrl)
-                const reportsResp = await fetch(reportsUrl, { cache: 'no-store' })
-                console.log('[CLIENT] Reports response status:', reportsResp.status)
-                
-                if (reportsResp.ok) {
-                  const fresh = await reportsResp.json()
-                  console.log('[CLIENT] Fresh reports data:', fresh)
-          const latest = useCreationStore.getState().creations.find((c) => c.id === creationId)
-          if (latest) {
-                    console.log('[CLIENT] Updating creation with fresh reports...')
-                    updateCreation(creationId, { ...latest, hardwareReports: fresh.reports })
-                  }
-                } else {
-                  console.error('[CLIENT] Failed to fetch reports:', reportsResp.status, await reportsResp.text())
-                }
-              } else {
-                console.error('[CLIENT] Missing user or project for report fetching')
+      // Subscribe to realtime job updates
+      const { unsubscribe } = subscribeToJobStatus(jobId, {
+        onUpdate: () => {
+          // optional progress updates
+        },
+        onCompleted: async (row) => {
+          await unsubscribe()
+          const reportId = row.result?.reportId
+          if (reportId) {
+            const { user, project } = useUserStore.getState()
+            if (user?.id && project?.id) {
+              const current = useCreationStore.getState().creations.find((c) => c.id === creationId)
+              if (current) {
+                updateCreation(creationId, { ...current, hardwareReports: {} })
               }
-            } else {
-              console.log('[CLIENT] No specific reportId, using fallback method...')
-              // Fallback: Refresh latest reports for current project
-              await loadHardwareReports(creationId)
+              const reportsUrl = `/api/hardware/reports?projectId=${project.id}&userId=${user.id}&reportId=${reportId}`
+              const reportsResp = await fetch(reportsUrl, { cache: 'no-store' })
+              if (reportsResp.ok) {
+                const fresh = await reportsResp.json()
+                const latest = useCreationStore.getState().creations.find((c) => c.id === creationId)
+                if (latest) {
+                  updateCreation(creationId, { ...latest, hardwareReports: fresh.reports })
+                }
+              }
             }
-
-            updateCreation(creationId, {
-              ...currentCreation,
-              hardwareData: { isGenerating: false, reportsGenerated: true },
-            })
-
-            console.log('[CLIENT] Hardware generation completed successfully!')
-            toast({ title: 'Hardware Generation Complete', description: 'Your reports are ready.' })
-          } else if (statusData.status === 'failed') {
-            console.error('[CLIENT] Job failed:', statusData.error)
-            clearInterval(pollInterval)
-            updateCreation(creationId, {
-              ...currentCreation,
-              hardwareData: { isGenerating: false, reportsGenerated: false },
-            })
-            toast({ title: 'Hardware Generation Failed', description: statusData.error || 'Job failed', variant: 'destructive' })
           } else {
-            console.log('[CLIENT] Job still processing, status:', statusData.status)
+            await loadHardwareReports(creationId)
           }
-        } catch (pollError) {
-          console.error('[CLIENT] Error during job polling:', pollError)
-          // keep polling
-        }
-      }, 5000)
+          updateCreation(creationId, {
+            ...currentCreation,
+            hardwareData: { isGenerating: false, reportsGenerated: true },
+          })
+          toast({ title: 'Hardware Generation Complete', description: 'Your reports are ready.' })
+        },
+        onFailed: async (row) => {
+          await unsubscribe()
+          updateCreation(creationId, {
+            ...currentCreation,
+            hardwareData: { isGenerating: false, reportsGenerated: false },
+          })
+          toast({ title: 'Hardware Generation Failed', description: row.error || 'Job failed', variant: 'destructive' })
+        },
+      })
     } catch (err) {
       console.error('[CLIENT] Hardware generation setup failed:', err)
       const message = err instanceof Error ? err.message : 'Unknown error'
@@ -1186,25 +1155,7 @@ function DashboardContent({ onLogout, initialSearchInput }: DashboardProps) {
       },
     })
 
-    // Wait for all generations to complete
-    setTimeout(async () => {
-      // Update creation with hardware data
-      updateCreation(creationId, {
-        ...currentCreation,
-        hardwareData: {
-          isGenerating: false,
-          reportsGenerated: true,
-        },
-      })
-
-      toast({
-        title: "Hardware Generation Complete",
-        description: "Your 3D components, assembly instructions, and firmware code are ready!",
-      })
-
-      // Load hardware reports
-      await loadHardwareReports(creationId)
-    }, 10000) // Wait 10 seconds for generation to complete
+    // Realtime subscription will handle completion; no polling or timeouts
   }
 
   const loadHardwareReports = async (creationId: string) => {

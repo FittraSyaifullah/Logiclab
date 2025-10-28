@@ -1,14 +1,6 @@
 -- WARNING: This schema is for context only and is not meant to be run.
 -- Table order and constraints may not be valid for execution.
 
-CREATE TABLE public.business_reports (
-  report_id uuid NOT NULL DEFAULT gen_random_uuid(),
-  user_id uuid,
-  report jsonb NOT NULL,
-  created_at timestamp without time zone DEFAULT now(),
-  CONSTRAINT business_reports_pkey PRIMARY KEY (report_id),
-  CONSTRAINT business_reports_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.users(id)
-);
 CREATE TABLE public.credit_transactions (
   id uuid NOT NULL DEFAULT gen_random_uuid(),
   user_id uuid NOT NULL,
@@ -31,6 +23,39 @@ CREATE TABLE public.debug_messages (
   CONSTRAINT debug_messages_pkey PRIMARY KEY (id),
   CONSTRAINT debug_messages_hardware_id_fkey FOREIGN KEY (user_id) REFERENCES public.hardware_projects(id),
   CONSTRAINT debug_messages_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.users(id)
+);
+CREATE TABLE public.file_embeddings (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  user_id uuid NOT NULL,
+  file_id uuid NOT NULL,
+  file_type text NOT NULL CHECK (file_type = ANY (ARRAY['document'::text, 'model'::text, 'image'::text])),
+  chunk_index integer NOT NULL,
+  content_text text NOT NULL,
+  embedding USER-DEFINED NOT NULL,
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  CONSTRAINT file_embeddings_pkey PRIMARY KEY (id),
+  CONSTRAINT file_embeddings_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.users(id),
+  CONSTRAINT file_embeddings_file_id_fkey FOREIGN KEY (file_id) REFERENCES public.files(id)
+);
+CREATE TABLE public.files (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  user_id uuid NOT NULL,
+  bucket text NOT NULL DEFAULT 'user_files'::text,
+  path text NOT NULL,
+  file_type text NOT NULL CHECK (file_type = ANY (ARRAY['document'::text, 'model'::text, 'image'::text])),
+  mime_type text,
+  original_name text,
+  size_bytes bigint,
+  checksum text,
+  title text,
+  description text,
+  metadata jsonb DEFAULT '{}'::jsonb,
+  status text NOT NULL DEFAULT 'uploaded'::text,
+  error text,
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  updated_at timestamp with time zone NOT NULL DEFAULT now(),
+  CONSTRAINT files_pkey PRIMARY KEY (id),
+  CONSTRAINT files_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.users(id)
 );
 CREATE TABLE public.fulfillment_requests (
   id bigint GENERATED ALWAYS AS IDENTITY NOT NULL,
@@ -78,6 +103,11 @@ CREATE TABLE public.hardware_projects (
   firmware_code jsonb,
   title text,
   full_json jsonb,
+  status text DEFAULT 'ready'::text,
+  progress integer DEFAULT 0,
+  error_message text,
+  updated_at timestamp with time zone DEFAULT now(),
+  revision integer DEFAULT 0,
   CONSTRAINT hardware_projects_pkey PRIMARY KEY (id),
   CONSTRAINT hardware_reports_project_id_fkey FOREIGN KEY (project_id) REFERENCES public.projects(id)
 );
@@ -116,31 +146,6 @@ CREATE TABLE public.projects (
   v0_id text,
   CONSTRAINT projects_pkey PRIMARY KEY (id),
   CONSTRAINT projects_owner_id_fkey FOREIGN KEY (owner_id) REFERENCES public.users(id)
-);
-CREATE TABLE public.software (
-  id uuid NOT NULL DEFAULT gen_random_uuid(),
-  project_id uuid NOT NULL,
-  title text NOT NULL,
-  repo_url text,
-  manifest jsonb,
-  created_at timestamp with time zone DEFAULT now(),
-  web_url text,
-  api_Url text,
-  demo_url text,
-  url text,
-  software_id text,
-  CONSTRAINT software_pkey PRIMARY KEY (id),
-  CONSTRAINT software_project_id_fkey FOREIGN KEY (project_id) REFERENCES public.projects(id)
-);
-CREATE TABLE public.software_messages (
-  id uuid NOT NULL DEFAULT gen_random_uuid(),
-  software_id uuid,
-  role text NOT NULL CHECK (role = ANY (ARRAY['user'::text, 'assistant'::text, 'system'::text])),
-  content text NOT NULL,
-  timestamp timestamp with time zone DEFAULT now(),
-  created_at timestamp with time zone DEFAULT now(),
-  CONSTRAINT software_messages_pkey PRIMARY KEY (id),
-  CONSTRAINT software_messages_software_id_fkey FOREIGN KEY (software_id) REFERENCES public.software(id)
 );
 CREATE TABLE public.user_credits (
   user_id uuid NOT NULL,
