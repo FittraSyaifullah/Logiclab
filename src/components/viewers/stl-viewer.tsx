@@ -75,18 +75,49 @@ export default function STLViewer({ stlBase64, componentName }: STLViewerProps) 
   useEffect(() => {
     let cancelled = false
 
+    console.log('[STL-VIEWER] Starting STL load:', {
+      componentName,
+      base64Length: stlBase64?.length,
+      base64Preview: stlBase64?.substring(0, 50) + '...',
+      hasWhitespace: /\s/.test(stlBase64 || '')
+    })
+
     try {
       const buffer = base64ToArrayBuffer(stlBase64)
+      console.log('[STL-VIEWER] Base64 decoded to buffer:', {
+        bufferLength: buffer.byteLength,
+        expectedMinLength: 84 // STL header size
+      })
+      
       const geom = loader.parse(buffer)
       if (cancelled) return
+      
+      console.log('[STL-VIEWER] STL parsed successfully:', {
+        verticesCount: geom.attributes.position?.count,
+        hasNormals: !!geom.attributes.normal,
+        boundingBox: geom.boundingBox ? {
+          min: geom.boundingBox.min,
+          max: geom.boundingBox.max
+        } : 'not computed'
+      })
+      
       geom.center()
       geom.computeVertexNormals()
       setGeometry(geom)
       setError(null)
       updateCamera(geom)
+      
+      console.log('[STL-VIEWER] STL loaded and processed successfully')
     } catch (err) {
       if (cancelled) return
-      setError(err instanceof Error ? err.message : "Failed to load STL")
+      const errorMessage = err instanceof Error ? err.message : "Failed to load STL"
+      console.error('[STL-VIEWER] STL load failed:', {
+        componentName,
+        error: errorMessage,
+        base64Length: stlBase64?.length,
+        base64Preview: stlBase64?.substring(0, 100) + '...'
+      })
+      setError(errorMessage)
     }
 
     return () => {

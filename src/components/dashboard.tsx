@@ -422,8 +422,23 @@ function DashboardContent({ onLogout, initialSearchInput }: DashboardProps) {
       }
 
       if (data.completed) {
+        console.log('[DASHBOARD] Model job completed:', {
+          componentId,
+          jobId,
+          attempt,
+          hasStlContent: !!data.component?.stlContent,
+          stlContentLength: data.component?.stlContent?.length,
+          hasScadCode: !!data.component?.scadCode,
+          scadCodeLength: data.component?.scadCode?.length,
+          status: data.status,
+          componentName: data.component?.name
+        })
+
         const nextCreation = useCreationStore.getState().creations.find((c) => c.id === creationId)
-        if (!nextCreation) return
+        if (!nextCreation) {
+          console.log('[DASHBOARD] No creation found for ID:', creationId)
+          return
+        }
 
         const stlContent = data.component?.stlContent as string | undefined
         const scadCode = data.component?.scadCode as string | undefined
@@ -431,6 +446,13 @@ function DashboardContent({ onLogout, initialSearchInput }: DashboardProps) {
           ? (data.component?.parameters as Array<{ name?: string; value?: number; unit?: string; metadata?: Record<string, unknown> }>)
           : undefined
         let conversionError: string | undefined
+
+        console.log('[DASHBOARD] Updating creation with model data:', {
+          componentId,
+          stlContentLength: stlContent?.length,
+          scadCodeLength: scadCode?.length,
+          parametersCount: parameters?.length || 0
+        })
 
         // Do not attempt server-side STL conversion; SCAD is enough for client
 
@@ -458,9 +480,20 @@ function DashboardContent({ onLogout, initialSearchInput }: DashboardProps) {
         })
 
         if (stlContent || data.component?.scadCode) {
+          console.log('[DASHBOARD] Model ready - showing success toast:', {
+            componentName: data.component?.name,
+            hasStl: !!stlContent,
+            hasScad: !!data.component?.scadCode
+          })
           toast({
             title: `${data.component?.name ?? "Component"} model ready`,
             description: "STL and SCAD assets have been generated successfully.",
+          })
+        } else {
+          console.log('[DASHBOARD] Model completed but no STL or SCAD content:', {
+            componentName: data.component?.name,
+            hasStl: !!stlContent,
+            hasScad: !!data.component?.scadCode
           })
         }
 

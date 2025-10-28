@@ -464,18 +464,36 @@ export function HardwareViewer({ creation, onRegenerate, onGenerateComponentMode
     if (!activeComponent) return
 
     const existing = computedStlContent[activeComponent.id]
+    const hasScadCode = !!activeComponent.model?.scadCode
+    const willAutoCompile = !existing && hasScadCode
+
+    console.log('[HARDWARE-VIEWER] Auto-compile check:', {
+      componentId: activeComponent.id,
+      componentName: activeComponent.name,
+      hasExistingStl: !!existing,
+      existingStlLength: existing?.length,
+      hasScadCode,
+      scadCodeLength: activeComponent.model?.scadCode?.length,
+      willAutoCompile,
+      currentScadExists: !!currentScadByComponent[activeComponent.id]
+    })
+
     if (existing && existing.length > 0) {
-      // Already have a worker-generated STL cached
+      console.log('[HARDWARE-VIEWER] Skipping auto-compile - STL already exists')
       return
     }
 
     // Initialize current SCAD from model if not present
     if (!currentScadByComponent[activeComponent.id] && activeComponent.model?.scadCode) {
+      console.log('[HARDWARE-VIEWER] Initializing current SCAD from model')
       setCurrentScadByComponent((prev) => ({ ...prev, [activeComponent.id]: activeComponent.model!.scadCode! }))
     }
 
     if (activeComponent.model?.scadCode) {
+      console.log('[HARDWARE-VIEWER] Triggering auto-compile for component:', activeComponent.name)
       autoCompileComponent(activeComponent)
+    } else {
+      console.log('[HARDWARE-VIEWER] No SCAD code available for auto-compile')
     }
   }, [activeComponent, computedStlContent, autoCompileComponent, currentScadByComponent])
 
@@ -934,22 +952,41 @@ const renderComponentActions = (
                       <div className="overflow-hidden rounded-2xl border border-neutral-800 bg-neutral-950 shadow-lg">
                         <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_360px]">
                           <div className="relative h-[420px] bg-neutral-900/80">
-                            {activeComponent.model?.status === "completed" &&
-                            (computedStlContent[activeComponent.id] || activeComponent.model.stlContent) ? (
-                              <STLViewer
-                                stlBase64={computedStlContent[activeComponent.id] || activeComponent.model.stlContent!}
-                                componentName={activeComponent.name || "Component"}
-                              />
-                            ) : (
-                              <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 text-neutral-300">
-                                <Hammer className="h-6 w-6 animate-pulse text-blue-400" />
-                                <p className="text-sm font-medium">
-                                  {activeComponent.model?.status === "processing"
-                                    ? "Generating 3D preview..."
-                                    : "3D preview available after generation"}
-                                </p>
-                              </div>
-                            )}
+                            {(() => {
+                              const hasComputedStl = !!computedStlContent[activeComponent.id]
+                              const hasModelStl = !!activeComponent.model?.stlContent
+                              const isCompleted = activeComponent.model?.status === "completed"
+                              const shouldRender = isCompleted && (hasComputedStl || hasModelStl)
+                              
+                              console.log('[HARDWARE-VIEWER] STL render check:', {
+                                componentId: activeComponent.id,
+                                componentName: activeComponent.name,
+                                status: activeComponent.model?.status,
+                                isCompleted,
+                                hasComputedStl,
+                                hasModelStl,
+                                computedStlLength: computedStlContent[activeComponent.id]?.length,
+                                modelStlLength: activeComponent.model?.stlContent?.length,
+                                shouldRender,
+                                stlSource: hasComputedStl ? 'computed' : hasModelStl ? 'model' : 'none'
+                              })
+                              
+                              return shouldRender ? (
+                                <STLViewer
+                                  stlBase64={computedStlContent[activeComponent.id] || activeComponent.model.stlContent!}
+                                  componentName={activeComponent.name || "Component"}
+                                />
+                              ) : (
+                                <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 text-neutral-300">
+                                  <Hammer className="h-6 w-6 animate-pulse text-blue-400" />
+                                  <p className="text-sm font-medium">
+                                    {activeComponent.model?.status === "processing"
+                                      ? "Generating 3D preview..."
+                                      : "3D preview available after generation"}
+                                  </p>
+                                </div>
+                              )
+                            })()}
 
                             <div className="pointer-events-none absolute bottom-4 left-4 z-10 rounded-full bg-black/60 px-3 py-1 text-xs font-medium text-white/90">
                               {activeComponent.name || "Component"}
