@@ -28,6 +28,7 @@ import {
 } from "lucide-react"
 import type { Creation, HardwareReports } from "@/lib/types"
 import { useCreationStore } from "@/hooks/use-creation-store"
+import { useGenerationMachine } from "@/hooks/use-generation-machine"
 import { useUserStore } from "@/hooks/use-user-store"
 import { cn } from "@/lib/utils"
 import { useToast } from "@/hooks/use-toast"
@@ -39,6 +40,7 @@ import {
   DropdownMenuTrigger,
   DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu"
+import { CreationProvider } from "@/contexts/CreationContext"
 
 interface DashboardProps {
   onLogout: () => void
@@ -422,23 +424,8 @@ function DashboardContent({ onLogout, initialSearchInput }: DashboardProps) {
       }
 
       if (data.completed) {
-        console.log('[DASHBOARD] Model job completed:', {
-          componentId,
-          jobId,
-          attempt,
-          hasStlContent: !!data.component?.stlContent,
-          stlContentLength: data.component?.stlContent?.length,
-          hasScadCode: !!data.component?.scadCode,
-          scadCodeLength: data.component?.scadCode?.length,
-          status: data.status,
-          componentName: data.component?.name
-        })
-
         const nextCreation = useCreationStore.getState().creations.find((c) => c.id === creationId)
-        if (!nextCreation) {
-          console.log('[DASHBOARD] No creation found for ID:', creationId)
-          return
-        }
+        if (!nextCreation) return
 
         const stlContent = data.component?.stlContent as string | undefined
         const scadCode = data.component?.scadCode as string | undefined
@@ -447,11 +434,12 @@ function DashboardContent({ onLogout, initialSearchInput }: DashboardProps) {
           : undefined
         let conversionError: string | undefined
 
-        console.log('[DASHBOARD] Updating creation with model data:', {
+        useGenerationMachine.getState().hydrateFromModel({
+          creationId,
           componentId,
-          stlContentLength: stlContent?.length,
-          scadCodeLength: scadCode?.length,
-          parametersCount: parameters?.length || 0
+          scadCode,
+          stlContent,
+          status: data.status ?? "completed",
         })
 
         // Do not attempt server-side STL conversion; SCAD is enough for client
@@ -515,6 +503,12 @@ function DashboardContent({ onLogout, initialSearchInput }: DashboardProps) {
         const nextCreation = useCreationStore.getState().creations.find((c) => c.id === creationId)
         if (!nextCreation) return
 
+        useGenerationMachine.getState().markError({
+          creationId,
+          componentId,
+          error: data.error || "Generation failed",
+        })
+
         updateCreation(creationId, {
           ...nextCreation,
           hardwareModels: {
@@ -546,6 +540,8 @@ function DashboardContent({ onLogout, initialSearchInput }: DashboardProps) {
 
       const nextCreation = useCreationStore.getState().creations.find((c) => c.id === creationId)
       if (!nextCreation) return
+
+      useGenerationMachine.getState().markError({ creationId, componentId, error: (error as Error).message })
 
       updateCreation(creationId, {
         ...nextCreation,
@@ -692,6 +688,8 @@ function DashboardContent({ onLogout, initialSearchInput }: DashboardProps) {
         },
       })
 
+      useGenerationMachine.getState().markAwaitingJob({ creationId, componentId: options.componentId })
+
       toast({
         title: labels.queued,
         description: "We will notify you when the STL and SCAD are ready.",
@@ -726,6 +724,8 @@ function DashboardContent({ onLogout, initialSearchInput }: DashboardProps) {
           },
         })
 
+        useGenerationMachine.getState().markAwaitingJob({ creationId, componentId: options.componentId })
+
         if (jobId) {
           setTimeout(() => pollHardwareModelJobOnce({ creationId, componentId: options.componentId!, jobId }), 3000)
         }
@@ -752,6 +752,12 @@ function DashboardContent({ onLogout, initialSearchInput }: DashboardProps) {
             },
           })
         }
+
+        useGenerationMachine.getState().markError({
+          creationId,
+          componentId: options.componentId,
+          error: (error as Error).message,
+        })
 
         toast({
           title: `Could not start model generation for ${options.componentName ?? "component"}`,
@@ -1253,46 +1259,100 @@ function DashboardContent({ onLogout, initialSearchInput }: DashboardProps) {
 
   const loadHardwareReports = async (creationId: string) => {
     console.log('[CLIENT] Loading hardware reports for creation:', creationId)
-    const { user, project } = useUserStore.getState()
-
-    if (!user?.id || !project?.id) {
-      console.error('[CLIENT] Missing user or project for hardware reports')
+    const { user } = useUserStore.getState()
+    const creation = useCreationStore.getState().creations.find((c) => c.id === creationId)
+    if (!creation) {
+      console.warn('[CLIENT] loadHardwareReports called with unknown creation', { creationId })
       return
     }
 
+    const projectId = creation.projectId
+    if (!user?.id || !projectId) {
+      console.error('[CLIENT] Missing user or project for hardware reports', { userId: user?.id, projectId })
+      return
+    }
+
+    const existingReports = creation.hardwareReports
+    const preferredReportId = existingReports?.["3d-components"]?.reportId
+      || existingReports?.["assembly-parts"]?.reportId
+      || existingReports?.["firmware-code"]?.reportId
+
+    const searchParams = new URLSearchParams({
+      projectId,
+      userId: user.id,
+    })
+    if (preferredReportId) {
+      searchParams.set('reportId', preferredReportId)
+    }
+
     try {
-      const reportsUrl = `/api/hardware/reports?projectId=${project.id}&userId=${user.id}`
+      const reportsUrl = `/api/hardware/reports?${searchParams.toString()}`
       console.log('[CLIENT] Fetching hardware reports from:', reportsUrl)
-      const response = await fetch(reportsUrl)
+      const response = await fetch(reportsUrl, { cache: 'no-store' })
 
       console.log('[CLIENT] Hardware reports response status:', response.status)
       if (response.ok) {
         const reportsData = await response.json()
         console.log('[CLIENT] Hardware reports data:', reportsData)
-        // Update creation with loaded reports
-        const currentCreation = useCreationStore.getState().creations.find((c) => c.id === creationId)
-        if (currentCreation) {
-          console.log('[CLIENT] Updating creation with hardware reports...')
-          updateCreation(creationId, {
-            ...currentCreation,
-            projectId: project?.id,
-            hardwareReports: reportsData.reports,
-            hardwareModels: {
-              ...(currentCreation.hardwareModels ?? {}),
-              ...reportsData.models,
-            },
-          })
-          // After reports load, also load hardware messages for the active report if available
-          const reportIdFromSections = (
-            (reportsData.reports as HardwareReports)['assembly-parts']?.reportId ||
-            (reportsData.reports as HardwareReports)['3d-components']?.reportId ||
-            (reportsData.reports as HardwareReports)['firmware-code']?.reportId
-          ) as string | undefined
-          if (reportIdFromSections) {
-            void loadHardwareMessages({ hardwareId: reportIdFromSections, creationId })
+
+        const { applyHardwareReports, upsertHardwareModels } = useCreationStore.getState()
+        applyHardwareReports(creationId, projectId, reportsData.reports || {})
+
+        const machine = useGenerationMachine.getState()
+        const reportComponents = ((reportsData.reports as HardwareReports)?.["3d-components"]?.components ?? []) as Array<{
+          id?: string
+          model?: { scadCode?: string; stlContent?: string; status?: string }
+        }>
+        reportComponents.forEach((component) => {
+          if (component?.id) {
+            machine.hydrateFromModel({
+              creationId,
+              componentId: component.id,
+              scadCode: component.model?.scadCode,
+              stlContent: component.model?.stlContent,
+              status: component.model?.status,
+            })
           }
-        } else {
-          console.error('[CLIENT] Current creation not found for ID:', creationId)
+        })
+
+        if (reportsData.models) {
+          upsertHardwareModels(creationId, reportsData.models)
+          Object.entries(reportsData.models as Record<string, { scadCode?: string; stlContent?: string; status?: string }>).forEach(
+            ([componentId, model]) => {
+              machine.hydrateFromModel({
+                creationId,
+                componentId,
+                scadCode: model.scadCode,
+                stlContent: model.stlContent,
+                status: model.status,
+              })
+            },
+          )
+        }
+
+        if (reportsData.models) {
+          upsertHardwareModels(creationId, reportsData.models)
+          Object.entries(reportsData.models as Record<string, { scadCode?: string; stlContent?: string; status?: string }>).forEach(
+            ([componentId, model]) => {
+              machine.hydrateFromModel({
+                creationId,
+                componentId,
+                scadCode: model.scadCode,
+                stlContent: model.stlContent,
+                status: model.status,
+              })
+            },
+          )
+        }
+
+        const reportIdFromSections = (
+          (reportsData.reports as HardwareReports)['3d-components']?.reportId ||
+          (reportsData.reports as HardwareReports)['assembly-parts']?.reportId ||
+          (reportsData.reports as HardwareReports)['firmware-code']?.reportId
+        ) as string | undefined
+        const hardwareIdForMessages = reportIdFromSections ?? preferredReportId
+        if (hardwareIdForMessages) {
+          void loadHardwareMessages({ hardwareId: hardwareIdForMessages, creationId })
         }
       } else {
         console.error('[CLIENT] Failed to fetch hardware reports:', response.status, await response.text())
@@ -1462,7 +1522,21 @@ function DashboardContent({ onLogout, initialSearchInput }: DashboardProps) {
                } else {
                  addCreation(creationPayload)
                }
-               
+
+               const machine = useGenerationMachine.getState()
+               const reportComponents = (reports as HardwareReports)["3d-components"]?.components ?? []
+               reportComponents.forEach((component) => {
+                 if (!component?.id) return
+                 const model = component.model as { scadCode?: string; stlContent?: string; status?: string } | undefined
+                 machine.hydrateFromModel({
+                   creationId,
+                   componentId: component.id,
+                   scadCode: model?.scadCode,
+                   stlContent: model?.stlContent,
+                   status: model?.status,
+                 })
+               })
+
                setActiveCreationId(creationId)
                console.log('[DASHBOARD] Set active creation ID:', creationId)
                console.log('[DASHBOARD] Creation mode should be hardware:', creationPayload.mode)
@@ -1490,12 +1564,24 @@ function DashboardContent({ onLogout, initialSearchInput }: DashboardProps) {
               const { setModelsForProject } = useHardwareStore.getState()
               setModelsForProject(selectedProjectId, modelsData.models || {})
 
-              // Merge into active creation if any
+              const machine = useGenerationMachine.getState()
+
               const activeId = useCreationStore.getState().activeCreationId
               if (activeId) {
                 const curr = useCreationStore.getState().creations.find(c => c.id === activeId)
                 if (curr && curr.mode === 'hardware') {
                   updateCreation(activeId, { hardwareModels: { ...(curr.hardwareModels ?? {}), ...(modelsData.models || {}) } })
+                  Object.entries((modelsData.models || {}) as Record<string, { scadCode?: string; stlContent?: string; status?: string }>).forEach(
+                    ([componentId, model]) => {
+                      machine.hydrateFromModel({
+                        creationId: activeId,
+                        componentId,
+                        scadCode: model.scadCode,
+                        stlContent: model.stlContent,
+                        status: model.status,
+                      })
+                    },
+                  )
                 }
               }
             }
@@ -1565,5 +1651,9 @@ function DashboardContent({ onLogout, initialSearchInput }: DashboardProps) {
 }
 
 export function Dashboard({ onLogout, initialSearchInput }: DashboardProps) {
-  return <DashboardContent onLogout={onLogout} initialSearchInput={initialSearchInput} />
+  return (
+    <CreationProvider>
+      <DashboardContent onLogout={onLogout} initialSearchInput={initialSearchInput} />
+    </CreationProvider>
+  )
 }

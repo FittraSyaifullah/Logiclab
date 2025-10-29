@@ -17,7 +17,7 @@ interface CreationStore {
 
 export const useCreationStore = create<CreationStore>()(
   persist(
-    (set, get) => ({
+    (set) => ({
       creations: [],
       activeCreationId: null,
       
@@ -37,6 +37,16 @@ export const useCreationStore = create<CreationStore>()(
       applyHardwareReports: (id, projectId, reports) => set((state) => {
         const existing = state.creations.find((c) => c.id === id)
         if (!existing) {
+          console.warn('[CREATION-STORE] applyHardwareReports called for unknown creation', { id, projectId })
+          return state
+        }
+
+        if (existing.projectId && existing.projectId !== projectId) {
+          console.warn('[CREATION-STORE] projectId mismatch in applyHardwareReports – skipping update', {
+            creationId: id,
+            expected: existing.projectId,
+            incoming: projectId,
+          })
           return state
         }
 
@@ -79,19 +89,28 @@ export const useCreationStore = create<CreationStore>()(
         ),
       })),
 
-      upsertHardwareModels: (id, models) => set((state) => ({
-        creations: state.creations.map((creation) =>
-          creation.id === id
-            ? {
-                ...creation,
-                hardwareModels: {
-                  ...(creation.hardwareModels ?? {}),
-                  ...models,
-                },
-              }
-            : creation,
-        ),
-      })),
+      upsertHardwareModels: (id, models) => set((state) => {
+        const existing = state.creations.find((c) => c.id === id)
+        if (!existing) {
+          console.warn('[CREATION-STORE] upsertHardwareModels called for unknown creation', { id })
+          return state
+        }
+
+        // models provided should always belong to the same project; no projectId in payload, so trust existing.projectId
+        return {
+          creations: state.creations.map((creation) =>
+            creation.id === id
+              ? {
+                  ...creation,
+                  hardwareModels: {
+                    ...(creation.hardwareModels ?? {}),
+                    ...models,
+                  },
+                }
+              : creation,
+          ),
+        }
+      }),
       
       deleteCreation: (id) => set((state) => ({
         creations: state.creations.filter((creation) => creation.id !== id),

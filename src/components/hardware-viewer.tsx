@@ -35,6 +35,7 @@ import { useOpenScadWorker } from "@/hooks/useOpenScadWorker"
 import { updateScadParameters } from "@/lib/scad/parameters"
 import { useCreationStore } from "@/hooks/use-creation-store"
 import { useUserStore } from "@/hooks/use-user-store"
+import { useGenerationMachine } from "@/hooks/use-generation-machine"
 
 const STLViewer = dynamic(() => import("@/components/viewers/stl-viewer"), {
   ssr: false,
@@ -133,6 +134,7 @@ const base64ToUint8Array = (base64: string) => {
 
 // Declared inside component to access local state such as currentScadByComponent
 let downloadMeshFile: (
+  creationId: string,
   component: ComponentCardData,
   projectTitle: string,
   type: "stl" | "scad",
@@ -205,7 +207,15 @@ export function HardwareViewer({ creation, onRegenerate, onGenerateComponentMode
   const conversionTimers = useRef<Record<string, ReturnType<typeof setTimeout>>>({})
   const { compile: compileScadWorker } = useOpenScadWorker()
   const autoCompileInFlight = useRef<Set<string>>(new Set())
+  const markScadAvailable = useGenerationMachine((state) => state.markScadAvailable)
+  const markCompiling = useGenerationMachine((state) => state.markCompiling)
+  const markPreviewReady = useGenerationMachine((state) => state.markPreviewReady)
+  const markError = useGenerationMachine((state) => state.markError)
+  const generationEntry = useGenerationMachine((state) =>
+    activeComponentId ? state.entries[`${creation.id}:${activeComponentId}`] : undefined,
+  )
   downloadMeshFile = (
+    creationId,
     component,
     projectTitle,
     type,
@@ -216,11 +226,13 @@ export function HardwareViewer({ creation, onRegenerate, onGenerateComponentMode
     const model = component.model
     if (!model) return
 
+    const machineEntry = useGenerationMachine.getState().getEntry(creationId, component.id)
+
     const safeProject = toKebabCase(projectTitle || "Buildables-project")
     const safeComponent = toKebabCase(component.name || "component")
 
     if (type === "stl") {
-      const stlPayload = overrideStlContent ?? model.stlContent
+      const stlPayload = overrideStlContent ?? machineEntry?.stlBase64 ?? model.stlContent
       if (!stlPayload) return
       const bytes = base64ToUint8Array(stlPayload)
       if (bytes.byteLength < 84) {
@@ -239,7 +251,7 @@ export function HardwareViewer({ creation, onRegenerate, onGenerateComponentMode
       return
     }
 
-    const scad = currentScadByComponent[component.id] ?? model.scadCode
+    const scad = currentScadByComponent[component.id] ?? machineEntry?.scadCode ?? model.scadCode
     if (!scad) return
     const blob = new Blob([scad], { type: model.scadMimeType ?? "application/x-openscad" })
     const url = URL.createObjectURL(blob)
@@ -281,6 +293,7 @@ export function HardwareViewer({ creation, onRegenerate, onGenerateComponentMode
           description: "Cannot regenerate STL without original SCAD code.",
           variant: "destructive",
         })
+        markError({ creationId: creation.id, componentId: component.id, error: "Missing SCAD source" })
         return
       }
 
@@ -305,17 +318,16 @@ export function HardwareViewer({ creation, onRegenerate, onGenerateComponentMode
         const finalOverrides = { ...overrides, [parameterName]: nextValue }
 
         try {
-          // Rewrite SCAD source in-place based on parameters
           const existingCode = currentScadByComponent[component.id] ?? component.model!.scadCode!
           const nextCode = updateScadParameters(
             existingCode,
             Object.entries(finalOverrides).map(([name, value]) => ({ name, type: 'number', value })),
           )
           setCurrentScadByComponent((prev) => ({ ...prev, [component.id]: nextCode }))
+          markScadAvailable({ creationId: creation.id, componentId: component.id, scadCode: nextCode })
+          markCompiling({ creationId: creation.id, componentId: component.id })
 
-          // Compile rewritten SCAD (no -D defines)
           const result = await compileScadWorker(nextCode, {})
-          // Convert blob to base64 for viewer and download re-use
           const base64 = await blobToBase64(result.blob)
 
           if (conversionRequestIds.current[component.id] !== requestId) return
@@ -333,6 +345,13 @@ export function HardwareViewer({ creation, onRegenerate, onGenerateComponentMode
             [component.id]: finalOverrides,
           }))
           setConversionStatus((prev) => ({ ...prev, [component.id]: "idle" }))
+          markPreviewReady({
+            creationId: creation.id,
+            componentId: component.id,
+            stlBase64: base64,
+            source: "computed",
+            metadata: { warnings: result.warnings, triangleCount: result.triangleCount },
+          })
         } catch (error) {
           if (conversionRequestIds.current[component.id] !== requestId) {
             return
@@ -341,11 +360,10 @@ export function HardwareViewer({ creation, onRegenerate, onGenerateComponentMode
           const message = error instanceof Error ? error.message : "Unknown conversion error"
           setConversionErrors((prev) => ({ ...prev, [lookupKey]: message }))
           setConversionStatus((prev) => ({ ...prev, [component.id]: "error" }))
+          markError({ creationId: creation.id, componentId: component.id, error: message })
         }
       }, 400)
-    },
-    [parameterOverrides, toast, compileScadWorker, blobToBase64, currentScadByComponent],
-  )
+    }, [parameterOverrides, toast, compileScadWorker, blobToBase64, currentScadByComponent, creation.id, markScadAvailable, markCompiling, markPreviewReady, markError])
 
   const autoCompileComponent = useCallback(
     async (component: ComponentCardData) => {
@@ -373,6 +391,12 @@ export function HardwareViewer({ creation, onRegenerate, onGenerateComponentMode
           Object.entries(defaultOverrides).map(([name, value]) => ({ name, type: 'number', value })),
         )
         setCurrentScadByComponent((prev) => ({ ...prev, [component.id]: nextCode }))
+        markScadAvailable({
+          creationId: creation.id,
+          componentId: component.id,
+          scadCode: nextCode,
+        })
+        markCompiling({ creationId: creation.id, componentId: component.id })
         const result = await compileScadWorker(nextCode, {})
         const base64 = await blobToBase64(result.blob)
 
@@ -389,16 +413,22 @@ export function HardwareViewer({ creation, onRegenerate, onGenerateComponentMode
           [component.id]: prev[component.id] ?? defaultOverrides,
         }))
         setConversionStatus((prev) => ({ ...prev, [component.id]: "idle" }))
+        markPreviewReady({
+          creationId: creation.id,
+          componentId: component.id,
+          stlBase64: base64,
+          source: "computed",
+          metadata: { warnings: result.warnings, triangleCount: result.triangleCount },
+        })
       } catch (error) {
         const message = error instanceof Error ? error.message : "Unknown conversion error"
         setConversionErrors((prev) => ({ ...prev, [`${component.id}:__auto__`]: message }))
         setConversionStatus((prev) => ({ ...prev, [component.id]: "error" }))
+        markError({ creationId: creation.id, componentId: component.id, error: message })
       } finally {
         autoCompileInFlight.current.delete(component.id)
       }
-    },
-    [blobToBase64, compileScadWorker],
-  )
+    }, [blobToBase64, compileScadWorker, creation.id, markCompiling, markError, markPreviewReady, markScadAvailable])
 
   const components = useMemo<ComponentCardData[]>(() => {
     const reportComponents = hardwareReports?.["3d-components"]?.components ?? []
@@ -465,6 +495,32 @@ export function HardwareViewer({ creation, onRegenerate, onGenerateComponentMode
     [components, activeComponentId],
   )
 
+  const activePreviewStl = useMemo(() => {
+    if (!activeComponentId) return null
+    const machineStl = generationEntry?.stlBase64
+    if (machineStl) return machineStl
+    const localComputed = computedStlContent[activeComponentId]
+    if (localComputed) return localComputed
+    return componentModels[activeComponentId]?.stlContent ?? null
+  }, [activeComponentId, generationEntry, computedStlContent, componentModels])
+
+  const activePreviewReady = generationEntry?.state === "previewReady" && !!activePreviewStl
+  const activePreviewErrored = generationEntry?.state === "error"
+
+  const activePreviewLoaderLabel = useMemo(() => {
+    if (activePreviewErrored) return "Preview unavailable"
+    switch (generationEntry?.state) {
+      case "compiling":
+        return "Compiling preview"
+      case "scadAvailable":
+        return "Preparing parameters"
+      case "awaitingJob":
+        return "Waiting for STL"
+      default:
+        return "Compiling Preview"
+    }
+  }, [generationEntry, activePreviewErrored])
+
   useEffect(() => {
     if (!activeComponent) return
 
@@ -483,15 +539,24 @@ export function HardwareViewer({ creation, onRegenerate, onGenerateComponentMode
       currentScadExists: !!currentScadByComponent[activeComponent.id]
     })
 
-    if (existing && existing.length > 0) {
-      console.log('[HARDWARE-VIEWER] Skipping auto-compile - STL already exists')
-      return
-    }
-
-    // Initialize current SCAD from model if not present
     if (!currentScadByComponent[activeComponent.id] && activeComponent.model?.scadCode) {
       console.log('[HARDWARE-VIEWER] Initializing current SCAD from model')
       setCurrentScadByComponent((prev) => ({ ...prev, [activeComponent.id]: activeComponent.model!.scadCode! }))
+      markScadAvailable({ creationId: creation.id, componentId: activeComponent.id, scadCode: activeComponent.model.scadCode })
+    }
+
+    if (activeComponent.model?.stlContent && (!generationEntry || generationEntry.stlSource !== "computed")) {
+      markPreviewReady({
+        creationId: creation.id,
+        componentId: activeComponent.id,
+        stlBase64: activeComponent.model.stlContent,
+        source: "server",
+      })
+    }
+
+    if (existing && existing.length > 0) {
+      console.log('[HARDWARE-VIEWER] Skipping auto-compile - STL already exists')
+      return
     }
 
     if (activeComponent.model?.scadCode) {
@@ -500,7 +565,7 @@ export function HardwareViewer({ creation, onRegenerate, onGenerateComponentMode
     } else {
       console.log('[HARDWARE-VIEWER] No SCAD code available for auto-compile')
     }
-  }, [activeComponent, computedStlContent, autoCompileComponent, currentScadByComponent])
+  }, [activeComponent, computedStlContent, autoCompileComponent, currentScadByComponent, creation.id, generationEntry, markPreviewReady, markScadAvailable])
 
   const openViewer = (componentId: string) => setPreviewComponentId(componentId)
   const closeViewer = () => setPreviewComponentId(null)
@@ -508,10 +573,9 @@ export function HardwareViewer({ creation, onRegenerate, onGenerateComponentMode
   const renderPreviewViewer = () => {
     if (!previewComponentId) return null
     const model = componentModels[previewComponentId]
+    const machineEntry = useGenerationMachine.getState().getEntry(creation.id, previewComponentId)
     const computed = computedStlContent[previewComponentId]
-    const hasComputed = typeof computed === "string" && computed.length > 0
-    const fallback = model?.stlContent
-    const stlSource = hasComputed ? computed : fallback
+    const stlSource = machineEntry?.stlBase64 ?? computed ?? model?.stlContent
     if (!stlSource) return null
 
     return (
@@ -564,7 +628,7 @@ export function HardwareViewer({ creation, onRegenerate, onGenerateComponentMode
       })
 
         if (response.ok) {
-        const result = await response.json()
+        await response.json()
         // In-place refresh: fetch latest report and update creation store so viewer re-renders
         try {
           const safeProjectId = String((creation as { projectId?: string }).projectId || '')
@@ -774,6 +838,7 @@ const renderComponentActions = (
           disabled={!previewSource}
           onClick={() =>
             downloadMeshFile(
+              creation.id,
               component,
               creation.title,
               "stl",
@@ -796,7 +861,7 @@ const renderComponentActions = (
           variant="outline"
           size="sm"
           disabled={!component.model?.scadCode}
-          onClick={() => downloadMeshFile(component, creation.title, "scad")}
+          onClick={() => downloadMeshFile(creation.id, component, creation.title, "scad")}
           className="gap-2"
         >
           <FileCode className="h-4 w-4" />
@@ -968,12 +1033,8 @@ const renderComponentActions = (
                     </div>
 
                     {activeComponent && (() => {
-                      const computedStl = computedStlContent[activeComponent.id]
-                      const modelStl = activeComponent.model?.stlContent
-                      const hasComputedStl = typeof computedStl === "string" && computedStl.length > 0
-                      const hasModelStl = typeof modelStl === "string" && modelStl.length > 0
-                      const previewStl = hasComputedStl ? computedStl : hasModelStl ? modelStl! : null
-                      const previewReady = !!previewStl
+                      const previewStl = activePreviewStl
+                      const previewReady = activePreviewReady
 
                       return (
                         <div className="overflow-hidden rounded-2xl border border-neutral-800 bg-neutral-950 shadow-lg">
@@ -986,19 +1047,26 @@ const renderComponentActions = (
                                 />
                               ) : (
                                 <div className="absolute inset-0 flex flex-col items-center justify-center gap-4">
-                                  <div className="grid grid-cols-3 gap-1">
-                                    {Array.from({ length: 9 }).map((_, index) => (
-                                      // eslint-disable-next-line react/no-array-index-key
-                                      <span
-                                        key={index}
-                                        className="h-3 w-3 rounded-sm bg-blue-400/60 animate-pulse"
-                                        style={{ animationDelay: `${index * 60}ms` }}
-                                      />
-                                    ))}
-                                  </div>
-                                  <p className="text-xs font-semibold uppercase tracking-[0.2em] text-blue-200">
-                                    Compiling Preview
-                                  </p>
+                                  {activePreviewErrored ? (
+                                    <p className="text-xs font-semibold uppercase tracking-[0.2em] text-red-300">
+                                      Preview failed
+                                    </p>
+                                  ) : (
+                                    <>
+                                      <div className="grid grid-cols-3 gap-1">
+                                        {Array.from({ length: 9 }).map((_, index) => (
+                                          <span
+                                            key={index}
+                                            className="h-3 w-3 rounded-sm bg-blue-400/60 animate-pulse"
+                                            style={{ animationDelay: `${index * 60}ms` }}
+                                          />
+                                        ))}
+                                      </div>
+                                      <p className="text-xs font-semibold uppercase tracking-[0.2em] text-blue-200">
+                                        {activePreviewLoaderLabel}
+                                      </p>
+                                    </>
+                                  )}
                                 </div>
                               )}
 
@@ -1073,6 +1141,12 @@ const renderComponentActions = (
                                           ...prev,
                                           [activeComponent.id]: activeComponent.model?.stlContent ?? prev[activeComponent.id],
                                         }))
+                                        markPreviewReady({
+                                          creationId: creation.id,
+                                          componentId: activeComponent.id,
+                                          stlBase64: activeComponent.model.stlContent,
+                                          source: "server",
+                                        })
                                       }
                                     }}
                                   >
@@ -1200,8 +1274,8 @@ const renderComponentActions = (
 
                               <section className="flex flex-col gap-3 border-t border-neutral-900 pt-4">
                                 {renderComponentActions(activeComponent, conversionMetadata[activeComponent.id], {
-                                  previewReady,
-                                  previewStl: previewStl ?? undefined,
+                                  previewReady: activePreviewReady,
+                                  previewStl: activePreviewStl ?? undefined,
                                   onInvalidDownload: (message) =>
                                     toast({
                                       title: "Invalid STL",
