@@ -1,11 +1,9 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
-
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type'
 };
-
 // System prompt sourced from reference/edit-project/system prompt/edit-project-system-prompt.md
 const SYSTEM_PROMPT = `You are Buildables, an AI co-engineer that helps founders and makers refine, improve, and safely prototype hardware projects.
 In Interactive Editing Mode, you collaborate directly with the user.
@@ -231,25 +229,42 @@ Encourage iterative prototyping and testing.
 
 
 Never overstate feasibility—acknowledge uncertainty clearly.`;
-
 // Strict JSON Schema derived from reference/edit-project/json-schema/edit-project-schema.json
 const EDIT_PROJECT_SCHEMA = {
   type: 'object',
   additionalProperties: false,
-  required: ['summary_of_changes','project','description','reports'],
+  required: [
+    'summary_of_changes',
+    'project',
+    'description',
+    'reports'
+  ],
   properties: {
-    summary_of_changes: { type: 'string' },
-    project: { type: 'string' },
-    description: { type: 'string' },
+    summary_of_changes: {
+      type: 'string'
+    },
+    project: {
+      type: 'string'
+    },
+    description: {
+      type: 'string'
+    },
     reports: {
       type: 'object',
       additionalProperties: false,
-      required: ['3DComponents','AssemblyAndParts','FirmwareAndCode'],
+      required: [
+        '3DComponents',
+        'AssemblyAndParts',
+        'FirmwareAndCode'
+      ],
       properties: {
         '3DComponents': {
           type: 'object',
           additionalProperties: false,
-          required: ['components','generalNotes'],
+          required: [
+            'components',
+            'generalNotes'
+          ],
           properties: {
             components: {
               type: 'array',
@@ -267,66 +282,124 @@ const EDIT_PROJECT_SCHEMA = {
                   'supports'
                 ],
                 properties: {
-                  component: { type: 'string' },
-                  description: { type: 'string' },
-                  promptFor3DGeneration: { type: 'string' },
-                  printSpecifications: { type: 'string' },
-                  assemblyNotes: { type: 'string' },
-                  printTime: { type: 'string' },
-                  material: { type: 'string' },
-                  supports: { type: 'string' }
+                  component: {
+                    type: 'string'
+                  },
+                  description: {
+                    type: 'string'
+                  },
+                  promptFor3DGeneration: {
+                    type: 'string'
+                  },
+                  printSpecifications: {
+                    type: 'string'
+                  },
+                  assemblyNotes: {
+                    type: 'string'
+                  },
+                  printTime: {
+                    type: 'string'
+                  },
+                  material: {
+                    type: 'string'
+                  },
+                  supports: {
+                    type: 'string'
+                  }
                 }
               }
             },
-            generalNotes: { type: 'string' }
+            generalNotes: {
+              type: 'string'
+            }
           }
         },
         'AssemblyAndParts': {
           type: 'object',
           additionalProperties: false,
-          required: ['overview','partsList','assemblyInstructions','safetyChecklist'],
+          required: [
+            'overview',
+            'partsList',
+            'assemblyInstructions',
+            'safetyChecklist'
+          ],
           properties: {
-            overview: { type: 'string' },
+            overview: {
+              type: 'string'
+            },
             partsList: {
               type: 'array',
               items: {
                 type: 'object',
                 additionalProperties: false,
-                required: ['part', 'quantity', 'vendor', 'notes'],
+                required: [
+                  'part',
+                  'quantity',
+                  'vendor',
+                  'notes'
+                ],
                 properties: {
-                  part: { type: 'string' },
-                  quantity: { type: 'string' },
-                  vendor: { type: 'string' },
-                  notes: { type: 'string' }
+                  part: {
+                    type: 'string'
+                  },
+                  quantity: {
+                    type: 'string'
+                  },
+                  vendor: {
+                    type: 'string'
+                  },
+                  notes: {
+                    type: 'string'
+                  }
                 }
               }
             },
-            assemblyInstructions: { type: 'string' },
-            safetyChecklist: { type: 'string' }
+            assemblyInstructions: {
+              type: 'string'
+            },
+            safetyChecklist: {
+              type: 'string'
+            }
           }
         },
         'FirmwareAndCode': {
           type: 'object',
           additionalProperties: false,
-          required: ['microcontroller','language','code','explanation','improvementSuggestions'],
+          required: [
+            'microcontroller',
+            'language',
+            'code',
+            'explanation',
+            'improvementSuggestions'
+          ],
           properties: {
-            microcontroller: { type: 'string' },
-            language: { type: 'string' },
-            code: { type: 'string' },
-            explanation: { type: 'string' },
-            improvementSuggestions: { type: 'string' }
+            microcontroller: {
+              type: 'string'
+            },
+            language: {
+              type: 'string'
+            },
+            code: {
+              type: 'string'
+            },
+            explanation: {
+              type: 'string'
+            },
+            improvementSuggestions: {
+              type: 'string'
+            }
           }
         }
       }
     }
   }
 };
-
-serve(async (req) => {
+serve(async (req)=>{
   if (req.method === 'OPTIONS') {
-    return new Response('ok', { headers: corsHeaders });
+    return new Response('ok', {
+      headers: corsHeaders
+    });
   }
-
   try {
     const supabase = createClient(Deno.env.get('SUPABASE_URL') ?? '', Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '');
     const body = await req.json();
@@ -335,24 +408,30 @@ serve(async (req) => {
     const hardwareId = body?.hardwareId ?? null;
     const userMessage = body?.userMessage ?? '';
     const fullContext = body?.context ?? {};
-
     if (!projectId || !userMessage) {
-      return new Response(JSON.stringify({ error: 'Missing required fields: projectId, userMessage' }), {
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      return new Response(JSON.stringify({
+        error: 'Missing required fields: projectId, userMessage'
+      }), {
+        headers: {
+          ...corsHeaders,
+          'Content-Type': 'application/json'
+        },
         status: 400
       });
     }
-
     const openaiKey = Deno.env.get('OPENAI_API_KEY') ?? '';
     if (!openaiKey) {
-      return new Response(JSON.stringify({ error: 'OPENAI_API_KEY not configured' }), {
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      return new Response(JSON.stringify({
+        error: 'OPENAI_API_KEY not configured'
+      }), {
+        headers: {
+          ...corsHeaders,
+          'Content-Type': 'application/json'
+        },
         status: 500
       });
     }
-
     const modelInput = `You are editing the ENTIRE hardware project. Use the user's request to update the project summary and any of the three reports as needed. Only change what the user implies or requests, and maintain safety and feasibility.\n\nUSER REQUEST:\n${userMessage}\n\nFULL PROJECT CONTEXT JSON (read-only):\n${JSON.stringify(fullContext)}`;
-
     const resp = await fetch('https://api.openai.com/v1/responses', {
       method: 'POST',
       headers: {
@@ -360,8 +439,9 @@ serve(async (req) => {
         'Content-Type': 'application/json'
       },
       body: JSON.stringify({
-        model: 'gpt-4.1',
-        temperature: 0.3,
+        model: 'gpt-5',
+        reasoning_effort: 'minimal',
+        verbosity: 'medium',
         max_output_tokens: 6000,
         instructions: SYSTEM_PROMPT,
         input: modelInput,
@@ -375,142 +455,155 @@ serve(async (req) => {
         }
       })
     });
-
     if (!resp.ok) {
       const t = await resp.text();
       console.error('[EDGE:edit-project] OpenAI error:', t);
-      return new Response(JSON.stringify({ error: `OpenAI error ${resp.status}` }), {
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      return new Response(JSON.stringify({
+        error: `OpenAI error ${resp.status}`
+      }), {
+        headers: {
+          ...corsHeaders,
+          'Content-Type': 'application/json'
+        },
         status: 500
       });
     }
-
     const data = await resp.json();
-    const outputText = data?.output?.[0]?.content?.[0]?.text || data?.output_text;
-    if (!outputText) {
-      return new Response(JSON.stringify({ error: 'Structured output missing text payload' }), {
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    const parsed = data?.output_parsed ?? (()=>{
+      const outputText: string | undefined = data?.output_text || data?.output?.[0]?.content?.[0]?.text;
+      if (!outputText) return null;
+      try {
+        return JSON.parse(outputText);
+      } catch (_e) {
+        return null;
+      }
+    })();
+    if (!parsed) {
+      return new Response(JSON.stringify({
+        error: 'Structured output missing payload'
+      }), {
+        headers: {
+          ...corsHeaders,
+          'Content-Type': 'application/json'
+        },
         status: 500
       });
     }
-
-    let parsed: any;
-    try {
-      parsed = JSON.parse(outputText);
-    } catch (_e) {
-      return new Response(JSON.stringify({ error: 'Failed to parse structured JSON output' }), {
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        status: 500
-      });
-    }
-
-    const summaryOfChanges: string = typeof parsed?.summary_of_changes === 'string' ? parsed.summary_of_changes : '';
+    const summaryOfChanges = typeof parsed?.summary_of_changes === 'string' ? parsed.summary_of_changes : '';
     const reports = parsed?.reports ?? {};
     const next3D = reports?.['3DComponents'] ?? null;
     const nextAssembly = reports?.['AssemblyAndParts'] ?? null;
     const nextFirmware = reports?.['FirmwareAndCode'] ?? null;
-
     // Upsert into hardware_projects (update existing by id, else latest by project, else insert)
-    let targetHardwareId: string | null = hardwareId;
+    let targetHardwareId = hardwareId;
     if (targetHardwareId) {
-      const { data: updated, error } = await supabase
-        .from('hardware_projects')
-        .update({
+      const { data: updated, error } = await supabase.from('hardware_projects').update({
+        '3d_components': next3D,
+        assembly_parts: nextAssembly,
+        firmware_code: nextFirmware,
+        full_json: parsed
+      }).eq('id', targetHardwareId).select('id').single();
+      if (error || !updated) {
+        console.error('[EDGE:edit-project] Update hardware_projects failed', error);
+        return new Response(JSON.stringify({
+          error: 'Failed to update project'
+        }), {
+          headers: {
+            ...corsHeaders,
+            'Content-Type': 'application/json'
+          },
+          status: 500
+        });
+      }
+      targetHardwareId = updated.id;
+    } else {
+      const { data: existing } = await supabase.from('hardware_projects').select('id').eq('project_id', projectId).order('created_at', {
+        ascending: false
+      }).limit(1).maybeSingle();
+      if (existing?.id) {
+        const { data: updated, error } = await supabase.from('hardware_projects').update({
           '3d_components': next3D,
           assembly_parts: nextAssembly,
           firmware_code: nextFirmware,
           full_json: parsed
-        })
-        .eq('id', targetHardwareId)
-        .select('id')
-        .single();
-      if (error || !updated) {
-        console.error('[EDGE:edit-project] Update hardware_projects failed', error);
-        return new Response(JSON.stringify({ error: 'Failed to update project' }), {
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-          status: 500
-        });
-      }
-      targetHardwareId = updated.id as string;
-    } else {
-      const { data: existing } = await supabase
-        .from('hardware_projects')
-        .select('id')
-        .eq('project_id', projectId)
-        .order('created_at', { ascending: false })
-        .limit(1)
-        .maybeSingle();
-      if (existing?.id) {
-        const { data: updated, error } = await supabase
-          .from('hardware_projects')
-          .update({
-            '3d_components': next3D,
-            assembly_parts: nextAssembly,
-            firmware_code: nextFirmware,
-            full_json: parsed
-          })
-          .eq('id', existing.id)
-          .select('id')
-          .single();
+        }).eq('id', existing.id).select('id').single();
         if (error || !updated) {
           console.error('[EDGE:edit-project] Update existing hardware_projects failed', error);
-          return new Response(JSON.stringify({ error: 'Failed to update project' }), {
-            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          return new Response(JSON.stringify({
+            error: 'Failed to update project'
+          }), {
+            headers: {
+              ...corsHeaders,
+              'Content-Type': 'application/json'
+            },
             status: 500
           });
         }
-        targetHardwareId = updated.id as string;
+        targetHardwareId = updated.id;
       } else {
-        const { data: inserted, error } = await supabase
-          .from('hardware_projects')
-          .insert({
-            project_id: projectId,
-            title: fullContext?.project || 'Hardware Project',
-            '3d_components': next3D,
-            assembly_parts: nextAssembly,
-            firmware_code: nextFirmware,
-            full_json: parsed
-          })
-          .select('id')
-          .single();
+        const { data: inserted, error } = await supabase.from('hardware_projects').insert({
+          project_id: projectId,
+          title: fullContext?.project || 'Hardware Project',
+          '3d_components': next3D,
+          assembly_parts: nextAssembly,
+          firmware_code: nextFirmware,
+          full_json: parsed
+        }).select('id').single();
         if (error || !inserted) {
           console.error('[EDGE:edit-project] Insert hardware_projects failed', error);
-          return new Response(JSON.stringify({ error: 'Failed to insert project' }), {
-            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          return new Response(JSON.stringify({
+            error: 'Failed to insert project'
+          }), {
+            headers: {
+              ...corsHeaders,
+              'Content-Type': 'application/json'
+            },
             status: 500
           });
         }
-        targetHardwareId = inserted.id as string;
+        targetHardwareId = inserted.id;
       }
     }
-
     // Insert chat messages (user + assistant summary)
     try {
       if (targetHardwareId) {
         await supabase.from('hardware_messages').insert([
-          { hardware_id: targetHardwareId, role: 'user', content: userMessage },
-          { hardware_id: targetHardwareId, role: 'assistant', content: summaryOfChanges || 'Project updated.' }
+          {
+            hardware_id: targetHardwareId,
+            role: 'user',
+            content: userMessage
+          },
+          {
+            hardware_id: targetHardwareId,
+            role: 'assistant',
+            content: summaryOfChanges || 'Project updated.'
+          }
         ]);
       }
     } catch (msgErr) {
       console.warn('[EDGE:edit-project] hardware_messages insert failed (non-fatal)', msgErr);
     }
-
     return new Response(JSON.stringify({
       hardwareId: targetHardwareId,
       summary_of_changes: summaryOfChanges,
       data: parsed
     }), {
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      headers: {
+        ...corsHeaders,
+        'Content-Type': 'application/json'
+      },
       status: 200
     });
   } catch (error) {
     console.error('[EDGE:edit-project] Function error', error);
-    return new Response(JSON.stringify({ error: error instanceof Error ? error.message : 'Unknown error' }), {
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    return new Response(JSON.stringify({
+      error: error instanceof Error ? error.message : 'Unknown error'
+    }), {
+      headers: {
+        ...corsHeaders,
+        'Content-Type': 'application/json'
+      },
       status: 500
     });
   }
 });
-
-
