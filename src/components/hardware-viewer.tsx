@@ -144,17 +144,22 @@ let downloadMeshFile: (
 const ComponentStatus = ({
   status,
   updatedAt,
+  previewReady,
 }: {
   status: HardwareComponentModel["status"] | "idle"
   updatedAt?: string
+  previewReady?: boolean
 }) => {
   const meta = STATUS_META[status] ?? STATUS_META.idle
   const Icon = meta.icon
 
+  const showCompilingPreview = status === "completed" && previewReady === false
+  const label = showCompilingPreview ? "Compiling preview…" : meta.label
+
   return (
     <div className={cn("flex items-center gap-2 text-xs font-medium", meta.tone)}>
-      <Icon className={cn("h-4 w-4", meta.spin && "animate-spin")} />
-      <span>{meta.label}</span>
+      <Icon className={cn("h-4 w-4", (meta.spin || showCompilingPreview) && "animate-spin")} />
+      <span>{label}</span>
       {updatedAt && (
         <span className="text-[11px] text-neutral-400 dark:text-neutral-500">
           Updated {new Date(updatedAt).toLocaleTimeString()}
@@ -503,13 +508,17 @@ export function HardwareViewer({ creation, onRegenerate, onGenerateComponentMode
   const renderPreviewViewer = () => {
     if (!previewComponentId) return null
     const model = componentModels[previewComponentId]
-    if (!model?.stlContent) return null
+    const computed = computedStlContent[previewComponentId]
+    const hasComputed = typeof computed === "string" && computed.length > 0
+    const fallback = model?.stlContent
+    const stlSource = hasComputed ? computed : fallback
+    if (!stlSource) return null
 
     return (
       <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/70 backdrop-blur">
         <div className="relative w-full max-w-5xl h-[70dvh] overflow-hidden rounded-xl border border-neutral-800 bg-neutral-950">
           <div className="pointer-events-none absolute left-6 top-4 z-20 text-sm font-semibold text-neutral-200">
-            {model.name || "Component"}
+            {model?.name || "Component"}
           </div>
           <button
             onClick={closeViewer}
@@ -518,7 +527,7 @@ export function HardwareViewer({ creation, onRegenerate, onGenerateComponentMode
             Close
           </button>
           <div className="absolute inset-0">
-            <STLViewer stlBase64={model.stlContent} componentName={model.name ?? "Component"} />
+            <STLViewer stlBase64={stlSource} componentName={model?.name ?? "Component"} />
           </div>
         </div>
       </div>
@@ -708,85 +717,95 @@ export function HardwareViewer({ creation, onRegenerate, onGenerateComponentMode
 const renderComponentActions = (
   component: ComponentCardData,
   meta: { warnings?: string[]; triangleCount?: number } | undefined,
-  onInvalidDownload?: (message: string) => void,
+  options: {
+    previewReady: boolean
+    previewStl?: string
+    onInvalidDownload?: (message: string) => void
+  },
 ) => {
-    const status = component.model?.status ?? "idle"
-    const isLoading = status === "queued" || status === "processing"
-    const canPreview = status === "completed" && (component.model?.stlContent)
+  const { previewReady, previewStl, onInvalidDownload } = options
+  const status = component.model?.status ?? "idle"
+  const isLoading = status === "queued" || status === "processing"
+  const previewSource = previewStl ?? (component.model?.stlContent ?? null)
 
-    return (
-      <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-        <div className="flex flex-wrap items-center gap-2">
-          <Button
-            variant="default"
-            disabled={isLoading || !onGenerateComponentModel}
-            className={cn("gap-2", isLoading && "cursor-progress")}
-            onClick={() =>
-              onGenerateComponentModel?.({
-                componentId: component.id,
-                componentName: component.name,
-                prompt: component.prompt,
-              })
-            }
-          >
-            {isLoading ? (
-              <>
-                <Loader2 className="h-4 w-4 animate-spin" />
-                Generating STL & SCAD…
-              </>
-            ) : (
-              <>
-                <Hammer className="h-4 w-4" />
-                Generate 3D Model
-              </>
-            )}
-          </Button>
+  return (
+    <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+      <div className="flex flex-wrap items-center gap-2">
+        <Button
+          variant="default"
+          disabled={isLoading || !onGenerateComponentModel}
+          className={cn("gap-2", isLoading && "cursor-progress")}
+          onClick={() =>
+            onGenerateComponentModel?.({
+              componentId: component.id,
+              componentName: component.name,
+              prompt: component.prompt,
+            })
+          }
+        >
+          {isLoading ? (
+            <>
+              <Loader2 className="h-4 w-4 animate-spin" />
+              Generating STL & SCAD…
+            </>
+          ) : (
+            <>
+              <Hammer className="h-4 w-4" />
+              Generate 3D Model
+            </>
+          )}
+        </Button>
 
-          <Button variant="secondary" size="sm" disabled={!canPreview} onClick={() => openViewer(component.id)}>
-            <Box className="h-4 w-4 mr-1" />
-            Preview Model
-          </Button>
-        </div>
-
-        <div className="flex flex-wrap items-center gap-2">
-          <Button
-            variant="outline"
-            size="sm"
-            disabled={!component.model?.stlContent && !computedStlContent[component.id]}
-            onClick={() =>
-              downloadMeshFile(
-                component,
-                creation.title,
-                "stl",
-                computedStlContent[component.id],
-                meta,
-                (message) =>
-                  toast({
-                    title: "Invalid STL",
-                    description: message,
-                    variant: "destructive",
-                  }),
-              )
-            }
-            className="gap-2"
-          >
-            <FileDown className="h-4 w-4" />
-            Download STL
-          </Button>
-          <Button
-            variant="outline"
-            size="sm"
-            disabled={!component.model?.scadCode}
-            onClick={() => downloadMeshFile(component, creation.title, "scad")}
-            className="gap-2"
-          >
-            <FileCode className="h-4 w-4" />
-            Download SCAD
-          </Button>
-        </div>
+        <Button
+          variant="secondary"
+          size="sm"
+          disabled={!previewReady}
+          onClick={() => previewReady && openViewer(component.id)}
+        >
+          <Box className="h-4 w-4 mr-1" />
+          Preview Model
+        </Button>
       </div>
-    )
-  }
+
+      <div className="flex flex-wrap items-center gap-2">
+        <Button
+          variant="outline"
+          size="sm"
+          disabled={!previewSource}
+          onClick={() =>
+            downloadMeshFile(
+              component,
+              creation.title,
+              "stl",
+              previewStl ?? computedStlContent[component.id],
+              meta,
+              onInvalidDownload ?? ((message) =>
+                toast({
+                  title: "Invalid STL",
+                  description: message,
+                  variant: "destructive",
+                })),
+            )
+          }
+          className="gap-2"
+        >
+          <FileDown className="h-4 w-4" />
+          Download STL
+        </Button>
+        <Button
+          variant="outline"
+          size="sm"
+          disabled={!component.model?.scadCode}
+          onClick={() => downloadMeshFile(component, creation.title, "scad")}
+          className="gap-2"
+        >
+          <FileCode className="h-4 w-4" />
+          Download SCAD
+        </Button>
+      </div>
+    </div>
+  )
+}
 
   const hasReports = !!hardwareReports && Object.keys(hardwareReports).length > 0
 
@@ -948,256 +967,259 @@ const renderComponentActions = (
                       <div className="absolute inset-x-0 bottom-0 h-px bg-neutral-800" aria-hidden />
                     </div>
 
-                    {activeComponent && (
-                      <div className="overflow-hidden rounded-2xl border border-neutral-800 bg-neutral-950 shadow-lg">
-                        <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_360px]">
-                          <div className="relative h-[420px] bg-neutral-900/80">
-                            {(() => {
-                              const hasComputedStl = !!computedStlContent[activeComponent.id]
-                              const hasModelStl = !!activeComponent.model?.stlContent
-                              const isCompleted = activeComponent.model?.status === "completed"
-                              const shouldRender = isCompleted && (hasComputedStl || hasModelStl)
-                              
-                              console.log('[HARDWARE-VIEWER] STL render check:', {
-                                componentId: activeComponent.id,
-                                componentName: activeComponent.name,
-                                status: activeComponent.model?.status,
-                                isCompleted,
-                                hasComputedStl,
-                                hasModelStl,
-                                computedStlLength: computedStlContent[activeComponent.id]?.length,
-                                modelStlLength: activeComponent.model?.stlContent?.length,
-                                shouldRender,
-                                stlSource: hasComputedStl ? 'computed' : hasModelStl ? 'model' : 'none'
-                              })
-                              
-                              return shouldRender ? (
+                    {activeComponent && (() => {
+                      const computedStl = computedStlContent[activeComponent.id]
+                      const modelStl = activeComponent.model?.stlContent
+                      const hasComputedStl = typeof computedStl === "string" && computedStl.length > 0
+                      const hasModelStl = typeof modelStl === "string" && modelStl.length > 0
+                      const previewStl = hasComputedStl ? computedStl : hasModelStl ? modelStl! : null
+                      const previewReady = !!previewStl
+
+                      return (
+                        <div className="overflow-hidden rounded-2xl border border-neutral-800 bg-neutral-950 shadow-lg">
+                          <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_360px]">
+                            <div className="relative h-[420px] bg-neutral-900/80">
+                              {previewReady && previewStl ? (
                                 <STLViewer
-                                  stlBase64={computedStlContent[activeComponent.id] || activeComponent.model.stlContent!}
+                                  stlBase64={previewStl}
                                   componentName={activeComponent.name || "Component"}
                                 />
                               ) : (
-                                <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 text-neutral-300">
-                                  <Hammer className="h-6 w-6 animate-pulse text-blue-400" />
-                                  <p className="text-sm font-medium">
-                                    {activeComponent.model?.status === "processing"
-                                      ? "Generating 3D preview..."
-                                      : "3D preview available after generation"}
+                                <div className="absolute inset-0 flex flex-col items-center justify-center gap-4">
+                                  <div className="grid grid-cols-3 gap-1">
+                                    {Array.from({ length: 9 }).map((_, index) => (
+                                      // eslint-disable-next-line react/no-array-index-key
+                                      <span
+                                        key={index}
+                                        className="h-3 w-3 rounded-sm bg-blue-400/60 animate-pulse"
+                                        style={{ animationDelay: `${index * 60}ms` }}
+                                      />
+                                    ))}
+                                  </div>
+                                  <p className="text-xs font-semibold uppercase tracking-[0.2em] text-blue-200">
+                                    Compiling Preview
                                   </p>
                                 </div>
-                              )
-                            })()}
+                              )}
 
-                            <div className="pointer-events-none absolute bottom-4 left-4 z-10 rounded-full bg-black/60 px-3 py-1 text-xs font-medium text-white/90">
-                              {activeComponent.name || "Component"}
-                            </div>
-                          </div>
-
-                          <div className="flex flex-col gap-6 bg-neutral-950 p-6">
-                            <header className="flex flex-col gap-2">
-                              <div className="flex items-center justify-between">
-                                <div className="flex items-center gap-2 text-lg font-semibold text-white">
-                                  <Hammer className="h-4 w-4 text-blue-400" />
-                                  {activeComponent.name}
-                                </div>
-                                <ComponentStatus
-                                  status={activeComponent.model?.status ?? "idle"}
-                                  updatedAt={activeComponent.model?.updatedAt}
-                                />
+                              <div className="pointer-events-none absolute bottom-4 left-4 z-10 rounded-full bg-black/60 px-3 py-1 text-xs font-medium text-white/90">
+                                {activeComponent.name || "Component"}
                               </div>
-                              <p className="text-sm text-neutral-400">
-                                {activeComponent.description || "AI generated component"}
-                              </p>
-                            </header>
+                            </div>
 
-                            <section className="grid grid-cols-3 gap-3">
-                              {["Print Time", "Material", "Supports"].map((label, index) => {
-                                const value = [
+                            <div className="flex flex-col gap-6 bg-neutral-950 p-6">
+                              <header className="flex flex-col gap-2">
+                                <div className="flex items-center justify-between">
+                                  <div className="flex items-center gap-2 text-lg font-semibold text-white">
+                                    <Hammer className="h-4 w-4 text-blue-400" />
+                                    {activeComponent.name}
+                                  </div>
+                                  <ComponentStatus
+                                    status={activeComponent.model?.status ?? "idle"}
+                                    updatedAt={activeComponent.model?.updatedAt}
+                                    previewReady={previewReady}
+                                  />
+                                </div>
+                                <p className="text-sm text-neutral-400">
+                                  {activeComponent.description || "AI generated component"}
+                                </p>
+                              </header>
+
+                              <section className="grid grid-cols-3 gap-3">
+                                {[
                                   activeComponent.printTime || "TBD",
                                   activeComponent.material || "TBD",
                                   activeComponent.supports || "TBD",
-                                ][index]
-                    return (
-                      <div
-                                    key={label}
+                                ].map((value, index) => (
+                                  <div
+                                    // eslint-disable-next-line react/no-array-index-key
+                                    key={index}
                                     className="rounded-xl border border-neutral-800 bg-neutral-900/70 px-4 py-3 text-xs text-neutral-400"
                                   >
-                                    <p className="uppercase tracking-wide text-[11px] text-neutral-500">{label}</p>
+                                    <p className="uppercase tracking-wide text-[11px] text-neutral-500">
+                                      {index === 0 ? "Print Time" : index === 1 ? "Material" : "Supports"}
+                                    </p>
                                     <p className="mt-1 text-sm font-medium text-white">{value}</p>
                                   </div>
-                                )
-                              })}
-                            </section>
+                                ))}
+                              </section>
 
-                            <section className="flex flex-col gap-3">
-                              <div className="flex items-center justify-between">
-                                <h3 className="text-sm font-semibold text-white">Parameters</h3>
-                                <Button
-                                  variant="ghost"
-                                  size="icon"
-                                  className="h-8 w-8 text-neutral-500 hover:text-white"
-                                  onClick={() => {
-                                    if (!activeComponent) return
-                                    setParameterOverrides((prev) => {
-                                      const next = { ...prev }
-                                      delete next[activeComponent.id]
-                                      return next
-                                    })
-                                    setComputedStlContent((prev) => {
-                                      const next = { ...prev }
-                                      delete next[activeComponent.id]
-                                      return next
-                                    })
-                                    setConversionErrors((prev) => {
-                                      const next = { ...prev }
-                                      delete next[activeComponent.id]
-                                      return next
-                                    })
-                                    if (activeComponent.model?.stlContent) {
-                                      setComputedStlContent((prev) => ({
-                                        ...prev,
-                                        [activeComponent.id]: activeComponent.model?.stlContent ?? prev[activeComponent.id],
-                                      }))
-                                    }
-                                  }}
-                                >
-                                  <RefreshCw className="h-4 w-4" />
-                                </Button>
-                              </div>
-                              <div className="space-y-3">
-                                {activeComponent.parameters.length ? (
-                                  activeComponent.parameters.map((parameter, paramIndex) => {
-                                    const overridesForComponent = parameterOverrides[activeComponent.id] ?? {}
-                                    const currentOverride = overridesForComponent[parameter.name]
-                                    const rawDisplay = currentOverride ?? parameter.value
-                                    const displayValue = Number.isFinite(Number(rawDisplay)) ? Number(rawDisplay) : 0
-                                    const min = Number.isFinite(Number(parameter.sliderMin)) ? Number(parameter.sliderMin) : 0
-                                    const max = Number.isFinite(Number(parameter.sliderMax)) ? Number(parameter.sliderMax) : (displayValue > 0 ? Math.max(displayValue * 2, displayValue + 10) : 10)
-                                    const step = Number.isFinite(Number(parameter.sliderStep)) ? Number(parameter.sliderStep) : Math.max((displayValue || 10) / 20, 0.5)
-                                    return (
-                                      <div
-                                        key={`${activeComponent.id}-${parameter.name ?? paramIndex}`}
-                                        className="rounded-xl border border-neutral-800 bg-neutral-900/70 p-4 text-xs text-neutral-400"
-                                      >
-                                        <div className="flex items-center justify-between gap-3">
-                          <div>
-                                            <p className="text-sm font-semibold text-white/90">{parameter.name}</p>
-                                            {parameter.unit && (
-                                              <span className="text-[11px] uppercase tracking-wide text-neutral-500">
-                                                Adjust {parameter.unit}
+                              <section className="flex flex-col gap-3">
+                                <div className="flex items-center justify-between">
+                                  <h3 className="text-sm font-semibold text-white">Parameters</h3>
+                                  <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    className="h-8 w-8 text-neutral-500 hover:text-white"
+                                    onClick={() => {
+                                      if (!activeComponent) return
+                                      setParameterOverrides((prev) => {
+                                        const next = { ...prev }
+                                        delete next[activeComponent.id]
+                                        return next
+                                      })
+                                      setComputedStlContent((prev) => {
+                                        const next = { ...prev }
+                                        delete next[activeComponent.id]
+                                        return next
+                                      })
+                                      setConversionErrors((prev) => {
+                                        const next = { ...prev }
+                                        delete next[activeComponent.id]
+                                        return next
+                                      })
+                                      if (activeComponent.model?.stlContent) {
+                                        setComputedStlContent((prev) => ({
+                                          ...prev,
+                                          [activeComponent.id]: activeComponent.model?.stlContent ?? prev[activeComponent.id],
+                                        }))
+                                      }
+                                    }}
+                                  >
+                                    <RefreshCw className="h-4 w-4" />
+                                  </Button>
+                                </div>
+                                <div className="space-y-3">
+                                  {activeComponent.parameters.length ? (
+                                    activeComponent.parameters.map((parameter, paramIndex) => {
+                                      const overridesForComponent = parameterOverrides[activeComponent.id] ?? {}
+                                      const currentOverride = overridesForComponent[parameter.name]
+                                      const rawDisplay = currentOverride ?? parameter.value
+                                      const displayValue = Number.isFinite(Number(rawDisplay)) ? Number(rawDisplay) : 0
+                                      const min = Number.isFinite(Number(parameter.sliderMin)) ? Number(parameter.sliderMin) : 0
+                                      const max = Number.isFinite(Number(parameter.sliderMax))
+                                        ? Number(parameter.sliderMax)
+                                        : displayValue > 0
+                                          ? Math.max(displayValue * 2, displayValue + 10)
+                                          : 10
+                                      const step = Number.isFinite(Number(parameter.sliderStep))
+                                        ? Number(parameter.sliderStep)
+                                        : Math.max((displayValue || 10) / 20, 0.5)
+                                      return (
+                                        <div
+                                          key={`${activeComponent.id}-${parameter.name ?? paramIndex}`}
+                                          className="rounded-xl border border-neutral-800 bg-neutral-900/70 p-4 text-xs text-neutral-400"
+                                        >
+                                          <div className="flex items-center justify-between gap-3">
+                                            <div>
+                                              <p className="text-sm font-semibold text-white/90">{parameter.name}</p>
+                                              {parameter.unit && (
+                                                <span className="text-[11px] uppercase tracking-wide text-neutral-500">
+                                                  Adjust {parameter.unit}
+                                                </span>
+                                              )}
+                                            </div>
+                                            <div className="flex items-center gap-2">
+                                              <div className="rounded-full bg-neutral-900 px-3 py-1 text-sm font-semibold text-neutral-100">
+                                                {Number.isFinite(displayValue) ? displayValue.toFixed(2) : "0.00"}
+                                              </div>
+                                              <span className="rounded-full bg-blue-500/20 px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide text-blue-200">
+                                                {parameter.unit ?? "units"}
                                               </span>
+                                            </div>
+                                          </div>
+
+                                          <div className="mt-4">
+                                            <Slider
+                                              min={min}
+                                              max={max}
+                                              step={step}
+                                              value={[Number.isFinite(displayValue) ? displayValue : 0]}
+                                              aria-label={parameter.name}
+                                              className="group"
+                                              onValueChange={(value) => {
+                                                const nextValue = Number(value[0])
+                                                setParameterOverrides((prev) => ({
+                                                  ...prev,
+                                                  [activeComponent.id]: {
+                                                    ...(prev[activeComponent.id] ?? {}),
+                                                    [parameter.name]: nextValue,
+                                                  },
+                                                }))
+                                              }}
+                                              onValueCommit={(value) => {
+                                                const nextValue = Number(value[0])
+                                                triggerConversion(activeComponent, parameter.name, nextValue)
+                                              }}
+                                            />
+                                            <div className="mt-2 flex justify-between text-[11px] text-neutral-500">
+                                              <span>{min.toFixed(2)}</span>
+                                              <span>{max.toFixed(2)}</span>
+                                            </div>
+                                          </div>
+
+                                          {conversionStatus[activeComponent.id] === "loading" &&
+                                            activeConversionTarget === `${activeComponent.id}:${parameter.name}` && (
+                                              <div className="mt-2 flex items-center gap-2 text-xs text-blue-300">
+                                                <Loader2 className="h-3 w-3 animate-spin" /> Updating 3D preview…
+                                              </div>
                                             )}
-                            </div>
-                                          <div className="flex items-center gap-2">
-                                            <div className="rounded-full bg-neutral-900 px-3 py-1 text-sm font-semibold text-neutral-100">
-                                              {Number.isFinite(displayValue) ? displayValue.toFixed(2) : "0.00"}
-                          </div>
-                                            <span className="rounded-full bg-blue-500/20 px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide text-blue-200">
-                                              {parameter.unit ?? "units"}
-                                            </span>
-                          </div>
-                        </div>
 
-                                        <div className="mt-4">
-                                          <Slider
-                                            min={min}
-                                            max={max}
-                                            step={step}
-                                            value={[Number.isFinite(displayValue) ? displayValue : 0]}
-                                            aria-label={parameter.name}
-                                            className="group"
-                                            onValueChange={(value) => {
-                                              const nextValue = Number(value[0])
-                                              setParameterOverrides((prev) => ({
-                                                ...prev,
-                                                [activeComponent.id]: {
-                                                  ...(prev[activeComponent.id] ?? {}),
-                                                  [parameter.name]: nextValue,
-                                                },
-                                              }))
-                                            }}
-                                            onValueCommit={(value) => {
-                                              const nextValue = Number(value[0])
-                                              triggerConversion(activeComponent, parameter.name, nextValue)
-                                            }}
-                                          />
-                                          <div className="mt-2 flex justify-between text-[11px] text-neutral-500">
-                                            <span>{min.toFixed(2)}</span>
-                                            <span>{max.toFixed(2)}</span>
-                                          </div>
+                                          {conversionErrors[`${activeComponent.id}:${parameter.name}`] && (
+                                            <div className="mt-2 rounded-lg border border-red-500/40 bg-red-950/40 px-3 py-2 text-[11px] text-red-200">
+                                              {conversionErrors[`${activeComponent.id}:${parameter.name}`]}
+                                            </div>
+                                          )}
                                         </div>
+                                      )
+                                    })
+                                  ) : (
+                                    <div className="rounded-xl border border-dashed border-neutral-800 bg-neutral-900/40 p-4 text-xs text-neutral-500">
+                                      No adjustable parameters detected.
+                                    </div>
+                                  )}
+                                </div>
+                              </section>
 
-                                        {conversionStatus[activeComponent.id] === "loading" &&
-                                          activeConversionTarget === `${activeComponent.id}:${parameter.name}` && (
-                                          <div className="mt-2 flex items-center gap-2 text-xs text-blue-300">
-                                            <Loader2 className="h-3 w-3 animate-spin" /> Updating 3D preview…
-                                          </div>
-                                        )}
+                              {activeComponent.prompt && (
+                                <section className="rounded-xl border border-blue-900 bg-blue-950/40">
+                                  <header className="flex items-center justify-between border-b border-blue-900/60 px-4 py-2">
+                                    <span className="text-xs font-semibold uppercase tracking-wide text-blue-200">
+                                      3D Generation Prompt
+                                    </span>
+                                    <Button
+                                      variant="ghost"
+                                      size="sm"
+                                      onClick={() => copyToClipboard(activeComponent.prompt ?? "")}
+                                      className="h-7 px-2 text-blue-300 hover:text-blue-100"
+                                    >
+                                      <Copy className="w-3 h-3" />
+                                    </Button>
+                                  </header>
+                                  <div className="px-4 py-3 text-sm text-blue-100/90 whitespace-pre-wrap">
+                                    {activeComponent.prompt}
+                                  </div>
+                                </section>
+                              )}
 
-                                        {conversionErrors[`${activeComponent.id}:${parameter.name}`] && (
-                                          <div className="mt-2 rounded-lg border border-red-500/40 bg-red-950/40 px-3 py-2 text-[11px] text-red-200">
-                                            {conversionErrors[`${activeComponent.id}:${parameter.name}`]}
-                                          </div>
-                                        )}
-                                      </div>
-                                    )
-                                  })
-                                ) : (
-                                  <div className="rounded-xl border border-dashed border-neutral-800 bg-neutral-900/40 p-4 text-xs text-neutral-500">
-                                    No adjustable parameters detected.
+                              {activeComponent.notes && (
+                                <section className="rounded-xl border border-neutral-800 bg-neutral-900/50 px-4 py-3 text-xs text-neutral-400">
+                                  {activeComponent.notes}
+                                </section>
+                              )}
+
+                              <section className="flex flex-col gap-3 border-t border-neutral-900 pt-4">
+                                {renderComponentActions(activeComponent, conversionMetadata[activeComponent.id], {
+                                  previewReady,
+                                  previewStl: previewStl ?? undefined,
+                                  onInvalidDownload: (message) =>
+                                    toast({
+                                      title: "Invalid STL",
+                                      description: message,
+                                      variant: "destructive",
+                                    }),
+                                })}
+                                {activeComponent.model?.error && (
+                                  <div className="rounded-lg border border-red-500/40 bg-red-950/40 px-3 py-2 text-xs text-red-200">
+                                    <strong className="font-semibold">Error:</strong> {activeComponent.model.error}
                                   </div>
                                 )}
-                              </div>
-                            </section>
-
-                            {activeComponent.prompt && (
-                              <section className="rounded-xl border border-blue-900 bg-blue-950/40">
-                                <header className="flex items-center justify-between border-b border-blue-900/60 px-4 py-2">
-                                  <span className="text-xs font-semibold uppercase tracking-wide text-blue-200">
-                                3D Generation Prompt
-                              </span>
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                    onClick={() => copyToClipboard(activeComponent.prompt ?? "")}
-                                    className="h-7 px-2 text-blue-300 hover:text-blue-100"
-                              >
-                                <Copy className="w-3 h-3" />
-                              </Button>
-                                </header>
-                                <div className="px-4 py-3 text-sm text-blue-100/90 whitespace-pre-wrap">
-                                  {activeComponent.prompt}
+                              </section>
                             </div>
-                              </section>
-                            )}
-
-                            {activeComponent.notes && (
-                              <section className="rounded-xl border border-neutral-800 bg-neutral-900/50 px-4 py-3 text-xs text-neutral-400">
-                                {activeComponent.notes}
-                              </section>
-                            )}
-
-                            <section className="flex flex-col gap-3 border-t border-neutral-900 pt-4">
-            {renderComponentActions(
-              activeComponent,
-              conversionMetadata[activeComponent.id],
-              (message) =>
-                toast({
-                  title: "Invalid STL",
-                  description: message,
-                  variant: "destructive",
-                }),
-            )}
-                              {activeComponent.model?.error && (
-                                <div className="rounded-lg border border-red-500/40 bg-red-950/40 px-3 py-2 text-xs text-red-200">
-                                  <strong className="font-semibold">Error:</strong> {activeComponent.model.error}
                           </div>
-                        )}
-                            </section>
-                      </div>
-                </div>
-                      </div>
-                    )}
+                        </div>
+                      )
+                    })()}
                 </div>
                 )}
               </CardContent>
