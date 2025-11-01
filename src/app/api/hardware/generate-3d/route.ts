@@ -82,7 +82,6 @@ Rules:
 ${projectData?.description || ""}
 
 Generate the JSON now. Output only the JSON object.`,
-      temperature: 0.7,
       maxTokens: 2000,
     })
 

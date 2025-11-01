@@ -52,7 +52,6 @@ Focus on clean, well-documented code that beginners can understand and modify.`,
 Microcontroller: ${microcontroller}
 
 Generate complete firmware code for this hardware project.`,
-          temperature: 0.7,
           maxTokens: 2000,
         })
         return text

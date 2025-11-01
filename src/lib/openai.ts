@@ -1,25 +1,27 @@
 // OpenAI integration utilities for LogicLab
-// This calls the actual OpenAI API
+// Updated to use GPT-5 Responses API (no temperature; uses reasoning_effort/verbosity)
 
-export const aiModel = "gpt-4"
+export const aiModel = "gpt-5"
 
 export async function generateText({
   model,
   system,
   prompt,
-  temperature = 0.7,
   maxTokens = 2000,
+  reasoningEffort = 'minimal',
+  verbosity = 'medium',
 }: {
   model: string
   system: string
   prompt: string
-  temperature?: number
   maxTokens?: number
+  reasoningEffort?: 'minimal' | 'low' | 'medium' | 'high'
+  verbosity?: 'low' | 'medium' | 'high'
 }) {
   try {
-    console.log(`[OPENAI] Calling OpenAI API with model: ${model}`)
+    console.log(`[OPENAI] Calling Responses API with model: ${model}`)
 
-    const response = await fetch('https://api.openai.com/v1/chat/completions', {
+    const response = await fetch('https://api.openai.com/v1/responses', {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${process.env.OPENAI_API_KEY}`,
@@ -27,29 +29,31 @@ export async function generateText({
       },
       body: JSON.stringify({
         model,
-        messages: [
-          { role: 'system', content: system },
-          { role: 'user', content: prompt }
-        ],
-        temperature,
-        max_tokens: maxTokens,
+        reasoning_effort: reasoningEffort,
+        verbosity,
+        max_output_tokens: maxTokens,
+        instructions: system,
+        input: prompt,
       }),
     })
 
     if (!response.ok) {
       const errorText = await response.text()
-      console.error(`[OPENAI] API error: ${response.status} - ${errorText}`)
+      console.error(`[OPENAI] Responses API error: ${response.status} - ${errorText}`)
       throw new Error(`OpenAI API error: ${response.status} - ${errorText}`)
     }
 
     const data = await response.json()
     console.log(`[OPENAI] Full response data:`, JSON.stringify(data, null, 2))
-    console.log(`[OPENAI] Successfully generated response with ${data.usage?.total_tokens || 0} tokens`)
 
-    return { text: data.choices[0].message.content }
+    const text: string | undefined = data?.output_text || data?.output?.[0]?.content?.[0]?.text
+    if (!text) {
+      throw new Error('No text output from model')
+    }
+    return { text }
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : String(error)
-    console.error("[OPENAI] Error calling OpenAI API:", error)
+    console.error('[OPENAI] Error calling Responses API:', error)
     throw new Error(`OpenAI API error: ${message}`)
   }
 }
@@ -58,16 +62,18 @@ export async function generateStructuredJson({
   system,
   prompt,
   schema,
-  model = "gpt-4.1",
-  temperature = 0.3,
+  model = 'gpt-5',
   maxOutputTokens = 4000,
+  reasoningEffort = 'minimal',
+  verbosity = 'medium',
 }: {
   system: string
   prompt: string
   schema: Record<string, unknown>
   model?: string
-  temperature?: number
   maxOutputTokens?: number
+  reasoningEffort?: 'minimal' | 'low' | 'medium' | 'high'
+  verbosity?: 'low' | 'medium' | 'high'
 }) {
   try {
     console.log(`[OPENAI] Calling Responses API with structured output model: ${model}`)
@@ -80,19 +86,20 @@ export async function generateStructuredJson({
       },
       body: JSON.stringify({
         model,
-        temperature,
+        reasoning_effort: reasoningEffort,
+        verbosity,
         max_output_tokens: maxOutputTokens,
         instructions: system,
         input: prompt,
         text: {
           format: {
-            type: "json_schema",
-            name: "HardwareOutput", // ✅ moved here
-            schema,               // your JSON Schema object
-            strict: true
-          }
-        }
-      }),      
+            type: 'json_schema',
+            name: 'HardwareOutput',
+            schema,
+            strict: true,
+          },
+        },
+      }),
     })
 
     if (!response.ok) {
@@ -103,7 +110,14 @@ export async function generateStructuredJson({
 
     const data = await response.json()
     console.log(`[OPENAI] Structured response data:`, JSON.stringify(data, null, 2))
-    const outputText: string | undefined = data?.output?.[0]?.content?.[0]?.text || data?.output_text
+
+    // Prefer structured parsed output if present
+    const parsedDirect = data?.output_parsed as unknown
+    if (parsedDirect) {
+      return { json: parsedDirect }
+    }
+
+    const outputText: string | undefined = data?.output_text || data?.output?.[0]?.content?.[0]?.text
     if (!outputText) {
       throw new Error('Structured output missing text payload')
     }

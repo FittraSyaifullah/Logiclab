@@ -1,47 +1,43 @@
-import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
-
+import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-}
-
-type SupabaseClient = ReturnType<typeof createClient>
-
-serve(async (req) => {
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type'
+};
+serve(async (req)=>{
   if (req.method === 'OPTIONS') {
-    return new Response('ok', { headers: corsHeaders })
+    return new Response('ok', {
+      headers: corsHeaders
+    });
   }
-
   try {
-    const supabase = createClient(
-      Deno.env.get('SUPABASE_URL') ?? '',
-      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
-    )
-
-    const { data: jobs, error: jobsError } = await supabase
-      .from('jobs')
-      .select('*')
-      .eq('status', 'pending')
-      .eq('kind', 'hardware_initial_generation')
-      .order('created_at', { ascending: true })
-      .limit(3)
-
+    const supabase = createClient(Deno.env.get('SUPABASE_URL') ?? '', Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '');
+    const { data: jobs, error: jobsError } = await supabase.from('jobs').select('*').eq('status', 'pending').eq('kind', 'hardware_initial_generation').order('created_at', {
+      ascending: true
+    }).limit(3);
     if (jobsError) {
-      console.error('[EDGE:hardware-initial] Error fetching jobs:', jobsError)
-      return new Response(JSON.stringify({ error: jobsError.message }), {
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        status: 500,
-      })
+      console.error('[EDGE:hardware-initial] Error fetching jobs:', jobsError);
+      return new Response(JSON.stringify({
+        error: jobsError.message
+      }), {
+        headers: {
+          ...corsHeaders,
+          'Content-Type': 'application/json'
+        },
+        status: 500
+      });
     }
-
     if (!jobs || jobs.length === 0) {
-      return new Response(JSON.stringify({ message: 'No pending jobs' }), {
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        status: 200,
-      })
+      return new Response(JSON.stringify({
+        message: 'No pending jobs'
+      }), {
+        headers: {
+          ...corsHeaders,
+          'Content-Type': 'application/json'
+        },
+        status: 200
+      });
     }
-
     // Hardcoded master system prompt from repository
     const SYSTEM_PROMPT = `
 You are Buildables, an AI co-engineer helping non-technical founders and makers prototype hardware products. Your users typically don't know how to build products — they have ideas but lack technical skills. Your job is to translate their vision into buildable, safe, achievable prototypes.
@@ -195,8 +191,7 @@ Iteration: Encourage testing, feedback, and refinement
 Education: Explain concepts, don't just provide solutions
 Remember: Your user doesn't know how to build hardware. That's why they need you. Make it simple, safe, and achievable.
 
-`
-
+`;
     // Example JSON defining the output shape from repository
     const AI_OUTPUT_EXAMPLE = {
       project: "string",
@@ -212,68 +207,80 @@ Remember: Your user doesn't know how to build hardware. That's why they need you
               assemblyNotes: "string",
               printTime: "string",
               material: "string",
-              supports: "string",
-            },
+              supports: "string"
+            }
           ],
-          generalNotes: "string",
+          generalNotes: "string"
         },
         AssemblyAndParts: {
           overview: "string",
           partsList: [
-            { part: "string", quantity: "string", vendor: "string", notes: "string" },
+            {
+              part: "string",
+              quantity: "string",
+              vendor: "string",
+              notes: "string"
+            }
           ],
           assemblyInstructions: "string",
-          safetyChecklist: "string",
+          safetyChecklist: "string"
         },
         FirmwareAndCode: {
           microcontroller: "string",
           language: "string",
           code: "string",
           explanation: "string",
-          improvementSuggestions: "string",
-        },
-      },
-    } as const
-
-    const exampleToSchema = (value: unknown): Record<string, unknown> => {
-      if (typeof value === 'string') return { type: 'string' }
+          improvementSuggestions: "string"
+        }
+      }
+    };
+    const exampleToSchema = (value)=>{
+      if (typeof value === 'string') return {
+        type: 'string'
+      };
       if (Array.isArray(value)) {
-        const first = value.length > 0 ? value[0] : {}
-        return { type: 'array', items: exampleToSchema(first) }
+        const first = value.length > 0 ? value[0] : {};
+        return {
+          type: 'array',
+          items: exampleToSchema(first)
+        };
       }
       if (value && typeof value === 'object') {
-        const props: Record<string, unknown> = {}
-        const required: string[] = []
-        for (const [k, v] of Object.entries(value as Record<string, unknown>)) {
-          props[k] = exampleToSchema(v)
-          required.push(k)
+        const props = {};
+        const required = [];
+        for (const [k, v] of Object.entries(value)){
+          props[k] = exampleToSchema(v);
+          required.push(k);
         }
-        return { type: 'object', properties: props, required, additionalProperties: false }
+        return {
+          type: 'object',
+          properties: props,
+          required,
+          additionalProperties: false
+        };
       }
-      return { type: 'string' }
-    }
-
-    const STRICT_SCHEMA = exampleToSchema(AI_OUTPUT_EXAMPLE)
-
-    for (const job of jobs) {
+      return {
+        type: 'string'
+      };
+    };
+    const STRICT_SCHEMA = exampleToSchema(AI_OUTPUT_EXAMPLE);
+    for (const job of jobs){
       try {
-        await supabase
-          .from('jobs')
-          .update({ status: 'processing', started_at: new Date().toISOString() })
-          .eq('id', job.id)
-
-        const payload = (job.input ?? {}) as { title?: string; prompt?: string; projectId?: string; userId?: string }
-        const { title, prompt, projectId, userId } = payload
+        await supabase.from('jobs').update({
+          status: 'processing',
+          started_at: new Date().toISOString()
+        }).eq('id', job.id);
+        const payload = job.input ?? {};
+        const { title, prompt, projectId, userId } = payload;
         if (!title || !prompt || !projectId || !userId) {
-          throw new Error('Missing required input for initial generation')
+          throw new Error('Missing required input for initial generation');
         }
-
-        const openaiKey = Deno.env.get('OPENAI_API_KEY') ?? ''
-        if (!openaiKey) throw new Error('OPENAI_API_KEY not configured')
-
+        const openaiKey = Deno.env.get('OPENAI_API_KEY') ?? '';
+        if (!openaiKey) throw new Error('OPENAI_API_KEY not configured');
         const body = {
-          model: 'gpt-4.1',
-          temperature: 0.3,
+          model: 'gpt-5',
+          reasoning_effort: 'minimal',
+          verbosity: 'medium',
           max_output_tokens: 4000,
           instructions: SYSTEM_PROMPT,
           input: `Project Title: ${title}\n\nUser Description: ${prompt}\n\nReturn the required hardware output JSON strictly following the provided schema.`,
@@ -282,119 +289,111 @@ Remember: Your user doesn't know how to build hardware. That's why they need you
               type: 'json_schema',
               name: 'HardwareOutput',
               schema: STRICT_SCHEMA,
-              strict: true,
-            },
-          },
-        }
-
+              strict: true
+            }
+          }
+        };
         const resp = await fetch('https://api.openai.com/v1/responses', {
           method: 'POST',
           headers: {
             'Authorization': `Bearer ${openaiKey}`,
-            'Content-Type': 'application/json',
+            'Content-Type': 'application/json'
           },
-          body: JSON.stringify(body),
-        })
-
+          body: JSON.stringify(body)
+        });
         if (!resp.ok) {
-          const t = await resp.text()
-          console.error('[EDGE:hardware-initial] OpenAI error:', t)
-          throw new Error(`OpenAI error ${resp.status}`)
+          const t = await resp.text();
+          console.error('[EDGE:hardware-initial] OpenAI error:', t);
+          throw new Error(`OpenAI error ${resp.status}`);
         }
-
-        const data = await resp.json()
-        const outputText: string | undefined = data?.output?.[0]?.content?.[0]?.text || data?.output_text
-        if (!outputText) throw new Error('Structured output missing text payload')
-
-        let parsed: unknown
-        try {
-          parsed = JSON.parse(outputText)
-        } catch (_e) {
-          throw new Error('Failed to parse structured JSON output')
-        }
-
-        const resultObj = parsed as {
-          project?: string
-          description?: string
-          reports?: {
-            '3DComponents'?: { components?: unknown[]; generalNotes?: string }
-            'AssemblyAndParts'?: Record<string, unknown>
-            'FirmwareAndCode'?: Record<string, unknown>
+        const data = await resp.json();
+        const parsed = data?.output_parsed ?? (()=>{
+          const outputText: string | undefined = data?.output_text || data?.output?.[0]?.content?.[0]?.text;
+          if (!outputText) throw new Error('Structured output missing payload');
+          try {
+            return JSON.parse(outputText);
+          } catch (_e) {
+            throw new Error('Failed to parse structured JSON output');
           }
-        }
-
-        const threeD = resultObj?.reports?.['3DComponents'] as { components?: unknown[]; generalNotes?: string } | undefined
-        const assembly = resultObj?.reports?.['AssemblyAndParts'] as Record<string, unknown> | undefined
-        const firmware = resultObj?.reports?.['FirmwareAndCode'] as Record<string, unknown> | undefined
-
+        })();
+        const resultObj = parsed;
+        const threeD = resultObj?.reports?.['3DComponents'];
+        const assembly = resultObj?.reports?.['AssemblyAndParts'];
+        const firmware = resultObj?.reports?.['FirmwareAndCode'];
         const assemblyContent = assembly ? [
-          (assembly as { overview?: string }).overview || '',
-          (assembly as { assemblyInstructions?: string }).assemblyInstructions || '',
-          (assembly as { safetyChecklist?: string }).safetyChecklist || ''
-        ].filter(Boolean).join('\n\n') : ''
-
+          assembly.overview || '',
+          assembly.assemblyInstructions || '',
+          assembly.safetyChecklist || ''
+        ].filter(Boolean).join('\n\n') : '';
         const firmwareContent = firmware ? [
-          (firmware as { explanation?: string }).explanation || '',
-          (firmware as { code?: string }).code || '',
-          (firmware as { improvementSuggestions?: string }).improvementSuggestions || ''
-        ].filter(Boolean).join('\n\n') : ''
-
-        const { data: inserted, error: insertErr } = await supabase
-          .from('hardware_projects')
-          .insert({
-            project_id: projectId,
-            title: title || resultObj?.project || 'Hardware Project',
-            '3d_components': threeD ? {
-              project: resultObj?.project || title,
-              description: resultObj?.description || prompt,
-              components: Array.isArray(threeD?.components) ? threeD.components : [],
-              generalNotes: typeof threeD?.generalNotes === 'string' ? threeD.generalNotes : '',
-            } : null,
-            assembly_parts: assembly ? {
-              content: assemblyContent,
-              partsCount: Array.isArray((assembly as { partsList?: unknown[] }).partsList) ? (assembly as { partsList?: unknown[] }).partsList!.length : 0,
-              estimatedTime: "2-3 hours",
-              difficultyLevel: "Beginner",
-            } : null,
-            firmware_code: firmware ? {
-              content: firmwareContent,
-              language: (firmware as { language?: string }).language || 'C++',
-              platform: (firmware as { microcontroller?: string }).microcontroller || 'Arduino IDE',
-              libraries: ["Servo.h", "NewPing.h"],
-              codeLines: firmwareContent.split('\n').length,
-            } : null,
-          })
-          .select('id')
-          .single()
-
+          firmware.explanation || '',
+          firmware.code || '',
+          firmware.improvementSuggestions || ''
+        ].filter(Boolean).join('\n\n') : '';
+        const { data: inserted, error: insertErr } = await supabase.from('hardware_projects').insert({
+          project_id: projectId,
+          title: title || resultObj?.project || 'Hardware Project',
+          '3d_components': threeD ? {
+            project: resultObj?.project || title,
+            description: resultObj?.description || prompt,
+            components: Array.isArray(threeD?.components) ? threeD.components : [],
+            generalNotes: typeof threeD?.generalNotes === 'string' ? threeD.generalNotes : ''
+          } : null,
+          assembly_parts: assembly ? {
+            content: assemblyContent,
+            partsCount: Array.isArray(assembly.partsList) ? assembly.partsList.length : 0,
+            estimatedTime: "2-3 hours",
+            difficultyLevel: "Beginner"
+          } : null,
+          firmware_code: firmware ? {
+            content: firmwareContent,
+            language: firmware.language || 'C++',
+            platform: firmware.microcontroller || 'Arduino IDE',
+            libraries: [
+              "Servo.h",
+              "NewPing.h"
+            ],
+            codeLines: firmwareContent.split('\n').length
+          } : null
+        }).select('id').single();
         if (insertErr || !inserted) {
-          throw insertErr || new Error('Insert failed')
+          throw insertErr || new Error('Insert failed');
         }
-
-        await supabase
-          .from('jobs')
-          .update({ status: 'completed', finished_at: new Date().toISOString(), result: { reportId: inserted.id } })
-          .eq('id', job.id)
+        await supabase.from('jobs').update({
+          status: 'completed',
+          finished_at: new Date().toISOString(),
+          result: {
+            reportId: inserted.id
+          }
+        }).eq('id', job.id);
       } catch (err) {
-        console.error('[EDGE:hardware-initial] Job error', err)
-        await supabase
-          .from('jobs')
-          .update({ status: 'failed', error: err instanceof Error ? err.message : String(err), finished_at: new Date().toISOString() })
-          .eq('id', job.id)
+        console.error('[EDGE:hardware-initial] Job error', err);
+        await supabase.from('jobs').update({
+          status: 'failed',
+          error: err instanceof Error ? err.message : String(err),
+          finished_at: new Date().toISOString()
+        }).eq('id', job.id);
       }
     }
-
-    return new Response(JSON.stringify({ message: `Processed ${jobs.length} initial hardware jobs` }), {
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      status: 200,
-    })
+    return new Response(JSON.stringify({
+      message: `Processed ${jobs.length} initial hardware jobs`
+    }), {
+      headers: {
+        ...corsHeaders,
+        'Content-Type': 'application/json'
+      },
+      status: 200
+    });
   } catch (error) {
-    console.error('[EDGE:hardware-initial] Function error', error)
-    return new Response(JSON.stringify({ error: error instanceof Error ? error.message : 'Unknown error' }), {
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      status: 500,
-    })
+    console.error('[EDGE:hardware-initial] Function error', error);
+    return new Response(JSON.stringify({
+      error: error instanceof Error ? error.message : 'Unknown error'
+    }), {
+      headers: {
+        ...corsHeaders,
+        'Content-Type': 'application/json'
+      },
+      status: 500
+    });
   }
-})
-
-
+});
