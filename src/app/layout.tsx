@@ -47,7 +47,7 @@ export default function RootLayout({
       <head>
         <script
           src="https://app.rybbit.io/api/script.js"
-          data-site-id="6469c902b3d9"
+          data-site-id="ba71596af78d"
           defer
         ></script>
       </head>
