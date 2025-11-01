@@ -44,6 +44,13 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
+      <head>
+        <script
+          src="https://app.rybbit.io/api/script.js"
+          data-site-id="6469c902b3d9"
+          defer
+        ></script>
+      </head>
       <body
         className={`${arialSans.variable} ${arialMono.variable} antialiased`}
       >
