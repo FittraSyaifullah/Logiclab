@@ -26,6 +26,7 @@ import {
   FileCode,
   AlertTriangle,
   Smile,
+  ChevronDown,
 } from "lucide-react"
 import type { Creation, HardwareComponentModel, HardwareReports } from "@/lib/types"
 import { cn } from "@/lib/utils"
@@ -202,6 +203,7 @@ export function HardwareViewer({ creation, onRegenerate, onGenerateComponentMode
   >({})
   const [activeConversionTarget, setActiveConversionTarget] = useState<string | null>(null)
   const [conversionStatus, setConversionStatus] = useState<Record<string, "idle" | "loading" | "error">>({})
+  const [promptExpandedByComponent, setPromptExpandedByComponent] = useState<Record<string, boolean>>({})
   const conversionRequestIds = useRef<Record<string, number>>({})
   const conversionSequence = useRef(0)
   const conversionTimers = useRef<Record<string, ReturnType<typeof setTimeout>>>({})
@@ -793,12 +795,12 @@ const renderComponentActions = (
   const previewSource = previewStl ?? (component.model?.stlContent ?? null)
 
   return (
-    <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-      <div className="flex flex-wrap items-center gap-2">
+    <div className="flex flex-col gap-2">
+      <div className="grid grid-cols-2 gap-2 items-stretch">
         <Button
           variant="default"
           disabled={isLoading || !onGenerateComponentModel}
-          className={cn("gap-2", isLoading && "cursor-progress")}
+          className={cn("gap-2 w-full justify-center", isLoading && "cursor-progress")}
           onClick={() =>
             onGenerateComponentModel?.({
               componentId: component.id,
@@ -825,13 +827,14 @@ const renderComponentActions = (
           size="sm"
           disabled={!previewReady}
           onClick={() => previewReady && openViewer(component.id)}
+          className="w-full justify-center"
         >
           <Box className="h-4 w-4 mr-1" />
           Preview Model
         </Button>
       </div>
 
-      <div className="flex flex-wrap items-center gap-2">
+      <div className="w-full">
         <Button
           variant="outline"
           size="sm"
@@ -852,20 +855,10 @@ const renderComponentActions = (
                 })),
             )
           }
-          className="gap-2"
+          className="gap-2 w-full"
         >
           <FileDown className="h-4 w-4" />
           Download STL
-        </Button>
-        <Button
-          variant="outline"
-          size="sm"
-          disabled={!component.model?.scadCode}
-          onClick={() => downloadMeshFile(creation.id, component, creation.title, "scad")}
-          className="gap-2"
-        >
-          <FileCode className="h-4 w-4" />
-          Download SCAD
         </Button>
       </div>
     </div>
@@ -1093,6 +1086,24 @@ const renderComponentActions = (
                                 </p>
                               </header>
 
+                              <section className="pt-2">
+                                {renderComponentActions(activeComponent, conversionMetadata[activeComponent.id], {
+                                  previewReady: activePreviewReady,
+                                  previewStl: activePreviewStl ?? undefined,
+                                  onInvalidDownload: (message) =>
+                                    toast({
+                                      title: "Invalid STL",
+                                      description: message,
+                                      variant: "destructive",
+                                    }),
+                                })}
+                                {activeComponent.model?.error && (
+                                  <div className="mt-3 rounded-lg border border-red-500/40 bg-red-950/40 px-3 py-2 text-xs text-red-200">
+                                    <strong className="font-semibold">Error:</strong> {activeComponent.model.error}
+                                  </div>
+                                )}
+                              </section>
+
                               <section className="grid grid-cols-3 gap-3">
                                 {[
                                   activeComponent.printTime || "TBD",
@@ -1248,9 +1259,27 @@ const renderComponentActions = (
                               {activeComponent.prompt && (
                                 <section className="rounded-xl border border-blue-900 bg-blue-950/40">
                                   <header className="flex items-center justify-between border-b border-blue-900/60 px-4 py-2">
-                                    <span className="text-xs font-semibold uppercase tracking-wide text-blue-200">
-                                      3D Generation Prompt
-                                    </span>
+                                    <button
+                                      type="button"
+                                      onClick={() =>
+                                        setPromptExpandedByComponent((prev) => ({
+                                          ...prev,
+                                          [activeComponent.id]: !prev[activeComponent.id],
+                                        }))
+                                      }
+                                      aria-expanded={!!promptExpandedByComponent[activeComponent.id]}
+                                      className="flex items-center gap-2 text-left"
+                                    >
+                                      <ChevronDown
+                                        className={cn(
+                                          "w-4 h-4 text-blue-300 transition-transform",
+                                          !!promptExpandedByComponent[activeComponent.id] ? "rotate-180" : "rotate-0",
+                                        )}
+                                      />
+                                      <span className="text-xs font-semibold uppercase tracking-wide text-blue-200">
+                                        3D Generation Prompt
+                                      </span>
+                                    </button>
                                     <Button
                                       variant="ghost"
                                       size="sm"
@@ -1260,9 +1289,11 @@ const renderComponentActions = (
                                       <Copy className="w-3 h-3" />
                                     </Button>
                                   </header>
-                                  <div className="px-4 py-3 text-sm text-blue-100/90 whitespace-pre-wrap">
-                                    {activeComponent.prompt}
-                                  </div>
+                                  {promptExpandedByComponent[activeComponent.id] && (
+                                    <div className="px-4 py-3 text-sm text-blue-100/90 whitespace-pre-wrap">
+                                      {activeComponent.prompt}
+                                    </div>
+                                  )}
                                 </section>
                               )}
 
@@ -1272,23 +1303,7 @@ const renderComponentActions = (
                                 </section>
                               )}
 
-                              <section className="flex flex-col gap-3 border-t border-neutral-900 pt-4">
-                                {renderComponentActions(activeComponent, conversionMetadata[activeComponent.id], {
-                                  previewReady: activePreviewReady,
-                                  previewStl: activePreviewStl ?? undefined,
-                                  onInvalidDownload: (message) =>
-                                    toast({
-                                      title: "Invalid STL",
-                                      description: message,
-                                      variant: "destructive",
-                                    }),
-                                })}
-                                {activeComponent.model?.error && (
-                                  <div className="rounded-lg border border-red-500/40 bg-red-950/40 px-3 py-2 text-xs text-red-200">
-                                    <strong className="font-semibold">Error:</strong> {activeComponent.model.error}
-                                  </div>
-                                )}
-                              </section>
+                              
                             </div>
                           </div>
                         </div>
