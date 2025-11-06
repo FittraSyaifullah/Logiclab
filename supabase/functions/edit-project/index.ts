@@ -439,9 +439,8 @@ serve(async (req)=>{
         'Content-Type': 'application/json'
       },
       body: JSON.stringify({
-        model: 'gpt-5',
-        reasoning_effort: 'minimal',
-        verbosity: 'medium',
+        model: 'gpt-4.1',
+        temperature: 0.3,
         max_output_tokens: 6000,
         instructions: SYSTEM_PROMPT,
         input: modelInput,
@@ -469,18 +468,24 @@ serve(async (req)=>{
       });
     }
     const data = await resp.json();
-    const parsed = data?.output_parsed ?? (()=>{
-      const outputText: string | undefined = data?.output_text || data?.output?.[0]?.content?.[0]?.text;
-      if (!outputText) return null;
-      try {
-        return JSON.parse(outputText);
-      } catch (_e) {
-        return null;
-      }
-    })();
-    if (!parsed) {
+    const outputText = data?.output?.[0]?.content?.[0]?.text || data?.output_text;
+    if (!outputText) {
       return new Response(JSON.stringify({
-        error: 'Structured output missing payload'
+        error: 'Structured output missing text payload'
+      }), {
+        headers: {
+          ...corsHeaders,
+          'Content-Type': 'application/json'
+        },
+        status: 500
+      });
+    }
+    let parsed;
+    try {
+      parsed = JSON.parse(outputText);
+    } catch (_e) {
+      return new Response(JSON.stringify({
+        error: 'Failed to parse structured JSON output'
       }), {
         headers: {
           ...corsHeaders,

@@ -278,9 +278,8 @@ Remember: Your user doesn't know how to build hardware. That's why they need you
         const openaiKey = Deno.env.get('OPENAI_API_KEY') ?? '';
         if (!openaiKey) throw new Error('OPENAI_API_KEY not configured');
         const body = {
-          model: 'gpt-5',
-          reasoning_effort: 'minimal',
-          verbosity: 'medium',
+          model: 'gpt-4.1',
+          temperature: 0.3,
           max_output_tokens: 4000,
           instructions: SYSTEM_PROMPT,
           input: `Project Title: ${title}\n\nUser Description: ${prompt}\n\nReturn the required hardware output JSON strictly following the provided schema.`,
@@ -307,15 +306,14 @@ Remember: Your user doesn't know how to build hardware. That's why they need you
           throw new Error(`OpenAI error ${resp.status}`);
         }
         const data = await resp.json();
-        const parsed = data?.output_parsed ?? (()=>{
-          const outputText: string | undefined = data?.output_text || data?.output?.[0]?.content?.[0]?.text;
-          if (!outputText) throw new Error('Structured output missing payload');
-          try {
-            return JSON.parse(outputText);
-          } catch (_e) {
-            throw new Error('Failed to parse structured JSON output');
-          }
-        })();
+        const outputText = data?.output?.[0]?.content?.[0]?.text || data?.output_text;
+        if (!outputText) throw new Error('Structured output missing text payload');
+        let parsed;
+        try {
+          parsed = JSON.parse(outputText);
+        } catch (_e) {
+          throw new Error('Failed to parse structured JSON output');
+        }
         const resultObj = parsed;
         const threeD = resultObj?.reports?.['3DComponents'];
         const assembly = resultObj?.reports?.['AssemblyAndParts'];
