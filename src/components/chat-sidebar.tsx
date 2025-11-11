@@ -158,11 +158,15 @@ export function ChatSidebar({ onLogout, onSendMessage }: ChatSidebarProps) {
 
         if (!response.ok) {
           const errorText = await response.text()
-          let errorData
+          let errorData: { error?: string; code?: string } = {}
           try {
             errorData = JSON.parse(errorText)
           } catch {
             errorData = { error: errorText || "Unknown error" }
+          }
+          const codeUpper = String(errorData.code || errorData.error || '').toUpperCase()
+          if (response.status === 402 || codeUpper.includes('INSUFFICIENT_CREDITS')) {
+            try { window.dispatchEvent(new Event('credit:depleted')) } catch {}
           }
           throw new Error(`HTTP ${response.status}: ${errorData.error || response.statusText}`)
         }
@@ -199,6 +203,9 @@ export function ChatSidebar({ onLogout, onSendMessage }: ChatSidebarProps) {
             updateCreation(activeCreation.id, { hardwareReports: reportsData.reports || {} })
           }
         } catch {}
+
+        // Refresh credits in header after successful edit-project debit
+        try { window.dispatchEvent(new Event('credits:refresh')) } catch {}
 
         return
       }

@@ -49,47 +49,8 @@ function extractJson(text) {
 // Credit model constants
 const CREDIT_COST_HARDWARE_MODEL_COMPONENT = 10;
 async function getUserCredits(supabase, userId) {
-  const { data } = await supabase.from('user_credits').select('user_id, balance_bigint, reserved_bigint, paid_or_unpaid').eq('user_id', userId).single();
+  const { data } = await supabase.from('user_credits').select('user_id, balance_bigint').eq('user_id', userId).single();
   return data ?? null;
-}
-async function debitCreditsIfUnpaid(supabase, userId, cost, reason, refId) {
-  const current = await getUserCredits(supabase, userId);
-  if (!current) return {
-    ok: false,
-    error: 'User credits not found'
-  };
-  if (current.paid_or_unpaid) {
-    return {
-      ok: true,
-      balanceAfter: current.balance_bigint
-    };
-  }
-  if (Number(current.balance_bigint) < cost) {
-    return {
-      ok: false,
-      error: 'Insufficient credits'
-    };
-  }
-  const newBalance = Number(current.balance_bigint) - cost;
-  const { error: updateError } = await supabase.from('user_credits').update({
-    balance_bigint: newBalance
-  }).eq('user_id', userId);
-  if (updateError) return {
-    ok: false,
-    error: updateError.message
-  };
-  await supabase.from('credit_transactions').insert({
-    user_id: userId,
-    change_bigint: -cost,
-    balance_after_bigint: newBalance,
-    type: 'debit',
-    reason,
-    ref_id: refId
-  });
-  return {
-    ok: true,
-    balanceAfter: newBalance
-  };
 }
 serve(async (req)=>{
   if (req.method === 'OPTIONS') {
@@ -136,13 +97,11 @@ serve(async (req)=>{
         if (!componentName || !prompt || !projectId || !userId || !creationId || !componentId) {
           throw new Error('Missing component metadata');
         }
-        // Server-side credit gate (paid_or_unpaid takes precedence)
+        // Server-side credit gate (10 credits required)
         try {
           const credits = await getUserCredits(supabaseClient, userId);
-          if (!credits) {
-            throw new Error('INSUFFICIENT_CREDITS: No credits record');
-          }
-          if (!credits.paid_or_unpaid && Number(credits.balance_bigint) < CREDIT_COST_HARDWARE_MODEL_COMPONENT) {
+          if (!credits) throw new Error('INSUFFICIENT_CREDITS: No credits record');
+          if (Number(credits.balance_bigint) < CREDIT_COST_HARDWARE_MODEL_COMPONENT) {
             throw new Error('INSUFFICIENT_CREDITS: Need 10 credits for 3D model generation');
           }
         } catch (gateErr) {
@@ -227,6 +186,16 @@ Do not include code fences or extra prose. Do not include any STL.`;
         if (!scadCode) {
           throw new Error('Anthropic response missing SCAD content');
         }
+        // Deduct credits BEFORE persisting results to prevent free writes on race
+        const { data: deducted, error: rpcError } = await supabaseClient.rpc('spend_credits', { user_id: userId, cost: CREDIT_COST_HARDWARE_MODEL_COMPONENT });
+        if (rpcError || deducted !== true) {
+          await supabaseClient.from('jobs').update({
+            status: 'failed',
+            error: 'INSUFFICIENT_CREDITS',
+            finished_at: new Date().toISOString()
+          }).eq('id', job.id);
+          continue;
+        }
         await supabaseClient.from('jobs').update({
           status: 'completed',
           result: {
@@ -251,14 +220,6 @@ Do not include code fences or extra prose. Do not include any STL.`;
         }, {
           onConflict: 'component_id'
         });
-        // Post-success debit for unpaid users (do NOT deduct on earlier failures)
-        const creditsAfter = await getUserCredits(supabaseClient, userId);
-        if (creditsAfter && !creditsAfter.paid_or_unpaid) {
-          const debit = await debitCreditsIfUnpaid(supabaseClient, userId, CREDIT_COST_HARDWARE_MODEL_COMPONENT, 'hardware_model_component', job.id);
-          if (!debit.ok) {
-            console.warn(`[EDGE] Post-success debit failed for job ${job.id}:`, debit.error);
-          }
-        }
       } catch (jobError) {
         console.error(`Error processing hardware job ${job.id}`, jobError);
         await supabaseClient.from('jobs').update({

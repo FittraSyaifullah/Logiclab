@@ -384,6 +384,18 @@ function DashboardContent({ onLogout, initialSearchInput }: DashboardProps) {
     void refreshCredits()
   }, [user?.id, setActiveCreationId])
 
+  // Listen for global credit events from child components
+  useEffect(() => {
+    const onCreditDepleted = () => setShowCreditModal(true)
+    const onCreditsRefresh = () => { void refreshCredits() }
+    window.addEventListener('credit:depleted', onCreditDepleted as EventListener)
+    window.addEventListener('credits:refresh', onCreditsRefresh as EventListener)
+    return () => {
+      window.removeEventListener('credit:depleted', onCreditDepleted as EventListener)
+      window.removeEventListener('credits:refresh', onCreditsRefresh as EventListener)
+    }
+  }, [])
+
   // Centralized credit gate: only show modal on action attempts
   const ensureCredits = () => {
     if (!credits.paid && Number(credits.balance) <= 0) {
@@ -1177,6 +1189,10 @@ function DashboardContent({ onLogout, initialSearchInput }: DashboardProps) {
             setHardwareGenerationState(creationId, { isGenerating: false, reportsGenerated: false, error: row.error ?? undefined })
           }
           toast({ title: 'Hardware Generation Failed', description: row.error || 'Job failed', variant: 'destructive' })
+          // Show credit limit modal if failure was due to insufficient credits
+          if ((row.error || '').toUpperCase() === 'INSUFFICIENT_CREDITS') {
+            setShowCreditModal(true)
+          }
         },
       })
 
@@ -1228,6 +1244,10 @@ function DashboardContent({ onLogout, initialSearchInput }: DashboardProps) {
               setHardwareGenerationState(creationId, { isGenerating: false, reportsGenerated: false, error: statusData.error ?? undefined })
             }
             toast({ title: 'Hardware Generation Failed', description: statusData.error || 'Job failed', variant: 'destructive' })
+            // Show credit limit modal if failure was due to insufficient credits
+            if ((statusData.error || '').toUpperCase() === 'INSUFFICIENT_CREDITS') {
+              setShowCreditModal(true)
+            }
             await unsubscribe()
           }
         }

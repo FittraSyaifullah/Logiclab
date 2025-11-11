@@ -275,6 +275,18 @@ Remember: Your user doesn't know how to build hardware. That's why they need you
         if (!title || !prompt || !projectId || !userId) {
           throw new Error('Missing required input for initial generation');
         }
+        // Credit pre-check (10 credits required)
+        const CREDIT_COST = 10;
+        const { data: creditRow } = await supabase.from('user_credits').select('balance_bigint').eq('user_id', userId).single();
+        const currentBalance = Number(creditRow?.balance_bigint ?? 0);
+        if (!Number.isFinite(currentBalance) || currentBalance < CREDIT_COST) {
+          await supabase.from('jobs').update({
+            status: 'failed',
+            error: 'INSUFFICIENT_CREDITS',
+            finished_at: new Date().toISOString()
+          }).eq('id', job.id);
+          continue;
+        }
         const openaiKey = Deno.env.get('OPENAI_API_KEY') ?? '';
         if (!openaiKey) throw new Error('OPENAI_API_KEY not configured');
         const body = {
@@ -328,6 +340,16 @@ Remember: Your user doesn't know how to build hardware. That's why they need you
           firmware.code || '',
           firmware.improvementSuggestions || ''
         ].filter(Boolean).join('\n\n') : '';
+        // Deduct credits BEFORE persisting any project data
+        const { data: deducted, error: rpcError } = await supabase.rpc('spend_credits', { user_id: userId, cost: CREDIT_COST });
+        if (rpcError || deducted !== true) {
+          await supabase.from('jobs').update({
+            status: 'failed',
+            error: 'INSUFFICIENT_CREDITS',
+            finished_at: new Date().toISOString()
+          }).eq('id', job.id);
+          continue;
+        }
         const { data: inserted, error: insertErr } = await supabase.from('hardware_projects').insert({
           project_id: projectId,
           title: title || resultObj?.project || 'Hardware Project',

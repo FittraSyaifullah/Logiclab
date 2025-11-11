@@ -1,7 +1,7 @@
 "use client"
 
  import Image from "next/image"
- import { Dialog, DialogContent } from "@/components/ui/dialog"
+ import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
 
 interface CreditLimitModalProps {
@@ -21,6 +21,7 @@ export function CreditLimitModal({ open, onClose, onUpgrade }: CreditLimitModalP
   return (
     <Dialog open={open} onOpenChange={(v) => { if (!v) onClose() }}>
       <DialogContent className="p-0 overflow-hidden max-w-md">
+        <DialogTitle className="sr-only">Credit limit reached</DialogTitle>
         <div className="p-6">
           <div className="flex items-center gap-3 mb-4">
             <Image

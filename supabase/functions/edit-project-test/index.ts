@@ -4,6 +4,79 @@ const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type'
 };
+// Credit model constants
+const CREDIT_COST_EDIT_PROJECT = 10;
+
+// Simple retry for transient network errors on Supabase REST calls
+async function retrySupabase<T>(
+  opName: string,
+  run: () => Promise<{ data: T | null; error: unknown }>,
+  attempts = 3,
+  baseDelayMs = 300
+): Promise<{ data: T | null; error: unknown }> {
+  let last: { data: T | null; error: unknown } = { data: null, error: null };
+  for (let attempt = 1; attempt <= attempts; attempt++) {
+    last = await run();
+    const message = String((last as any)?.error?.message ?? last.error ?? '');
+    const isTransient = !!message && /connection reset|ECONNRESET|SendRequest|network|timeout/i.test(message);
+    if (!last.error || !isTransient || attempt === attempts) {
+      return last;
+    }
+    const delayMs = baseDelayMs * Math.pow(2, attempt - 1);
+    console.warn('[EDGE:edit-project-test] Transient error, retrying ' + opName, { attempt, delayMs, message });
+    await new Promise((r) => setTimeout(r, delayMs));
+  }
+  return last;
+}
+
+async function getUserCredits(supabase: any, userId: string) {
+  const { data } = await supabase
+    .from('user_credits')
+    .select('user_id, balance_bigint, reserved_bigint, paid_or_unpaid')
+    .eq('user_id', userId)
+    .single();
+  return data ?? null;
+}
+
+async function debitCreditsIfUnpaid(
+  supabase: any,
+  userId: string,
+  cost: number,
+  reason: string,
+  refId?: string
+) {
+  const { data: current } = await supabase
+    .from('user_credits')
+    .select('user_id, balance_bigint, paid_or_unpaid')
+    .eq('user_id', userId)
+    .single();
+  if (!current) {
+    return { ok: false as const, error: 'User credits not found' };
+  }
+  if (current.paid_or_unpaid) {
+    return { ok: true as const, balanceAfter: current.balance_bigint as number };
+  }
+  if (Number(current.balance_bigint) < cost) {
+    return { ok: false as const, error: 'Insufficient credits' };
+  }
+  const newBalance = Number(current.balance_bigint) - cost;
+  const { error: updateError } = await supabase
+    .from('user_credits')
+    .update({ balance_bigint: newBalance })
+    .eq('user_id', userId);
+  if (updateError) {
+    return { ok: false as const, error: updateError.message };
+  }
+  await supabase.from('credit_transactions').insert({
+    user_id: userId,
+    change_bigint: -cost,
+    balance_after_bigint: newBalance,
+    type: 'debit',
+    reason,
+    ref_id: refId
+  });
+  return { ok: true as const, balanceAfter: newBalance };
+}
 // System prompt sourced from reference/edit-project/system prompt/edit-project-system-prompt.md
 const SYSTEM_PROMPT = `You are Buildables, an AI co-engineer that helps founders and makers refine, improve, and safely prototype hardware projects.
 In Interactive Editing Mode, you collaborate directly with the user.
@@ -419,6 +492,17 @@ serve(async (req)=>{
         status: 400
       });
     }
+    if (!userId) {
+      return new Response(JSON.stringify({
+        error: 'Missing required field: userId'
+      }), {
+        headers: {
+          ...corsHeaders,
+          'Content-Type': 'application/json'
+        },
+        status: 400
+      });
+    }
     const openaiKey = Deno.env.get('OPENAI_API_KEY') ?? '';
     if (!openaiKey) {
       return new Response(JSON.stringify({
@@ -429,6 +513,27 @@ serve(async (req)=>{
           'Content-Type': 'application/json'
         },
         status: 500
+      });
+    }
+    // Server-side credit gate (paid_or_unpaid takes precedence)
+    try {
+      const credits = await getUserCredits(supabase, userId);
+      if (!credits) {
+        return new Response(JSON.stringify({ code: 'INSUFFICIENT_CREDITS', error: 'No credits record' }), {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          status: 402
+        });
+      }
+      if (!credits.paid_or_unpaid && Number(credits.balance_bigint) < CREDIT_COST_EDIT_PROJECT) {
+        return new Response(JSON.stringify({ code: 'INSUFFICIENT_CREDITS', error: 'Need 10 credits for editing project' }), {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          status: 402
+        });
+      }
+    } catch (_gateErr) {
+      return new Response(JSON.stringify({ code: 'INSUFFICIENT_CREDITS', error: 'Credit check failed' }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        status: 402
       });
     }
     const modelInput = `You are editing the ENTIRE hardware project. Use the user's request to update the project summary and any of the three reports as needed. Only change what the user implies or requests, and maintain safety and feasibility.\n\nUSER REQUEST:\n${userMessage}\n\nFULL PROJECT CONTEXT JSON (read-only):\n${JSON.stringify(fullContext)}`;
@@ -502,12 +607,14 @@ serve(async (req)=>{
     // Upsert into hardware_projects (update existing by id, else latest by project, else insert)
     let targetHardwareId = hardwareId;
     if (targetHardwareId) {
-      const { data: updated, error } = await supabase.from('hardware_projects').update({
-        '3d_components': next3D,
-        assembly_parts: nextAssembly,
-        firmware_code: nextFirmware,
-        full_json: parsed
-      }).eq('id', targetHardwareId).select('id').single();
+      const { data: updated, error } = await retrySupabase('hardware_projects.update', () =>
+        supabase.from('hardware_projects').update({
+          '3d_components': next3D,
+          assembly_parts: nextAssembly,
+          firmware_code: nextFirmware,
+          full_json: parsed
+        }).eq('id', targetHardwareId).select('id').single()
+      );
       if (error || !updated) {
         console.error('[EDGE:edit-project] Update hardware_projects failed', error);
         return new Response(JSON.stringify({
@@ -526,12 +633,14 @@ serve(async (req)=>{
         ascending: false
       }).limit(1).maybeSingle();
       if (existing?.id) {
-        const { data: updated, error } = await supabase.from('hardware_projects').update({
-          '3d_components': next3D,
-          assembly_parts: nextAssembly,
-          firmware_code: nextFirmware,
-          full_json: parsed
-        }).eq('id', existing.id).select('id').single();
+        const { data: updated, error } = await retrySupabase('hardware_projects.updateExisting', () =>
+          supabase.from('hardware_projects').update({
+            '3d_components': next3D,
+            assembly_parts: nextAssembly,
+            firmware_code: nextFirmware,
+            full_json: parsed
+          }).eq('id', existing.id).select('id').single()
+        );
         if (error || !updated) {
           console.error('[EDGE:edit-project] Update existing hardware_projects failed', error);
           return new Response(JSON.stringify({
@@ -546,14 +655,16 @@ serve(async (req)=>{
         }
         targetHardwareId = updated.id;
       } else {
-        const { data: inserted, error } = await supabase.from('hardware_projects').insert({
-          project_id: projectId,
-          title: fullContext?.project || 'Hardware Project',
-          '3d_components': next3D,
-          assembly_parts: nextAssembly,
-          firmware_code: nextFirmware,
-          full_json: parsed
-        }).select('id').single();
+        const { data: inserted, error } = await retrySupabase('hardware_projects.insert', () =>
+          supabase.from('hardware_projects').insert({
+            project_id: projectId,
+            title: fullContext?.project || 'Hardware Project',
+            '3d_components': next3D,
+            assembly_parts: nextAssembly,
+            firmware_code: nextFirmware,
+            full_json: parsed
+          }).select('id').single()
+        );
         if (error || !inserted) {
           console.error('[EDGE:edit-project] Insert hardware_projects failed', error);
           return new Response(JSON.stringify({
@@ -587,6 +698,18 @@ serve(async (req)=>{
       }
     } catch (msgErr) {
       console.warn('[EDGE:edit-project] hardware_messages insert failed (non-fatal)', msgErr);
+    }
+    // Post-success debit for unpaid users (do NOT deduct on earlier failures)
+    try {
+      const creditsAfter = await getUserCredits(supabase, userId);
+      if (creditsAfter && !creditsAfter.paid_or_unpaid) {
+        const debit = await debitCreditsIfUnpaid(supabase, userId, CREDIT_COST_EDIT_PROJECT, 'edit_project', targetHardwareId ?? undefined);
+        if (!debit.ok) {
+          console.warn('[EDGE:edit-project] Post-success debit failed:', debit.error);
+        }
+      }
+    } catch (debitErr) {
+      console.warn('[EDGE:edit-project] Debit step error:', debitErr);
     }
     return new Response(JSON.stringify({
       hardwareId: targetHardwareId,
