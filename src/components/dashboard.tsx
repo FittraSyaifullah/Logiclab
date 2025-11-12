@@ -1141,12 +1141,13 @@ function DashboardContent({ onLogout, initialSearchInput }: DashboardProps) {
       // Subscribe to realtime job updates
       console.log('[CLIENT] Subscribing to Realtime job updates...', { jobId })
       const { unsubscribe } = subscribeToJobStatus(jobId, {
-        onUpdate: () => {
-          console.log('[CLIENT] Realtime job update received')
+        onUpdate: (row) => {
+          console.log('[CLIENT] Realtime job update received', { jobId, status: row?.status, hasResult: !!row?.result, error: row?.error })
         },
         onCompleted: async (row) => {
           console.log('[CLIENT] Realtime job completed event', { jobId, result: row.result })
           await unsubscribe()
+          console.log('[CLIENT] Realtime job unsubscribe after completion', { jobId })
           const reportId = row.result?.reportId
           if (reportId) {
               const { user, project } = useUserStore.getState()
@@ -1249,6 +1250,7 @@ function DashboardContent({ onLogout, initialSearchInput }: DashboardProps) {
               setShowCreditModal(true)
             }
             await unsubscribe()
+            console.log('[CLIENT] Realtime job unsubscribe after race-guard failure', { jobId })
           }
         }
       } catch {

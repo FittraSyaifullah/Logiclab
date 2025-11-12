@@ -18,6 +18,13 @@ export function subscribeToJobStatus(
   },
 ): { unsubscribe: Unsubscribe } {
   console.log('[Realtime] Subscribing to job updates', { jobId })
+  const subscribeTimeoutMs = 7000
+  let isSubscribed = false
+  const subscribeTimeoutId = setTimeout(() => {
+    if (!isSubscribed) {
+      console.warn('[Realtime] Subscribe timeout waiting for channel SUBSCRIBED', { jobId, subscribeTimeoutMs })
+    }
+  }, subscribeTimeoutMs)
   const channel = supabase
     .channel(`jobs:${jobId}`)
     .on(
@@ -31,6 +38,7 @@ export function subscribeToJobStatus(
           new: payload.new,
         })
         const next = payload.new as unknown as JobRowUpdate
+        console.log('[Realtime] Parsed job update', { jobId, status: next?.status, hasResult: !!next?.result, error: next?.error })
         handlers.onUpdate?.(next)
         if (next.status === "completed") {
           console.log('[Realtime] job completed', { jobId, result: next.result })
@@ -43,6 +51,16 @@ export function subscribeToJobStatus(
     )
     .subscribe((status) => {
       console.log('[Realtime] channel status', { jobId, status })
+      if (status === 'SUBSCRIBED') {
+        isSubscribed = true
+        clearTimeout(subscribeTimeoutId)
+      }
+      if (status === 'CHANNEL_ERROR') {
+        console.error('[Realtime] channel error state', { jobId })
+      }
+      if (status === 'TIMED_OUT') {
+        console.warn('[Realtime] channel timed out', { jobId })
+      }
     })
 
   return {
@@ -50,6 +68,8 @@ export function subscribeToJobStatus(
       try {
         console.log('[Realtime] Unsubscribing job channel', { jobId })
         await supabase.removeChannel(channel)
+        clearTimeout(subscribeTimeoutId)
+        console.log('[Realtime] Unsubscribed job channel', { jobId })
       } catch {
         // no-op
       }
