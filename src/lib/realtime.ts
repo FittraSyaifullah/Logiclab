@@ -18,6 +18,11 @@ export function subscribeToJobStatus(
   },
 ): { unsubscribe: Unsubscribe } {
   console.log('[Realtime] Subscribing to job updates', { jobId })
+  console.log('[Realtime] Handlers provided', {
+    hasOnUpdate: !!handlers.onUpdate,
+    hasOnCompleted: !!handlers.onCompleted,
+    hasOnFailed: !!handlers.onFailed,
+  })
   const subscribeTimeoutMs = 7000
   let isSubscribed = false
   const subscribeTimeoutId = setTimeout(() => {
@@ -31,21 +36,25 @@ export function subscribeToJobStatus(
       "postgres_changes",
       { event: "UPDATE", schema: "public", table: "jobs", filter: `id=eq.${jobId}` },
       (payload) => {
-        console.log('[Realtime] jobs UPDATE payload received', {
-          table: 'jobs',
-          jobId,
-          old: payload.old,
-          new: payload.new,
-        })
-        const next = payload.new as unknown as JobRowUpdate
-        console.log('[Realtime] Parsed job update', { jobId, status: next?.status, hasResult: !!next?.result, error: next?.error })
-        handlers.onUpdate?.(next)
-        if (next.status === "completed") {
-          console.log('[Realtime] job completed', { jobId, result: next.result })
-          handlers.onCompleted?.(next)
-        } else if (next.status === "failed") {
-          console.warn('[Realtime] job failed', { jobId, error: next.error })
-          handlers.onFailed?.(next)
+        try {
+          console.log('[Realtime] jobs UPDATE payload received', {
+            table: 'jobs',
+            jobId,
+            old: payload.old,
+            new: payload.new,
+          })
+          const next = payload.new as unknown as JobRowUpdate
+          console.log('[Realtime] Parsed job update', { jobId, status: next?.status, hasResult: !!next?.result, error: next?.error })
+          handlers.onUpdate?.(next)
+          if (next.status === "completed") {
+            console.log('[Realtime] job completed', { jobId, result: next.result })
+            handlers.onCompleted?.(next)
+          } else if (next.status === "failed") {
+            console.warn('[Realtime] job failed', { jobId, error: next.error })
+            handlers.onFailed?.(next)
+          }
+        } catch (err) {
+          console.error('[Realtime] Error in update handler chain', { jobId, error: err })
         }
       },
     )
@@ -54,6 +63,7 @@ export function subscribeToJobStatus(
       if (status === 'SUBSCRIBED') {
         isSubscribed = true
         clearTimeout(subscribeTimeoutId)
+        console.log('[Realtime] Channel subscribed and timeout cleared', { jobId })
       }
       if (status === 'CHANNEL_ERROR') {
         console.error('[Realtime] channel error state', { jobId })
@@ -70,8 +80,8 @@ export function subscribeToJobStatus(
         await supabase.removeChannel(channel)
         clearTimeout(subscribeTimeoutId)
         console.log('[Realtime] Unsubscribed job channel', { jobId })
-      } catch {
-        // no-op
+      } catch (error) {
+        console.error('[Realtime] Error during unsubscribe', { jobId, error })
       }
     },
   }

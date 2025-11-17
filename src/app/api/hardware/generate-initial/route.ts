@@ -31,8 +31,10 @@ export async function POST(request: NextRequest) {
       .single()
 
     if (projectError || !project) {
+      console.warn('[HARDWARE INITIAL] Project not found or ownership mismatch', { projectId, userId, error: projectError })
       return NextResponse.json({ error: 'Project not found' }, { status: 404 })
     }
+    console.log('[HARDWARE INITIAL] Project verified', { projectId: project.id, ownerId: project.owner_id })
 
     // Note: System prompt and schema are handled by the edge function
     console.log('[HARDWARE INITIAL] Creating job (system prompt handled by edge function)...')
