@@ -6,66 +6,62 @@ const corsHeaders = {
 };
 // Credit model constants
 const CREDIT_COST_HARDWARE_INITIAL = 10;
-
 // Simple retry for transient network errors on Supabase REST calls
-async function retrySupabase<T>(
-  opName: string,
-  run: () => Promise<{ data: T | null; error: unknown }>,
-  attempts = 3,
-  baseDelayMs = 300
-): Promise<{ data: T | null; error: unknown }> {
-  let last: { data: T | null; error: unknown } = { data: null, error: null };
-  for (let attempt = 1; attempt <= attempts; attempt++) {
+async function retrySupabase(opName, run, attempts = 3, baseDelayMs = 300) {
+  let last = {
+    data: null,
+    error: null
+  };
+  for(let attempt = 1; attempt <= attempts; attempt++){
     last = await run();
-    const message = String((last as any)?.error?.message ?? last.error ?? '');
+    const message = String(last?.error?.message ?? last.error ?? '');
     const isTransient = !!message && /connection reset|ECONNRESET|SendRequest|network|timeout/i.test(message);
     if (!last.error || !isTransient || attempt === attempts) {
       return last;
     }
     const delayMs = baseDelayMs * Math.pow(2, attempt - 1);
-    console.warn('[EDGE:hardware-initial-test] Transient error, retrying ' + opName, { attempt, delayMs, message });
-    await new Promise((r) => setTimeout(r, delayMs));
+    console.warn('[EDGE:hardware-initial-test] Transient error, retrying ' + opName, {
+      attempt,
+      delayMs,
+      message
+    });
+    await new Promise((r)=>setTimeout(r, delayMs));
   }
   return last;
 }
-
-async function getUserCredits(supabase: any, userId: string) {
-  const { data } = await supabase
-    .from('user_credits')
-    .select('user_id, balance_bigint, reserved_bigint, paid_or_unpaid')
-    .eq('user_id', userId)
-    .single();
+async function getUserCredits(supabase, userId) {
+  const { data } = await supabase.from('user_credits').select('user_id, balance_bigint, reserved_bigint, paid_or_unpaid').eq('user_id', userId).single();
   return data ?? null;
 }
-
-async function debitCreditsIfUnpaid(
-  supabase: any,
-  userId: string,
-  cost: number,
-  reason: string,
-  refId?: string
-) {
-  const { data: current } = await supabase
-    .from('user_credits')
-    .select('user_id, balance_bigint, paid_or_unpaid')
-    .eq('user_id', userId)
-    .single();
+async function debitCreditsIfUnpaid(supabase, userId, cost, reason, refId) {
+  const { data: current } = await supabase.from('user_credits').select('user_id, balance_bigint, paid_or_unpaid').eq('user_id', userId).single();
   if (!current) {
-    return { ok: false as const, error: 'User credits not found' };
+    return {
+      ok: false,
+      error: 'User credits not found'
+    };
   }
   if (current.paid_or_unpaid) {
-    return { ok: true as const, balanceAfter: current.balance_bigint as number };
+    return {
+      ok: true,
+      balanceAfter: current.balance_bigint
+    };
   }
   if (Number(current.balance_bigint) < cost) {
-    return { ok: false as const, error: 'Insufficient credits' };
+    return {
+      ok: false,
+      error: 'Insufficient credits'
+    };
   }
   const newBalance = Number(current.balance_bigint) - cost;
-  const { error: updateError } = await supabase
-    .from('user_credits')
-    .update({ balance_bigint: newBalance })
-    .eq('user_id', userId);
+  const { error: updateError } = await supabase.from('user_credits').update({
+    balance_bigint: newBalance
+  }).eq('user_id', userId);
   if (updateError) {
-    return { ok: false as const, error: updateError.message };
+    return {
+      ok: false,
+      error: updateError.message
+    };
   }
   await supabase.from('credit_transactions').insert({
     user_id: userId,
@@ -75,10 +71,15 @@ async function debitCreditsIfUnpaid(
     reason,
     ref_id: refId
   });
-  return { ok: true as const, balanceAfter: newBalance };
+  return {
+    ok: true,
+    balanceAfter: newBalance
+  };
 }
 serve(async (req)=>{
-  console.log('[EDGE:hardware-initial-test] Function invoked', { method: req.method });
+  console.log('[EDGE:hardware-initial-test] Function invoked', {
+    method: req.method
+  });
   if (req.method === 'OPTIONS') {
     return new Response('ok', {
       headers: corsHeaders
@@ -86,14 +87,13 @@ serve(async (req)=>{
   }
   try {
     console.log('[EDGE:hardware-initial-test] Parsing request body for jobId');
-    let jobId: string | null = null;
+    let jobId = null;
     try {
       const body = await req.json();
       jobId = typeof body?.jobId === 'string' ? body.jobId : null;
     } catch (_e) {
       jobId = null;
     }
-
     if (!jobId) {
       console.error('[EDGE:hardware-initial-test] Missing or invalid jobId in request body');
       return new Response(JSON.stringify({
@@ -106,17 +106,12 @@ serve(async (req)=>{
         status: 400
       });
     }
-
     console.log('[EDGE:hardware-initial-test] Creating Supabase client');
     const supabase = createClient(Deno.env.get('SUPABASE_URL') ?? '', Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '');
-    console.log('[EDGE:hardware-initial-test] Fetching specific pending job', { jobId });
-    const { data: jobs, error: jobsError } = await supabase
-      .from('jobs')
-      .select('*')
-      .eq('id', jobId)
-      .eq('status', 'pending')
-      .eq('kind', 'hardware_initial_generation')
-      .limit(1);
+    console.log('[EDGE:hardware-initial-test] Fetching specific pending job', {
+      jobId
+    });
+    const { data: jobs, error: jobsError } = await supabase.from('jobs').select('*').eq('id', jobId).eq('status', 'pending').eq('kind', 'hardware_initial_generation').limit(1);
     if (jobsError) {
       console.error('[EDGE:hardware-initial-test] Error fetching jobs:', jobsError);
       return new Response(JSON.stringify({
@@ -129,9 +124,19 @@ serve(async (req)=>{
         status: 500
       });
     }
-    console.log('[EDGE:hardware-initial-test] Jobs fetched for jobId', { jobId, count: jobs?.length ?? 0, jobs: jobs?.map(j => ({ id: j.id, status: j.status, kind: j.kind })) });
+    console.log('[EDGE:hardware-initial-test] Jobs fetched for jobId', {
+      jobId,
+      count: jobs?.length ?? 0,
+      jobs: jobs?.map((j)=>({
+          id: j.id,
+          status: j.status,
+          kind: j.kind
+        }))
+    });
     if (!jobs || jobs.length === 0) {
-      console.log('[EDGE:hardware-initial-test] No matching pending job found', { jobId });
+      console.log('[EDGE:hardware-initial-test] No matching pending job found', {
+        jobId
+      });
       return new Response(JSON.stringify({
         error: 'Job not found or not in pending state'
       }), {
@@ -369,9 +374,14 @@ Remember: Your user doesn't know how to build hardware. That's why they need you
     };
     const STRICT_SCHEMA = exampleToSchema(AI_OUTPUT_EXAMPLE);
     for (const job of jobs){
-      console.log('[EDGE:hardware-initial-test] Processing job', { jobId: job.id, status: job.status });
+      console.log('[EDGE:hardware-initial-test] Processing job', {
+        jobId: job.id,
+        status: job.status
+      });
       try {
-        console.log('[EDGE:hardware-initial-test] Updating job status to processing', { jobId: job.id });
+        console.log('[EDGE:hardware-initial-test] Updating job status to processing', {
+          jobId: job.id
+        });
         await supabase.from('jobs').update({
           status: 'processing',
           started_at: new Date().toISOString()
@@ -386,23 +396,51 @@ Remember: Your user doesn't know how to build hardware. That's why they need you
             payloadUserId: userId
           });
         }
-        console.log('[EDGE:hardware-initial-test] Job payload extracted', { jobId: job.id, hasTitle: !!title, hasPrompt: !!prompt, projectId, userId, effectiveUserId });
+        console.log('[EDGE:hardware-initial-test] Job payload extracted', {
+          jobId: job.id,
+          hasTitle: !!title,
+          hasPrompt: !!prompt,
+          projectId,
+          userId,
+          effectiveUserId
+        });
         if (!title || !prompt || !projectId || !effectiveUserId) {
           throw new Error('Missing required input for initial generation');
         }
         // Server-side credit gate (paid_or_unpaid takes precedence)
-        console.log('[EDGE:hardware-initial-test] Checking credits', { jobId: job.id, effectiveUserId });
+        console.log('[EDGE:hardware-initial-test] Checking credits', {
+          jobId: job.id,
+          effectiveUserId
+        });
         try {
           const credits = await getUserCredits(supabase, effectiveUserId);
-          console.log('[EDGE:hardware-initial-test] Credits fetched', { jobId: job.id, effectiveUserId, credits: credits ? { balance: credits.balance_bigint, paid: credits.paid_or_unpaid } : null });
-          console.log('[EDGE:hardware-initial-test] paid_or_unpaid value:', { jobId: job.id, effectiveUserId, paid_or_unpaid: credits?.paid_or_unpaid, paid_or_unpaid_type: typeof credits?.paid_or_unpaid, paid_or_unpaid_raw: credits?.paid_or_unpaid });
+          console.log('[EDGE:hardware-initial-test] Credits fetched', {
+            jobId: job.id,
+            effectiveUserId,
+            credits: credits ? {
+              balance: credits.balance_bigint,
+              paid: credits.paid_or_unpaid
+            } : null
+          });
+          console.log('[EDGE:hardware-initial-test] paid_or_unpaid value:', {
+            jobId: job.id,
+            effectiveUserId,
+            paid_or_unpaid: credits?.paid_or_unpaid,
+            paid_or_unpaid_type: typeof credits?.paid_or_unpaid,
+            paid_or_unpaid_raw: credits?.paid_or_unpaid
+          });
           if (!credits) {
             throw new Error('INSUFFICIENT_CREDITS: No credits record');
           }
           if (!credits.paid_or_unpaid && Number(credits.balance_bigint) < CREDIT_COST_HARDWARE_INITIAL) {
             throw new Error('INSUFFICIENT_CREDITS: Need 10 credits for initial hardware generation');
           }
-          console.log('[EDGE:hardware-initial-test] Credit check passed', { jobId: job.id, effectiveUserId, balance: credits.balance_bigint, paid: credits.paid_or_unpaid });
+          console.log('[EDGE:hardware-initial-test] Credit check passed', {
+            jobId: job.id,
+            effectiveUserId,
+            balance: credits.balance_bigint,
+            paid: credits.paid_or_unpaid
+          });
         } catch (gateErr) {
           const message = gateErr instanceof Error ? gateErr.message : 'INSUFFICIENT_CREDITS';
           console.error('[EDGE:hardware-initial-test] Credit gate failed for job ' + job.id + ':', message);
@@ -416,14 +454,21 @@ Remember: Your user doesn't know how to build hardware. That's why they need you
         }
         const openaiKey = Deno.env.get('OPENAI_API_KEY') ?? '';
         if (!openaiKey) throw new Error('OPENAI_API_KEY not configured');
-        console.log('[EDGE:hardware-initial-test] Calling OpenAI API', { jobId: job.id, title, promptLength: prompt?.length });
+        console.log('[EDGE:hardware-initial-test] Calling OpenAI API', {
+          jobId: job.id,
+          title,
+          promptLength: prompt?.length
+        });
         const body = {
-          model: 'gpt-4.1',
-          temperature: 0.3,
-          max_output_tokens: 4000,
+          model: 'gpt-5',
+          reasoning: {
+            effort: "low"
+          },
+          max_output_tokens: 6000,
           instructions: SYSTEM_PROMPT,
           input: `Project Title: ${title}\n\nUser Description: ${prompt}\n\nReturn the required hardware output JSON strictly following the provided schema.`,
           text: {
+            verbosity: "low",
             format: {
               type: 'json_schema',
               name: 'HardwareOutput',
@@ -440,7 +485,13 @@ Remember: Your user doesn't know how to build hardware. That's why they need you
           },
           body: JSON.stringify(body)
         });
-        console.log('[EDGE:hardware-initial-test] OpenAI response received', { jobId: job.id, status: resp.status, ok: resp.ok });
+        const raw = await resp.text();
+        console.log('[EDGE:hardware-initial-test] Raw OpenAI response. ', raw);
+        console.log('[EDGE:hardware-initial-test] OpenAI response received.', {
+          jobId: job.id,
+          status: resp.status,
+          ok: resp.ok
+        });
         if (!resp.ok) {
           const t = await resp.text();
           console.error('[EDGE:hardware-initial-test] OpenAI error:', t);
@@ -448,21 +499,37 @@ Remember: Your user doesn't know how to build hardware. That's why they need you
         }
         const data = await resp.json();
         const outputText = data?.output?.[0]?.content?.[0]?.text || data?.output_text;
-        console.log('[EDGE:hardware-initial-test] OpenAI output extracted', { jobId: job.id, hasOutputText: !!outputText, outputTextLength: outputText?.length });
+        console.log('[EDGE:hardware-initial-test] OpenAI output extracted. Output text: ', outputText, {
+          jobId: job.id,
+          hasOutputText: !!outputText,
+          outputTextLength: outputText?.length
+        });
         if (!outputText) throw new Error('Structured output missing text payload');
         let parsed;
         try {
           parsed = JSON.parse(outputText);
-          console.log('[EDGE:hardware-initial-test] JSON parsed successfully', { jobId: job.id, hasReports: !!parsed?.reports });
+          console.log('[EDGE:hardware-initial-test] JSON parsed successfully', {
+            jobId: job.id,
+            hasReports: !!parsed?.reports
+          });
         } catch (_e) {
-          console.error('[EDGE:hardware-initial-test] JSON parse failed', { jobId: job.id, error: _e, outputTextPreview: outputText?.substring(0, 200) });
+          console.error('[EDGE:hardware-initial-test] JSON parse failed', {
+            jobId: job.id,
+            error: _e,
+            outputTextPreview: outputText?.substring(0, 200)
+          });
           throw new Error('Failed to parse structured JSON output');
         }
         const resultObj = parsed;
         const threeD = resultObj?.reports?.['3DComponents'];
         const assembly = resultObj?.reports?.['AssemblyAndParts'];
         const firmware = resultObj?.reports?.['FirmwareAndCode'];
-        console.log('[EDGE:hardware-initial-test] Extracted report sections', { jobId: job.id, hasThreeD: !!threeD, hasAssembly: !!assembly, hasFirmware: !!firmware });
+        console.log('[EDGE:hardware-initial-test] Extracted report sections', {
+          jobId: job.id,
+          hasThreeD: !!threeD,
+          hasAssembly: !!assembly,
+          hasFirmware: !!firmware
+        });
         const assemblyContent = assembly ? [
           assembly.overview || '',
           assembly.assemblyInstructions || '',
@@ -499,28 +566,41 @@ Remember: Your user doesn't know how to build hardware. That's why they need you
             codeLines: firmwareContent.split('\n').length
           } : null
         };
-        console.log('[EDGE:hardware-initial-test] Preparing hardware_projects insert', { 
-          jobId: job.id, 
-          projectId, 
+        console.log('[EDGE:hardware-initial-test] Preparing hardware_projects insert', {
+          jobId: job.id,
+          projectId,
           title: insertPayload.title,
           has3D: !!insertPayload['3d_components'],
           hasAssembly: !!insertPayload.assembly_parts,
           hasFirmware: !!insertPayload.firmware_code
         });
-        const { data: inserted, error: insertErr } = await retrySupabase('hardware_projects.insert', () =>
-          supabase.from('hardware_projects').insert(insertPayload).select('id').single()
-        );
-        console.log('[EDGE:hardware-initial-test] hardware_projects insert result', { 
-          jobId: job.id, 
-          insertedId: inserted?.id, 
-          error: insertErr ? { message: insertErr.message, code: insertErr.code, details: insertErr.details, hint: insertErr.hint } : null 
+        const { data: inserted, error: insertErr } = await retrySupabase('hardware_projects.insert', ()=>supabase.from('hardware_projects').insert(insertPayload).select('id').single());
+        console.log('[EDGE:hardware-initial-test] hardware_projects insert result', {
+          jobId: job.id,
+          insertedId: inserted?.id,
+          error: insertErr ? {
+            message: insertErr.message,
+            code: insertErr.code,
+            details: insertErr.details,
+            hint: insertErr.hint
+          } : null
         });
         if (insertErr || !inserted) {
-          console.error('[EDGE:hardware-initial-test] hardware_projects insert failed', { jobId: job.id, error: insertErr, inserted });
+          console.error('[EDGE:hardware-initial-test] hardware_projects insert failed', {
+            jobId: job.id,
+            error: insertErr,
+            inserted
+          });
           throw insertErr || new Error('Insert failed');
         }
-        console.log('[EDGE:hardware-initial-test] hardware_projects inserted successfully', { jobId: job.id, hardwareProjectId: inserted.id });
-        console.log('[EDGE:hardware-initial-test] Updating job to completed', { jobId: job.id, hardwareProjectId: inserted.id });
+        console.log('[EDGE:hardware-initial-test] hardware_projects inserted successfully', {
+          jobId: job.id,
+          hardwareProjectId: inserted.id
+        });
+        console.log('[EDGE:hardware-initial-test] Updating job to completed', {
+          jobId: job.id,
+          hardwareProjectId: inserted.id
+        });
         await supabase.from('jobs').update({
           status: 'completed',
           finished_at: new Date().toISOString(),
@@ -528,38 +608,73 @@ Remember: Your user doesn't know how to build hardware. That's why they need you
             reportId: inserted.id
           }
         }).eq('id', job.id);
-        console.log('[EDGE:hardware-initial-test] Job updated to completed', { jobId: job.id });
+        console.log('[EDGE:hardware-initial-test] Job updated to completed', {
+          jobId: job.id
+        });
         // Post-success debit for unpaid users (do NOT deduct on earlier failures)
-        console.log('[EDGE:hardware-initial-test] Starting post-success debit', { jobId: job.id, effectiveUserId });
+        console.log('[EDGE:hardware-initial-test] Starting post-success debit', {
+          jobId: job.id,
+          effectiveUserId
+        });
         try {
           const creditsAfter = await getUserCredits(supabase, effectiveUserId);
-          console.log('[EDGE:hardware-initial-test] Credits after success', { jobId: job.id, effectiveUserId, credits: creditsAfter ? { balance: creditsAfter.balance_bigint, paid: creditsAfter.paid_or_unpaid } : null });
+          console.log('[EDGE:hardware-initial-test] Credits after success', {
+            jobId: job.id,
+            effectiveUserId,
+            credits: creditsAfter ? {
+              balance: creditsAfter.balance_bigint,
+              paid: creditsAfter.paid_or_unpaid
+            } : null
+          });
           if (creditsAfter && !creditsAfter.paid_or_unpaid) {
-            console.log('[EDGE:hardware-initial-test] Debiting credits', { jobId: job.id, effectiveUserId, cost: CREDIT_COST_HARDWARE_INITIAL });
+            console.log('[EDGE:hardware-initial-test] Debiting credits', {
+              jobId: job.id,
+              effectiveUserId,
+              cost: CREDIT_COST_HARDWARE_INITIAL
+            });
             const debit = await debitCreditsIfUnpaid(supabase, effectiveUserId, CREDIT_COST_HARDWARE_INITIAL, 'hardware_initial_generation', job.id);
             if (!debit.ok) {
               console.warn('[EDGE:hardware-initial-test] Post-success debit failed for job ' + job.id + ':', debit.error);
             } else {
-              console.log('[EDGE:hardware-initial-test] Credits debited successfully', { jobId: job.id, effectiveUserId, balanceAfter: debit.balanceAfter });
+              console.log('[EDGE:hardware-initial-test] Credits debited successfully', {
+                jobId: job.id,
+                effectiveUserId,
+                balanceAfter: debit.balanceAfter
+              });
             }
           } else {
-            console.log('[EDGE:hardware-initial-test] Skipping debit (paid user or no credits)', { jobId: job.id, effectiveUserId, paid: creditsAfter?.paid_or_unpaid });
+            console.log('[EDGE:hardware-initial-test] Skipping debit (paid user or no credits)', {
+              jobId: job.id,
+              effectiveUserId,
+              paid: creditsAfter?.paid_or_unpaid
+            });
           }
         } catch (debitErr) {
           console.warn('[EDGE:hardware-initial-test] Debit step error for job ' + job.id + ':', debitErr);
         }
-        console.log('[EDGE:hardware-initial-test] Job processing completed successfully', { jobId: job.id });
+        console.log('[EDGE:hardware-initial-test] Job processing completed successfully', {
+          jobId: job.id
+        });
       } catch (err) {
-        console.error('[EDGE:hardware-initial-test] Job error', { jobId: job.id, error: err, errorMessage: err instanceof Error ? err.message : String(err), errorStack: err instanceof Error ? err.stack : undefined });
+        console.error('[EDGE:hardware-initial-test] Job error', {
+          jobId: job.id,
+          error: err,
+          errorMessage: err instanceof Error ? err.message : String(err),
+          errorStack: err instanceof Error ? err.stack : undefined
+        });
         await supabase.from('jobs').update({
           status: 'failed',
           error: err instanceof Error ? err.message : String(err),
           finished_at: new Date().toISOString()
         }).eq('id', job.id);
-        console.log('[EDGE:hardware-initial-test] Job marked as failed', { jobId: job.id });
+        console.log('[EDGE:hardware-initial-test] Job marked as failed', {
+          jobId: job.id
+        });
       }
     }
-    console.log('[EDGE:hardware-initial-test] All jobs processed', { totalJobs: jobs.length });
+    console.log('[EDGE:hardware-initial-test] All jobs processed', {
+      totalJobs: jobs.length
+    });
     return new Response(JSON.stringify({
       message: `Processed ${jobs.length} initial hardware jobs`
     }), {
@@ -570,7 +685,11 @@ Remember: Your user doesn't know how to build hardware. That's why they need you
       status: 200
     });
   } catch (error) {
-    console.error('[EDGE:hardware-initial-test] Function error', { error, errorMessage: error instanceof Error ? error.message : String(error), errorStack: error instanceof Error ? error.stack : undefined });
+    console.error('[EDGE:hardware-initial-test] Function error', {
+      error,
+      errorMessage: error instanceof Error ? error.message : String(error),
+      errorStack: error instanceof Error ? error.stack : undefined
+    });
     return new Response(JSON.stringify({
       error: error instanceof Error ? error.message : 'Unknown error'
     }), {
