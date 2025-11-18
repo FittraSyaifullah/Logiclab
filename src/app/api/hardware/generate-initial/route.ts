@@ -72,7 +72,8 @@ export async function POST(request: NextRequest) {
             Authorization: `Bearer ${SERVICE_ROLE_KEY}`,
             'Content-Type': 'application/json',
           },
-          body: JSON.stringify({}),
+          // Pass the specific jobId so the edge function processes only this job
+          body: JSON.stringify({ jobId: job.id }),
         })
         console.log('[HARDWARE INITIAL] Edge function response status:', fnResp.status)
         if (!fnResp.ok) {

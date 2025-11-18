@@ -85,12 +85,38 @@ serve(async (req)=>{
     });
   }
   try {
+    console.log('[EDGE:hardware-initial-test] Parsing request body for jobId');
+    let jobId: string | null = null;
+    try {
+      const body = await req.json();
+      jobId = typeof body?.jobId === 'string' ? body.jobId : null;
+    } catch (_e) {
+      jobId = null;
+    }
+
+    if (!jobId) {
+      console.error('[EDGE:hardware-initial-test] Missing or invalid jobId in request body');
+      return new Response(JSON.stringify({
+        error: 'jobId is required and must be a string'
+      }), {
+        headers: {
+          ...corsHeaders,
+          'Content-Type': 'application/json'
+        },
+        status: 400
+      });
+    }
+
     console.log('[EDGE:hardware-initial-test] Creating Supabase client');
     const supabase = createClient(Deno.env.get('SUPABASE_URL') ?? '', Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '');
-    console.log('[EDGE:hardware-initial-test] Fetching pending jobs');
-    const { data: jobs, error: jobsError } = await supabase.from('jobs').select('*').eq('status', 'pending').eq('kind', 'hardware_initial_generation').order('created_at', {
-      ascending: true
-    }).limit(3);
+    console.log('[EDGE:hardware-initial-test] Fetching specific pending job', { jobId });
+    const { data: jobs, error: jobsError } = await supabase
+      .from('jobs')
+      .select('*')
+      .eq('id', jobId)
+      .eq('status', 'pending')
+      .eq('kind', 'hardware_initial_generation')
+      .limit(1);
     if (jobsError) {
       console.error('[EDGE:hardware-initial-test] Error fetching jobs:', jobsError);
       return new Response(JSON.stringify({
@@ -103,17 +129,17 @@ serve(async (req)=>{
         status: 500
       });
     }
-    console.log('[EDGE:hardware-initial-test] Jobs fetched', { count: jobs?.length ?? 0, jobs: jobs?.map(j => ({ id: j.id, status: j.status, kind: j.kind })) });
+    console.log('[EDGE:hardware-initial-test] Jobs fetched for jobId', { jobId, count: jobs?.length ?? 0, jobs: jobs?.map(j => ({ id: j.id, status: j.status, kind: j.kind })) });
     if (!jobs || jobs.length === 0) {
-      console.log('[EDGE:hardware-initial-test] No pending jobs found');
+      console.log('[EDGE:hardware-initial-test] No matching pending job found', { jobId });
       return new Response(JSON.stringify({
-        message: 'No pending jobs'
+        error: 'Job not found or not in pending state'
       }), {
         headers: {
           ...corsHeaders,
           'Content-Type': 'application/json'
         },
-        status: 200
+        status: 404
       });
     }
     // Hardcoded master system prompt from repository
