@@ -111,17 +111,17 @@ const scrollShowcase = [
 
 const whatPeopleBuildCards = [
   {
-    img: "/images/design-mode/photo_2025-10-28_08-46-27.jpg",
+    img: "/images/drone-2.jpg",
     title: "Drones & Flying Tech",
     description: "Camera drones, racing quads, delivery systems",
   },
   {
-    img: "/images/design-mode/Smartwatch.png",
+    img: "/images/smartwatch.png",
     title: "Wearable Tech",
     description: "Smart watches, fitness trackers, health monitors",
   },
   {
-    img: "/images/design-mode/Roomba.png",
+    img: "/images/roomba.png",
     title: "Smart Furniture",
     description: "Adjustable desks, automated storage, IoT home items",
   },
