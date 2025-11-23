@@ -57,7 +57,7 @@ export async function POST(request: NextRequest) {
 
     // Trigger edge function to process jobs (fire-and-forget)
     console.log('[HARDWARE INITIAL] Triggering edge function...')
-    const HARDWARE_INITIAL_FUNCTION_ENDPOINT = process.env.SUPABASE_HARDWARE_INITIAL_FUNCTION_URL//_TEST
+    const HARDWARE_INITIAL_FUNCTION_ENDPOINT = process.env.SUPABASE_HARDWARE_INITIAL_GPT5_FUNCTION_URL//_TEST
     const SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY
     
     console.log('[HARDWARE INITIAL] Function URL:', HARDWARE_INITIAL_FUNCTION_ENDPOINT ? 'present' : 'missing')
@@ -86,7 +86,7 @@ export async function POST(request: NextRequest) {
         console.warn('[HARDWARE INITIAL] Failed to trigger edge function', e)
       }
     } else {
-      console.warn('[HARDWARE INITIAL] Missing SUPABASE_HARDWARE_INITIAL_FUNCTION_URL or SUPABASE_SERVICE_ROLE_KEY')
+      console.warn('[HARDWARE INITIAL] Missing SUPABASE_HARDWARE_INITIAL_GPT5_FUNCTION_URL or SUPABASE_SERVICE_ROLE_KEY')
     }
 
     return NextResponse.json({ success: true, jobId: job.id })
