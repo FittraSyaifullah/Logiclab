@@ -629,21 +629,91 @@ export function HardwareViewer({ creation, onRegenerate, onGenerateComponentMode
         }),
       })
 
-        if (response.ok) {
-        await response.json()
-        // In-place refresh: fetch latest report and update creation store so viewer re-renders
+      const json = await response.json().catch(() => ({}))
+
+      if (!response.ok) {
+        // Surface error but keep UI responsive
+        const message = (json as { error?: string }).error || `Failed to regenerate ${tabId}`
+        toast({
+          title: "Regeneration failed",
+          description: message,
+          variant: "destructive",
+        })
+      } else if (apiEndpoint === "generate-3d" && (json as { jobId?: string }).jobId) {
+        // Fire-and-forget path: poll job status and refresh reports when completed
+        const jobId = (json as { jobId?: string }).jobId as string
+        let attempts = 0
+        const maxAttempts = 60 // ~5 minutes at 5s intervals
+
+        const poll = async () => {
+          try {
+            const statusResp = await fetch(`/api/jobs/${jobId}`)
+            if (!statusResp.ok) return
+            const statusData = (await statusResp.json()) as { completed?: boolean; status?: string; error?: string }
+
+            if (statusData.completed) {
+              // Refresh reports for this project so 3D tab re-renders with latest data
+              try {
+                const safeProjectId = String((creation as { projectId?: string }).projectId || "")
+                const safeUserId = String(user?.id || "")
+                const safeReportId = String(reportId || "")
+                const reportsResp = await fetch(
+                  `/api/hardware/reports?projectId=${encodeURIComponent(safeProjectId)}&userId=${encodeURIComponent(
+                    safeUserId,
+                  )}&reportId=${encodeURIComponent(safeReportId)}`,
+                  { cache: "no-store" },
+                )
+                if (reportsResp.ok) {
+                  const reportsData = await reportsResp.json()
+                  updateCreation(creation.id, { hardwareReports: reportsData.reports || {} })
+                }
+              } catch {
+                // ignore and let user retry manually
+              }
+              return
+            }
+
+            if (statusData.status === "failed") {
+              toast({
+                title: "3D regeneration failed",
+                description: statusData.error || "Job failed",
+                variant: "destructive",
+              })
+              return
+            }
+
+            if (attempts < maxAttempts) {
+              attempts += 1
+              setTimeout(poll, 5000)
+            }
+          } catch {
+            if (attempts < maxAttempts) {
+              attempts += 1
+              setTimeout(poll, 5000)
+            }
+          }
+        }
+
+        setTimeout(poll, 5000)
+      } else {
+        // Legacy synchronous endpoints (assembly, firmware, etc.): best-effort refresh
         try {
-          const safeProjectId = String((creation as { projectId?: string }).projectId || '')
-          const safeUserId = String(user?.id || '')
-          const safeReportId = String(reportId || '')
-          const reportsResp = await fetch(`/api/hardware/reports?projectId=${encodeURIComponent(safeProjectId)}&userId=${encodeURIComponent(safeUserId)}&reportId=${encodeURIComponent(safeReportId)}`, { cache: 'no-store' })
+          const safeProjectId = String((creation as { projectId?: string }).projectId || "")
+          const safeUserId = String(user?.id || "")
+          const safeReportId = String(reportId || "")
+          const reportsResp = await fetch(
+            `/api/hardware/reports?projectId=${encodeURIComponent(safeProjectId)}&userId=${encodeURIComponent(
+              safeUserId,
+            )}&reportId=${encodeURIComponent(safeReportId)}`,
+            { cache: "no-store" },
+          )
           if (reportsResp.ok) {
             const reportsData = await reportsResp.json()
             updateCreation(creation.id, { hardwareReports: reportsData.reports || {} })
           }
-        } catch {}
-      } else {
-        
+        } catch {
+          // ignore; user can retry
+        }
       }
     } catch {
       

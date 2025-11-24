@@ -60,21 +60,25 @@ export async function POST(request: NextRequest) {
 
     if (HARDWARE_FUNCTION_ENDPOINT && SERVICE_ROLE_KEY) {
       try {
-        console.log(`[HARDWARE] Triggering hardware-processor function at ${HARDWARE_FUNCTION_ENDPOINT}`)
+        console.log(`[HARDWARE] Triggering hardware-processor function at ${HARDWARE_FUNCTION_ENDPOINT} for job ${job.id}`)
         const functionResponse = await fetch(HARDWARE_FUNCTION_ENDPOINT, {
           method: "POST",
           headers: {
             Authorization: `Bearer ${SERVICE_ROLE_KEY}`,
             "Content-Type": "application/json",
           },
-          body: JSON.stringify({}),
+          // Pass the specific jobId so the edge function processes only this job
+          body: JSON.stringify({ jobId: job.id }),
         })
-        
+
         if (functionResponse.ok) {
           const result = await functionResponse.json()
           console.log(`[HARDWARE] Successfully triggered hardware-processor:`, result)
         } else {
-          console.error(`[HARDWARE] Hardware-processor function returned ${functionResponse.status}:`, await functionResponse.text())
+          console.error(
+            `[HARDWARE] Hardware-processor function returned ${functionResponse.status}:`,
+            await functionResponse.text(),
+          )
         }
       } catch (functionError) {
         console.error("[HARDWARE] Failed to trigger hardware-processor function", functionError)

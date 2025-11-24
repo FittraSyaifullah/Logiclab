@@ -98,12 +98,36 @@ serve(async (req)=>{
     });
   }
   try {
+    // Expect a specific jobId so this worker processes only the enqueued job
+    let jobId = null;
+    try {
+      const body = await req.json();
+      jobId = typeof body?.jobId === 'string' ? body.jobId : null;
+    } catch (_e) {
+      jobId = null;
+    }
+    if (!jobId) {
+      console.error('[EDGE:hardware-processor-test] Missing or invalid jobId in request body');
+      return new Response(JSON.stringify({
+        error: 'jobId is required and must be a string'
+      }), {
+        headers: {
+          ...corsHeaders,
+          'Content-Type': 'application/json'
+        },
+        status: 400
+      });
+    }
     const supabaseClient = createClient(Deno.env.get('SUPABASE_URL') ?? '', Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '');
-    const { data: jobs, error: jobsError } = await supabaseClient.from('jobs').select('*').eq('status', 'pending').eq('kind', 'hardware-model-component').order('created_at', {
-      ascending: true
-    }).limit(5);
+    const { data: jobs, error: jobsError } = await supabaseClient
+      .from('jobs')
+      .select('*')
+      .eq('id', jobId)
+      .eq('status', 'pending')
+      .eq('kind', 'hardware-model-component')
+      .limit(1);
     if (jobsError) {
-      console.error('Error fetching jobs:', jobsError);
+      console.error('[EDGE:hardware-processor-test] Error fetching job:', jobsError);
       return new Response(JSON.stringify({
         error: jobsError.message
       }), {
@@ -115,14 +139,15 @@ serve(async (req)=>{
       });
     }
     if (!jobs || jobs.length === 0) {
+      console.log('[EDGE:hardware-processor-test] No matching pending job found', { jobId });
       return new Response(JSON.stringify({
-        message: 'No pending jobs'
+        error: 'Job not found or not in pending state'
       }), {
         headers: {
           ...corsHeaders,
           'Content-Type': 'application/json'
         },
-        status: 200
+        status: 404
       });
     }
     for (const job of jobs){

@@ -57,34 +57,37 @@ export async function POST(request: NextRequest) {
 
     // Trigger edge function to process jobs (fire-and-forget)
     console.log('[HARDWARE INITIAL] Triggering edge function...')
-    const HARDWARE_INITIAL_FUNCTION_ENDPOINT = process.env.SUPABASE_HARDWARE_INITIAL_GPT5_FUNCTION_URL//_TEST
+    const HARDWARE_INITIAL_FUNCTION_ENDPOINT = process.env.SUPABASE_HARDWARE_INITIAL_GPT5_FUNCTION_URL // _TEST
     const SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY
     
     console.log('[HARDWARE INITIAL] Function URL:', HARDWARE_INITIAL_FUNCTION_ENDPOINT ? 'present' : 'missing')
     console.log('[HARDWARE INITIAL] Service key:', SERVICE_ROLE_KEY ? 'present' : 'missing')
     
     if (HARDWARE_INITIAL_FUNCTION_ENDPOINT && SERVICE_ROLE_KEY) {
-      try {
-        console.log('[HARDWARE INITIAL] Calling edge function...')
-        const fnResp = await fetch(HARDWARE_INITIAL_FUNCTION_ENDPOINT, {
-          method: 'POST',
-          headers: {
-            Authorization: `Bearer ${SERVICE_ROLE_KEY}`,
-            'Content-Type': 'application/json',
-          },
-          // Pass the specific jobId so the edge function processes only this job
-          body: JSON.stringify({ jobId: job.id }),
-        })
-        console.log('[HARDWARE INITIAL] Edge function response status:', fnResp.status)
-        if (!fnResp.ok) {
-          const errorText = await fnResp.text()
-          console.warn('[HARDWARE INITIAL] Edge function returned non-OK:', errorText)
-        } else {
-          console.log('[HARDWARE INITIAL] Edge function called successfully')
+      // Fire-and-forget: trigger the edge function asynchronously without blocking the HTTP response
+      ;(async () => {
+        try {
+          console.log('[HARDWARE INITIAL] Calling edge function (fire-and-forget)...')
+          const fnResp = await fetch(HARDWARE_INITIAL_FUNCTION_ENDPOINT, {
+            method: 'POST',
+            headers: {
+              Authorization: `Bearer ${SERVICE_ROLE_KEY}`,
+              'Content-Type': 'application/json',
+            },
+            // Pass the specific jobId so the edge function processes only this job
+            body: JSON.stringify({ jobId: job.id }),
+          })
+          console.log('[HARDWARE INITIAL] Edge function response status:', fnResp.status)
+          if (!fnResp.ok) {
+            const errorText = await fnResp.text()
+            console.warn('[HARDWARE INITIAL] Edge function returned non-OK:', errorText)
+          } else {
+            console.log('[HARDWARE INITIAL] Edge function called successfully')
+          }
+        } catch (e) {
+          console.warn('[HARDWARE INITIAL] Failed to trigger edge function', e)
         }
-      } catch (e) {
-        console.warn('[HARDWARE INITIAL] Failed to trigger edge function', e)
-      }
+      })()
     } else {
       console.warn('[HARDWARE INITIAL] Missing SUPABASE_HARDWARE_INITIAL_GPT5_FUNCTION_URL or SUPABASE_SERVICE_ROLE_KEY')
     }
