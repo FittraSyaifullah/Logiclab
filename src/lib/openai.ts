@@ -3,6 +3,34 @@
 
 export const aiModel = "gpt-5"
 
+/**
+ * Extracts text output from OpenAI Responses API response.
+ * Handles both GPT-4 (output[0] is message) and GPT-5 (output[0] is reasoning, output[1] is message) structures.
+ */
+function extractOutputText(data: {
+  output_text?: string
+  output?: Array<{ type: string; content?: Array<{ text?: string }> }>
+}): string | undefined {
+  // Prefer direct output_text if available
+  if (data?.output_text) {
+    return data.output_text
+  }
+
+  // Handle output array - find the message object (not reasoning)
+  if (Array.isArray(data?.output)) {
+    const messageObj = data.output.find((item) => item.type === 'message')
+    if (messageObj?.content?.[0]?.text) {
+      return messageObj.content[0].text
+    }
+    // Fallback to first item for backward compatibility (GPT-4 structure)
+    if (data.output[0]?.content?.[0]?.text) {
+      return data.output[0].content[0].text
+    }
+  }
+
+  return undefined
+}
+
 export async function generateText({
   model,
   system,
@@ -46,7 +74,7 @@ export async function generateText({
     const data = await response.json()
     console.log(`[OPENAI] Full response data:`, JSON.stringify(data, null, 2))
 
-    const text: string | undefined = data?.output_text || data?.output?.[0]?.content?.[0]?.text
+    const text = extractOutputText(data)
     if (!text) {
       throw new Error('No text output from model')
     }
@@ -117,7 +145,7 @@ export async function generateStructuredJson({
       return { json: parsedDirect }
     }
 
-    const outputText: string | undefined = data?.output_text || data?.output?.[0]?.content?.[0]?.text
+    const outputText = extractOutputText(data)
     if (!outputText) {
       throw new Error('Structured output missing text payload')
     }
