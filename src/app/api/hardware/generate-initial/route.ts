@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { createSupabaseServerClient } from "@/lib/supabase/server"
 
-export const maxDuration = 60
+export const maxDuration = 360
 
 type InitialRequestBody = {
   title: string
@@ -64,27 +64,29 @@ export async function POST(request: NextRequest) {
     console.log('[HARDWARE INITIAL] Service key:', SERVICE_ROLE_KEY ? 'present' : 'missing')
     
     if (HARDWARE_INITIAL_FUNCTION_ENDPOINT && SERVICE_ROLE_KEY) {
-      try {
-        console.log('[HARDWARE INITIAL] Calling edge function...')
-        const fnResp = await fetch(HARDWARE_INITIAL_FUNCTION_ENDPOINT, {
-          method: 'POST',
-          headers: {
-            Authorization: `Bearer ${SERVICE_ROLE_KEY}`,
-            'Content-Type': 'application/json',
-          },
-          // Pass the specific jobId so the edge function processes only this job
-          body: JSON.stringify({ jobId: job.id }),
+      console.log('[HARDWARE INITIAL] Calling edge function (fire-and-forget)...')
+      // Fire-and-forget: do not await the edge function; client listens via Supabase Realtime
+      fetch(HARDWARE_INITIAL_FUNCTION_ENDPOINT, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${SERVICE_ROLE_KEY}`,
+          'Content-Type': 'application/json',
+        },
+        // Pass the specific jobId so the edge function processes only this job
+        body: JSON.stringify({ jobId: job.id }),
+      })
+        .then(async (fnResp) => {
+          console.log('[HARDWARE INITIAL] Edge function response status:', fnResp.status)
+          if (!fnResp.ok) {
+            const errorText = await fnResp.text().catch(() => '<failed to read body>')
+            console.warn('[HARDWARE INITIAL] Edge function returned non-OK:', errorText)
+          } else {
+            console.log('[HARDWARE INITIAL] Edge function called successfully')
+          }
         })
-        console.log('[HARDWARE INITIAL] Edge function response status:', fnResp.status)
-        if (!fnResp.ok) {
-          const errorText = await fnResp.text()
-          console.warn('[HARDWARE INITIAL] Edge function returned non-OK:', errorText)
-        } else {
-          console.log('[HARDWARE INITIAL] Edge function called successfully')
-        }
-      } catch (e) {
-        console.warn('[HARDWARE INITIAL] Failed to trigger edge function', e)
-      }
+        .catch((e) => {
+          console.warn('[HARDWARE INITIAL] Failed to trigger edge function', e)
+        })
     } else {
       console.warn('[HARDWARE INITIAL] Missing SUPABASE_HARDWARE_INITIAL_FUNCTION_URL or SUPABASE_SERVICE_ROLE_KEY')
     }

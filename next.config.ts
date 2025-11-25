@@ -13,7 +13,7 @@ const nextConfig: NextConfig = {
   },
   // Configure server timeout for API routes
   serverRuntimeConfig: {
-    maxDuration: 120, // 2 minutes
+    maxDuration: 360, // 6 minutes
   },
   // Increase response limit for large AI responses
   experimental: {
