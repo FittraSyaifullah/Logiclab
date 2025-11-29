@@ -7,6 +7,7 @@ import { SidebarProvider } from "@/components/ui/sidebar"
 import { ProtectedRoute } from "@/components/ProtectedRoute"
 import { useUserStore } from "@/hooks/use-user-store"
 import { useAuth } from "@/contexts/AuthContext"
+import { PostHogProvider } from "@/components/PostHogProvider"
 
 function DashboardContent() {
   const [isClient, setIsClient] = useState(false)
@@ -85,7 +86,9 @@ export default function DashboardPage() {
         </div>
       </div>
     }>
-      <DashboardContent />
+      <PostHogProvider>
+        <DashboardContent />
+      </PostHogProvider>
     </Suspense>
   )
 }
