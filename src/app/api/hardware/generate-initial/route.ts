@@ -65,7 +65,15 @@ export async function POST(request: NextRequest) {
     
     if (HARDWARE_INITIAL_FUNCTION_ENDPOINT && SERVICE_ROLE_KEY) {
       console.log('[HARDWARE INITIAL] Calling edge function (fire-and-forget)...')
+      console.log('[HARDWARE INITIAL] Edge function URL:', HARDWARE_INITIAL_FUNCTION_ENDPOINT)
+      
       // Fire-and-forget: do not await the edge function; client listens via Supabase Realtime
+      // Add timeout to prevent hanging on Vercel (30 seconds for connection + initial response)
+      const controller = new AbortController()
+      const timeoutId = setTimeout(() => {
+        controller.abort()
+      }, 30000) // 30 second timeout
+      
       fetch(HARDWARE_INITIAL_FUNCTION_ENDPOINT, {
         method: 'POST',
         headers: {
@@ -74,8 +82,10 @@ export async function POST(request: NextRequest) {
         },
         // Pass the specific jobId so the edge function processes only this job
         body: JSON.stringify({ jobId: job.id }),
+        signal: controller.signal,
       })
         .then(async (fnResp) => {
+          clearTimeout(timeoutId)
           console.log('[HARDWARE INITIAL] Edge function response status:', fnResp.status)
           if (!fnResp.ok) {
             const errorText = await fnResp.text().catch(() => '<failed to read body>')
@@ -85,7 +95,28 @@ export async function POST(request: NextRequest) {
           }
         })
         .catch((e) => {
-          console.warn('[HARDWARE INITIAL] Failed to trigger edge function', e)
+          clearTimeout(timeoutId)
+          const errorDetails = {
+            message: e instanceof Error ? e.message : String(e),
+            name: e instanceof Error ? e.name : 'Unknown',
+            cause: e instanceof Error && 'cause' in e ? e.cause : undefined,
+            code: 'code' in e ? (e as { code?: string }).code : undefined,
+            errno: 'errno' in e ? (e as { errno?: number }).errno : undefined,
+            syscall: 'syscall' in e ? (e as { syscall?: string }).syscall : undefined,
+          }
+          
+          if (e instanceof Error && e.name === 'AbortError') {
+            console.warn('[HARDWARE INITIAL] Edge function call timed out after 30 seconds', errorDetails)
+          } else {
+            console.warn('[HARDWARE INITIAL] Failed to trigger edge function', errorDetails)
+          }
+          
+          // Log additional context for debugging
+          console.warn('[HARDWARE INITIAL] Network error details:', {
+            url: HARDWARE_INITIAL_FUNCTION_ENDPOINT,
+            hasServiceKey: !!SERVICE_ROLE_KEY,
+            errorType: e instanceof Error ? e.constructor.name : typeof e,
+          })
         })
     } else {
       console.warn('[HARDWARE INITIAL] Missing SUPABASE_HARDWARE_INITIAL_FUNCTION_URL or SUPABASE_SERVICE_ROLE_KEY')
