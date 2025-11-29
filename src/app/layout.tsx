@@ -3,6 +3,7 @@ import Script from "next/script";
 import localFont from "next/font/local";
 import "./globals.css";
 import { AuthProvider } from "@/contexts/AuthContext";
+import { PostHogProvider } from "@/components/PostHogProvider";
 
 const arialSans = localFont({
   src: [
@@ -63,9 +64,11 @@ export default function RootLayout({
       <body
         className={`${arialSans.variable} ${arialMono.variable} antialiased`}
       >
-        <AuthProvider>
-          {children}
-        </AuthProvider>
+        <PostHogProvider>
+          <AuthProvider>
+            {children}
+          </AuthProvider>
+        </PostHogProvider>
       </body>
     </html>
   );

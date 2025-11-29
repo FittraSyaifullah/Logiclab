@@ -34,6 +34,7 @@
     "lucide-react": "^0.543.0",
     "next": "15.5.3",
     "openscad-wasm": "^0.0.4",
+    "posthog-js": "^1.298.1",
     "react": "19.1.0",
     "react-dom": "19.1.0",
     "tailwind-merge": "^3.3.1",
